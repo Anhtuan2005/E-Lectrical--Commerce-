@@ -1,4 +1,4 @@
-@model RegisterViewModel
+﻿@model RegisterViewModel
 @{
     ViewData["Title"] = "Đăng ký";
 }
@@ -7,7 +7,7 @@
     <div class="auth-brand-panel">
         <div class="circuit-bg"></div>
         <div class="auth-brand-content">
-            <img src="~/images/voltix-logo.svg" alt="Voltix" class="auth-brand-logo" />
+            <div class="auth-brand-logo"><partial name="_TechvoraLogo" /></div>
             <p class="auth-tagline">Tạo tài khoản, nhận ưu đãi ngay</p>
             <ul class="auth-features">
                 <li>Tích điểm cho mọi đơn hàng</li>
@@ -21,7 +21,7 @@
         <form asp-action="Register" method="post" class="auth-form">
             @Html.AntiForgeryToken()
             <h1>Tạo tài khoản</h1>
-            <p class="auth-subtitle">Gia nhập Voltix để mua sắm nhanh hơn</p>
+            <p class="auth-subtitle">Gia nhập Techvora để mua sắm nhanh hơn</p>
             <div asp-validation-summary="ModelOnly" class="alert-error"></div>
 
             <div class="field-group">
@@ -89,3 +89,4 @@
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
 }
+

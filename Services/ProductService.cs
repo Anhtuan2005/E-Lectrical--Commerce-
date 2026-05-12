@@ -43,6 +43,7 @@ public class ProductService : IProductService
         {
             "price_asc" => query.OrderBy(product => product.Price),
             "price_desc" => query.OrderByDescending(product => product.Price),
+            "discount_desc" => query.OrderByDescending(product => product.DiscountPercent).ThenBy(product => product.Price),
             "name_asc" => query.OrderBy(product => product.Name),
             _ => query.OrderByDescending(product => product.CreatedAt)
         };

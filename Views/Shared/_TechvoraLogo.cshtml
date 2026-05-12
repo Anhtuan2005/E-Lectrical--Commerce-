@@ -1,0 +1,22 @@
+@{
+    var compact = ViewData["LogoCompact"] as bool? ?? false;
+}
+<span class="techvora-logo @(compact ? "compact" : "")" aria-label="Techvora">
+    <svg viewBox="0 0 46 46" role="img" aria-hidden="true">
+        <defs>
+            <linearGradient id="techvora-mark" x1="5" y1="5" x2="41" y2="41" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#7c3aed" />
+                <stop offset=".48" stop-color="#06b6d4" />
+                <stop offset="1" stop-color="#ef4444" />
+            </linearGradient>
+        </defs>
+        <path d="M7 11.5 23 3l16 8.5v20.8L23 43 7 32.3V11.5Z" fill="none" stroke="url(#techvora-mark)" stroke-width="3" stroke-linejoin="round" />
+        <path d="M24.5 9 14 25h8l-2.5 12L33 19h-8.2l-.3-10Z" fill="url(#techvora-mark)" />
+        <circle cx="12" cy="12" r="2" fill="#06b6d4" />
+        <circle cx="36" cy="32" r="2" fill="#ef4444" />
+    </svg>
+    @if (!compact)
+    {
+        <span class="techvora-word">Tech<span>vora</span></span>
+    }
+</span>

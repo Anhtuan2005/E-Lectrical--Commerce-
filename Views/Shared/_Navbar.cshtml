@@ -10,23 +10,29 @@
 
 <nav class="site-nav">
     <div class="nav-inner">
-        <a class="brand brand-logo" asp-controller="Home" asp-action="Index" aria-label="Voltix">
-            <img src="~/images/voltix-logo.svg" alt="Voltix" />
+        <a class="brand brand-logo" asp-controller="Home" asp-action="Index" aria-label="Techvora">
+            <partial name="_TechvoraLogo" />
         </a>
 
         <div class="nav-menu">
             <a class="nav-link" asp-controller="Home" asp-action="Index">Trang chủ</a>
             <a class="nav-link" asp-controller="Product" asp-action="Index">Sản phẩm</a>
             <div class="nav-item">
-                <a class="nav-link" asp-controller="Product" asp-action="Index">Danh mục</a>
+                <a class="nav-link" asp-controller="Product" asp-action="Index">Danh mục ▾</a>
                 <div class="nav-dropdown">
+                    <a class="nav-chip-link" asp-controller="Product" asp-action="Index" asp-route-search="CPU">🔲 CPU</a>
+                    <a class="nav-chip-link" asp-controller="Product" asp-action="Index" asp-route-search="VGA">🎮 VGA</a>
+                    <a class="nav-chip-link" asp-controller="Product" asp-action="Index" asp-route-search="RAM">💾 RAM</a>
+                    <a class="nav-chip-link" asp-controller="Product" asp-action="Index" asp-route-search="SSD">💿 SSD</a>
+                    <hr class="dropdown-divider" />
                     @foreach (var category in categories)
                     {
                         <a asp-controller="Product" asp-action="Index" asp-route-categoryId="@category.Id">@category.Name</a>
                     }
                 </div>
             </div>
-            <a class="nav-link" asp-controller="Product" asp-action="Index" asp-route-sortBy="price_asc">Khuyến mãi</a>
+            <a class="nav-link nav-flash" asp-controller="Product" asp-action="Index" asp-route-sortBy="discount_desc">🔥 Flash Sale</a>
+            <a class="nav-link" asp-controller="BuildPc" asp-action="Index">⚙ Build PC</a>
         </div>
 
         <div class="nav-actions">
@@ -71,18 +77,24 @@
 <div class="nav-overlay"></div>
 <aside class="nav-drawer" aria-label="Menu di động">
     <div class="drawer-head">
-        <a class="brand brand-logo" asp-controller="Home" asp-action="Index" aria-label="Voltix">
-            <img src="~/images/voltix-logo.svg" alt="Voltix" />
+        <a class="brand brand-logo" asp-controller="Home" asp-action="Index" aria-label="Techvora">
+            <partial name="_TechvoraLogo" />
         </a>
         <button class="nav-drawer-close" type="button" aria-label="Đóng menu">×</button>
     </div>
     <a asp-controller="Home" asp-action="Index">Trang chủ</a>
     <a asp-controller="Product" asp-action="Index">Sản phẩm</a>
+    <a asp-controller="Product" asp-action="Index">Danh mục</a>
+    <a asp-controller="Product" asp-action="Index" asp-route-search="CPU">🔲 CPU</a>
+    <a asp-controller="Product" asp-action="Index" asp-route-search="VGA">🎮 VGA</a>
+    <a asp-controller="Product" asp-action="Index" asp-route-search="RAM">💾 RAM</a>
+    <a asp-controller="Product" asp-action="Index" asp-route-search="SSD">💿 SSD</a>
     @foreach (var category in categories)
     {
         <a asp-controller="Product" asp-action="Index" asp-route-categoryId="@category.Id">@category.Name</a>
     }
-    <a asp-controller="Product" asp-action="Index" asp-route-sortBy="price_asc">Khuyến mãi</a>
+    <a class="nav-flash" asp-controller="Product" asp-action="Index" asp-route-sortBy="discount_desc">🔥 Flash Sale</a>
+    <a asp-controller="BuildPc" asp-action="Index">⚙ Build PC</a>
     <a asp-controller="Wishlist" asp-action="Index">Yêu thích</a>
     <a asp-controller="Cart" asp-action="Index">Giỏ hàng</a>
     @if (User.Identity?.IsAuthenticated == true)

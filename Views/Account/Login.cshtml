@@ -1,4 +1,4 @@
-@model LoginViewModel
+﻿@model LoginViewModel
 @{
     ViewData["Title"] = "Đăng nhập";
 }
@@ -7,7 +7,7 @@
     <div class="auth-brand-panel">
         <div class="circuit-bg"></div>
         <div class="auth-brand-content">
-            <img src="~/images/voltix-logo.svg" alt="Voltix" class="auth-brand-logo" />
+            <div class="auth-brand-logo"><partial name="_TechvoraLogo" /></div>
             <p class="auth-tagline">Năng lượng cho mọi thiết bị</p>
             <ul class="auth-features">
                 <li>Giao hàng nhanh toàn quốc</li>
@@ -21,7 +21,7 @@
         <form asp-action="Login" asp-route-returnUrl="@ViewData["ReturnUrl"]" method="post" class="auth-form">
             @Html.AntiForgeryToken()
             <h1>Chào mừng trở lại</h1>
-            <p class="auth-subtitle">Đăng nhập vào tài khoản Voltix của bạn</p>
+            <p class="auth-subtitle">Đăng nhập vào tài khoản Techvora của bạn</p>
             <div asp-validation-summary="ModelOnly" class="alert-error"></div>
 
             <div class="field-group">
@@ -62,3 +62,4 @@
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
 }
+

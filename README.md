@@ -1,6 +1,6 @@
-# Voltix - ASP.NET Core MVC E-Commerce
+﻿# Techvora - ASP.NET Core MVC E-Commerce
 
-Voltix là website thương mại điện tử tiếng Việt dùng ASP.NET Core 8 MVC, Razor `.cshtml`, CSS thuần, JavaScript thuần, Entity Framework Core Code First và ASP.NET Core Identity.
+Techvora là website thương mại điện tử tiếng Việt dùng ASP.NET Core 8 MVC, Razor `.cshtml`, CSS thuần, JavaScript thuần, Entity Framework Core Code First và ASP.NET Core Identity.
 
 ## Tính năng chính
 
@@ -9,7 +9,7 @@ Voltix là website thương mại điện tử tiếng Việt dùng ASP.NET Core
 - Checkout chỉ dành cho người đã đăng nhập, có địa chỉ tách theo tỉnh/thành phố, quận/huyện, phường/xã, số nhà/tên đường.
 - Thanh toán COD hoặc VNPAY sandbox, callback cập nhật trạng thái đã thanh toán.
 - Voucher AJAX, giỏ hàng AJAX, định dạng tiền tệ `1.250.000 ₫`.
-- Đăng ký, đăng nhập split-screen Voltix, ghi nhớ đăng nhập, quên mật khẩu, đổi mật khẩu và hồ sơ cá nhân.
+- Đăng ký, đăng nhập split-screen Techvora, ghi nhớ đăng nhập, quên mật khẩu, đổi mật khẩu và hồ sơ cá nhân.
 - Lịch sử đơn hàng, huỷ đơn đang chờ xác nhận kèm lý do.
 - Admin dashboard có doanh thu, trạng thái đơn, top sản phẩm, hàng sắp hết.
 - Admin quản lý sản phẩm, danh mục, banner, voucher, review, vận chuyển, người dùng và báo cáo.
@@ -64,7 +64,7 @@ dotnet run --urls http://localhost:5009
 
 Migration V3 mới nhất:
 
-- `Data/Migrations/20260512130028_VoltixV3_ProfileInventoryProductImages.cs`
+- `Data/Migrations/20260512130028_TechvoraV3_ProfileInventoryProductImages.cs`
 
 Migration này thêm:
 
@@ -78,3 +78,4 @@ Migration này thêm:
 - Không dùng TypeScript, React, Vue, Angular, Tailwind hoặc Bootstrap cho UI tuỳ biến.
 - UI tiếng Việt, Razor `.cshtml`, CSS thuần, JavaScript thuần.
 - VNPAY signature dùng `Uri.EscapeDataString` theo RFC 3986 và loại bỏ ký tự đặc biệt trong `vnp_OrderInfo`.
+

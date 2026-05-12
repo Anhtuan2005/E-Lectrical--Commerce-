@@ -1,0 +1,187 @@
+@model EcommerceApp.Models.ViewModels.BuildPcViewModel
+@using System.Text.Json
+@{
+    ViewData["Title"] = "Build PC";
+    var presets = new[]
+    {
+        new
+        {
+            name = "Gaming Cơ Bản",
+            budget = "~10 triệu",
+            description = "Chơi game esport mượt mà, phù hợp sinh viên.",
+            icon = "🎮",
+            slots = new Dictionary<string, string>
+            {
+                ["CPU"] = "Ryzen 5",
+                ["VGA"] = "RX 6600",
+                ["RAM"] = "DDR4 16GB",
+                ["SSD"] = "NVMe 256GB",
+                ["PSU"] = "550W"
+            }
+        },
+        new
+        {
+            name = "Gaming Chiến Mọi Game",
+            budget = "~25 triệu",
+            description = "AAA games ở thiết lập cao, đủ sức livestream.",
+            icon = "🔥",
+            slots = new Dictionary<string, string>
+            {
+                ["CPU"] = "Core i7",
+                ["VGA"] = "RTX 4070",
+                ["RAM"] = "DDR5 32GB",
+                ["SSD"] = "NVMe 1TB",
+                ["PSU"] = "750W"
+            }
+        },
+        new
+        {
+            name = "Workstation Đồ Họa",
+            budget = "~35 triệu",
+            description = "Dành cho render, 3D và dựng video chuyên nghiệp.",
+            icon = "🎨",
+            slots = new Dictionary<string, string>
+            {
+                ["CPU"] = "Ryzen 9",
+                ["VGA"] = "RTX 4080",
+                ["RAM"] = "DDR5 64GB",
+                ["SSD"] = "NVMe 2TB",
+                ["PSU"] = "850W"
+            }
+        }
+    };
+}
+
+@functions {
+    private static string GetSlotIcon(string slot) => slot switch
+    {
+        "CPU" => "▣",
+        "VGA" => "🎮",
+        "RAM" => "▥",
+        "SSD" => "◈",
+        "Mainboard" => "▤",
+        "PSU" => "⚡",
+        "Case" => "▱",
+        "Cooling" => "❄",
+        _ => "◇"
+    };
+
+    private static string GetSlotLabel(string slot) => slot switch
+    {
+        "CPU" => "CPU",
+        "VGA" => "Card đồ họa",
+        "RAM" => "RAM",
+        "SSD" => "Ổ cứng SSD",
+        "Mainboard" => "Mainboard",
+        "PSU" => "Nguồn",
+        "Case" => "Vỏ case",
+        "Cooling" => "Tản nhiệt",
+        _ => slot
+    };
+}
+
+<section class="buildpc-hero section">
+    <div class="buildpc-hero-inner">
+        <span class="eyebrow">Cấu hình theo ý bạn</span>
+        <h1>Build PC <span>Techvora</span></h1>
+        <p>Chọn linh kiện, kiểm tra tương thích, xem tổng tiền realtime và thêm toàn bộ build vào giỏ chỉ trong một bước.</p>
+    </div>
+</section>
+
+<section class="presets-section section reveal">
+    <div class="section-heading">
+        <div>
+            <span class="eyebrow">Preset nhanh</span>
+            <h2>Cấu hình gợi ý</h2>
+        </div>
+    </div>
+    <div class="preset-cards">
+        @foreach (var preset in presets)
+        {
+            <article class="preset-card">
+                <div class="preset-icon">@preset.icon</div>
+                <h3>@preset.name</h3>
+                <strong class="preset-budget">@preset.budget</strong>
+                <p>@preset.description</p>
+                <button class="btn-ghost" type="button" data-preset='@Html.Raw(JsonSerializer.Serialize(preset))'>Dùng cấu hình này</button>
+            </article>
+        }
+    </div>
+</section>
+
+<section class="builder-section section reveal">
+    <div class="builder-head">
+        <div>
+            <span class="eyebrow">PC Builder</span>
+            <h2>Lắp cấu hình</h2>
+        </div>
+        <p>Chọn từng slot theo nhu cầu. Techvora sẽ cảnh báo nhanh nếu thiếu mainboard hoặc nguồn có thể chưa đủ công suất.</p>
+    </div>
+
+    <div class="builder-wrap">
+        <div class="slot-list" id="slotList">
+            @foreach (var slot in EcommerceApp.Controllers.PcSlots.All)
+            {
+                <div class="slot-row" data-slot="@slot">
+                    <div class="slot-icon">@GetSlotIcon(slot)</div>
+                    <div class="slot-info">
+                        <span class="slot-name">@GetSlotLabel(slot)</span>
+                        <span class="slot-selected-name">Chưa chọn</span>
+                    </div>
+                    <div class="slot-price-display">—</div>
+                    <button class="btn-ghost slot-choose-btn" type="button" data-choose="@slot">Chọn</button>
+                    <button class="btn-icon slot-clear-btn" type="button" data-clear="@slot" aria-label="Xóa @GetSlotLabel(slot)" hidden>×</button>
+                </div>
+            }
+        </div>
+
+        <aside class="build-summary" id="buildSummary">
+            <h3>Tổng build</h3>
+            <ul class="summary-list" id="summaryList">
+                <li class="summary-empty">Chưa chọn linh kiện nào</li>
+            </ul>
+            <div class="summary-total">
+                <span>Tổng cộng</span>
+                <strong id="buildTotal">0 ₫</strong>
+            </div>
+            <div class="compat-warnings" id="compatWarnings"></div>
+            <div class="wattage-info" id="wattageInfo" hidden>
+                <span>⚡ Ước tính công suất: <strong id="wattageVal">—</strong> W</span>
+            </div>
+            <button class="btn-primary btn-add-all" id="btnAddAll" type="button" disabled>Thêm tất cả vào giỏ</button>
+            <button class="btn-ghost btn-reset-build" id="btnReset" type="button">Đặt lại</button>
+        </aside>
+    </div>
+</section>
+
+<div class="modal-overlay buildpc-modal" id="slotModal" role="dialog" aria-modal="true" aria-label="Chọn linh kiện" hidden>
+    <div class="modal-panel">
+        <div class="modal-head">
+            <h3 id="modalTitle">Chọn linh kiện</h3>
+            <button class="modal-close" type="button" id="modalClose" aria-label="Đóng">×</button>
+        </div>
+        <div class="modal-search">
+            <input type="text" id="modalSearch" placeholder="Tìm kiếm trong slot này..." autocomplete="off" />
+        </div>
+        <div class="modal-product-list" id="modalProductList"></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        window.SLOT_PRODUCTS = @Html.Raw(JsonSerializer.Serialize(
+            Model.SlotProducts.ToDictionary(
+                slot => slot.Key,
+                slot => slot.Value.Select(product => new {
+                    id = product.Id,
+                    name = product.Name,
+                    priceRaw = (long)product.SalePrice,
+                    price = product.SalePrice.ToString("N0") + " ₫",
+                    imageUrl = product.ImageUrl,
+                    stock = product.Stock
+                })
+            )
+        ));
+    </script>
+    <script src="~/js/buildpc.js" asp-append-version="true"></script>
+}

@@ -1,12 +1,12 @@
-@model Order
+﻿@model Order
 @{
     ViewData["Title"] = "Xác nhận đơn hàng";
 }
 
 <section class="empty-state order-confirmation">
     <span class="eyebrow">Đặt hàng thành công</span>
-    <h1>Cảm ơn bạn đã mua hàng tại Voltix</h1>
-    <p>Mã đơn hàng của bạn là <strong>#@Model.Id</strong>. Voltix sẽ xác nhận và cập nhật vận chuyển sớm.</p>
+    <h1>Cảm ơn bạn đã mua hàng tại Techvora</h1>
+    <p>Mã đơn hàng của bạn là <strong>#@Model.Id</strong>. Techvora sẽ xác nhận và cập nhật vận chuyển sớm.</p>
     <div class="payment-status @(Model.IsPaid ? "paid" : "pending")">
         <strong>@(Model.IsPaid ? "Đã thanh toán" : "Chưa thanh toán")</strong>
         <span>@Model.PaymentMethod</span>
@@ -17,3 +17,4 @@
     </div>
     <a class="btn-primary" asp-action="History">Xem lịch sử đơn hàng</a>
 </section>
+

@@ -1,4 +1,4 @@
-@model ProductViewModel
+﻿@model ProductViewModel
 @{
     ViewData["Title"] = "Sản phẩm";
     var selectedCategory = Model.Categories.FirstOrDefault(category => category.Id == Model.CategoryId);
@@ -6,7 +6,7 @@
 
 <section class="page-head product-page-head">
     <div>
-        <span class="eyebrow">Voltix Store</span>
+        <span class="eyebrow">Techvora Store</span>
         <h1>Tìm thiết bị phù hợp</h1>
         <p>Hiển thị @Model.FromItem-@Model.ToItem trong @Model.TotalItems sản phẩm</p>
     </div>
@@ -89,3 +89,4 @@
         </nav>
     </div>
 </section>
+

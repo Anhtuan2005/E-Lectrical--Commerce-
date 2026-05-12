@@ -1,4 +1,4 @@
-@model CheckoutViewModel
+﻿@model CheckoutViewModel
 @{
     ViewData["Title"] = "Thanh toán";
     var provinces = new[]
@@ -16,7 +16,7 @@
     <form asp-action="Checkout" method="post" class="form-panel checkout-form" id="checkoutForm" novalidate>
         @Html.AntiForgeryToken()
         <div class="checkout-head">
-            <span class="eyebrow">Voltix Checkout</span>
+            <span class="eyebrow">Techvora Checkout</span>
             <h1>Thông tin giao hàng</h1>
         </div>
 
@@ -78,7 +78,7 @@
                 <span><strong>VNPAY</strong><small>Bạn sẽ được chuyển sang cổng VNPAY bảo mật.</small></span>
             </label>
         </div>
-        <div class="vnpay-safe" id="vnpaySafe">Thanh toán an toàn qua VNPAY. Sau khi thanh toán thành công, Voltix sẽ tự cập nhật đơn hàng.</div>
+        <div class="vnpay-safe" id="vnpaySafe">Thanh toán an toàn qua VNPAY. Sau khi thanh toán thành công, Techvora sẽ tự cập nhật đơn hàng.</div>
 
         <input asp-for="VoucherCode" type="hidden" id="VoucherCode" />
         <input asp-for="DiscountAmount" type="hidden" id="DiscountAmount" />
@@ -122,3 +122,4 @@
     <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
     <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
 }
+

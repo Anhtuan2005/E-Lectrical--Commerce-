@@ -1,0 +1,74 @@
+@model AdminDashboardViewModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Dashboard";
+    var labels = System.Text.Json.JsonSerializer.Serialize(Model.RevenuePoints.Select(point => point.Label));
+    var values = System.Text.Json.JsonSerializer.Serialize(Model.RevenuePoints.Select(point => point.Revenue));
+}
+
+<section class="metric-grid">
+    <article><span>Doanh thu hôm nay</span><strong>@Model.TodayRevenue.ToString("N0") ₫</strong></article>
+    <article><span>Doanh thu tuần</span><strong>@Model.WeekRevenue.ToString("N0") ₫</strong></article>
+    <article><span>Doanh thu tháng</span><strong>@Model.MonthRevenue.ToString("N0") ₫</strong></article>
+    <article><span>Tổng đơn hàng</span><strong>@Model.TotalOrders</strong></article>
+</section>
+
+<section class="admin-grid">
+    <div class="admin-panel">
+        <div class="panel-head"><h2>Doanh thu 7 ngày</h2></div>
+        <canvas id="revenueChart" height="130"></canvas>
+    </div>
+    <div class="admin-panel">
+        <div class="panel-head"><h2>Đơn theo trạng thái</h2></div>
+        <div class="status-list">
+            @foreach (var status in OrderStatuses.All)
+            {
+                <div><span>@status</span><strong>@(Model.OrdersByStatus.GetValueOrDefault(status))</strong></div>
+            }
+        </div>
+    </div>
+</section>
+
+<section class="admin-grid">
+    <div class="admin-panel">
+        <div class="panel-head"><h2>Hàng sắp hết</h2></div>
+        <table class="admin-table">
+            <thead><tr><th>Sản phẩm</th><th>Danh mục</th><th>Tồn kho</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var product in Model.LowStockProducts)
+                {
+                    <tr>
+                        <td>@product.Name</td>
+                        <td>@product.Category?.Name</td>
+                        <td><strong>@product.Stock</strong></td>
+                        <td><a class="adm-ghost" href="/Admin/Product/Edit/@product.Id">Cập nhật</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="admin-panel">
+        <div class="panel-head"><h2>Top sản phẩm bán chạy</h2></div>
+        <table class="admin-table">
+            <thead><tr><th>Sản phẩm</th><th>Số lượng</th><th>Doanh thu</th></tr></thead>
+            <tbody>
+                @foreach (var product in Model.TopProducts)
+                {
+                    <tr>
+                        <td>@product.ProductName</td>
+                        <td>@product.QuantitySold</td>
+                        <td>@product.Revenue.ToString("N0") ₫</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        window.adminRevenueLabels = @Html.Raw(labels);
+        window.adminRevenueValues = @Html.Raw(values);
+    </script>
+}

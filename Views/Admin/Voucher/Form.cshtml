@@ -1,0 +1,30 @@
+@model Voucher
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = Model.Id == 0 ? "Tạo voucher" : "Sửa voucher";
+}
+
+<section class="admin-panel narrow">
+    <div class="panel-head"><h2>@ViewData["Title"]</h2></div>
+    <form method="post" class="stack-form">
+        <label>Mã voucher</label>
+        <input asp-for="Code" />
+        <span asp-validation-for="Code"></span>
+        <label>Loại giảm giá</label>
+        <select asp-for="Type" asp-items="Html.GetEnumSelectList<VoucherType>()"></select>
+        <label>Giá trị</label>
+        <input asp-for="Value" type="number" min="0" step="1000" />
+        <label>Đơn tối thiểu</label>
+        <input asp-for="MinOrderAmount" type="number" min="0" step="1000" />
+        <label>Giảm tối đa</label>
+        <input asp-for="MaxDiscount" type="number" min="0" step="1000" />
+        <label>Giới hạn lượt dùng</label>
+        <input asp-for="UsageLimit" type="number" min="1" />
+        <label>Ngày bắt đầu</label>
+        <input asp-for="StartDate" type="datetime-local" />
+        <label>Ngày kết thúc</label>
+        <input asp-for="EndDate" type="datetime-local" />
+        <label class="check-row"><input asp-for="IsActive" /> Đang bật</label>
+        <button class="admin-button" type="submit">Lưu voucher</button>
+    </form>
+</section>

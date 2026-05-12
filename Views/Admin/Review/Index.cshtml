@@ -1,0 +1,30 @@
+@model IEnumerable<Review>
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Quản lý review";
+}
+
+<section class="admin-panel">
+    <div class="panel-head"><h2>Review khách hàng</h2></div>
+    <table class="admin-table">
+        <thead><tr><th>Sản phẩm</th><th>Khách hàng</th><th>Sao</th><th>Nội dung</th><th>Ngày</th><th>Trạng thái</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var review in Model)
+            {
+                <tr>
+                    <td>@review.Product?.Name</td>
+                    <td>@(review.User?.FullName ?? review.User?.Email)</td>
+                    <td>@(new string('★', review.Rating))</td>
+                    <td class="review-comment">@review.Comment</td>
+                    <td>@review.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                    <td><span class="adm-pill @(review.IsApproved ? "" : "off")">@(review.IsApproved ? "Đã duyệt" : "Đã ẩn")</span></td>
+                    <td class="actions-cell">
+                        <form action="/Admin/Review/Approve/@review.Id" method="post">@Html.AntiForgeryToken()<button class="admin-link" type="submit">Duyệt</button></form>
+                        <form action="/Admin/Review/Reject/@review.Id" method="post">@Html.AntiForgeryToken()<button class="admin-link" type="submit">Ẩn</button></form>
+                        <form action="/Admin/Review/Delete/@review.Id" method="post" data-confirm="Xoá review này?">@Html.AntiForgeryToken()<button class="danger-link" type="submit">Xoá</button></form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</section>

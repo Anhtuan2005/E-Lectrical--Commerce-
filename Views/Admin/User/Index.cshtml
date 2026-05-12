@@ -1,0 +1,47 @@
+@model IEnumerable<ApplicationUser>
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Quản lý người dùng";
+    var roles = ViewBag.Roles as Dictionary<string, IList<string>> ?? new();
+}
+
+<section class="admin-panel">
+    <div class="panel-head"><h2>Người dùng</h2></div>
+    <table class="admin-table">
+        <thead><tr><th>Họ tên</th><th>Email</th><th>Số điện thoại</th><th>Vai trò</th><th>Trạng thái</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var user in Model)
+            {
+                var userRoles = roles.GetValueOrDefault(user.Id) ?? new List<string>();
+                var locked = user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTimeOffset.UtcNow;
+                <tr>
+                    <td>@user.FullName</td>
+                    <td>@user.Email</td>
+                    <td>@user.PhoneNumber</td>
+                    <td>@string.Join(", ", userRoles)</td>
+                    <td>@(locked ? "Đang khoá" : "Hoạt động")</td>
+                    <td class="actions-cell">
+                        <form action="/Admin/User/ToggleLock/@user.Id" method="post">
+                            @Html.AntiForgeryToken()
+                            <button class="admin-link" type="submit">@(locked ? "Mở khoá" : "Khoá")</button>
+                        </form>
+                        @if (userRoles.Contains("Admin"))
+                        {
+                            <form action="/Admin/User/RemoveAdmin/@user.Id" method="post">
+                                @Html.AntiForgeryToken()
+                                <button class="danger-link" type="submit">Gỡ Admin</button>
+                            </form>
+                        }
+                        else
+                        {
+                            <form action="/Admin/User/MakeAdmin/@user.Id" method="post">
+                                @Html.AntiForgeryToken()
+                                <button class="admin-link" type="submit">Cấp Admin</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</section>

@@ -1,0 +1,192 @@
+@model ProductDetailViewModel
+@{
+    ViewData["Title"] = Model.Product.Name;
+    var product = Model.Product;
+    var stockClass = product.Stock == 0 ? "out" : product.Stock <= 5 ? "low" : "ok";
+    var stockText = product.Stock == 0 ? "Hết hàng" : $"Còn {product.Stock} sản phẩm";
+    var gallery = product.Images.Any()
+        ? product.Images.OrderBy(image => image.SortOrder).Select(image => image.ImageUrl).ToList()
+        : new List<string> { product.ImageUrl };
+    var currentUrl = $"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.Path}";
+    var filledStars = (int)Math.Round(Model.AverageRating, MidpointRounding.AwayFromZero);
+}
+
+<nav class="breadcrumb">
+    <a asp-controller="Home" asp-action="Index">Trang chủ</a>
+    <span>›</span>
+    <a asp-controller="Product" asp-action="Index" asp-route-categoryId="@product.CategoryId">@product.Category?.Name</a>
+    <span>›</span>
+    <strong>@product.Name</strong>
+</nav>
+
+<section class="product-detail">
+    <div class="detail-media reveal">
+        <img class="main-product-image" id="mainProductImage" src="@gallery.FirstOrDefault()" alt="@product.Name" />
+        <div class="thumb-row">
+            @foreach (var image in gallery.Select((url, index) => new { url, index }))
+            {
+                <button type="button" class="thumb @(image.index == 0 ? "active" : "")" data-gallery-thumb="@image.url">
+                    <img src="@image.url" alt="@product.Name ảnh @(image.index + 1)" />
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="detail-copy reveal">
+        <span class="eyebrow">@product.Category?.Name</span>
+        <h1>@product.Name</h1>
+        <div class="detail-rating">
+            <span class="review-stars inline">
+                @for (var star = 1; star <= 5; star++)
+                {
+                    <span class="@(star <= filledStars ? "filled" : "")">★</span>
+                }
+            </span>
+            <strong>@Model.AverageRating.ToString("0.0")</strong>
+            <small>@Model.ReviewCount đánh giá</small>
+        </div>
+        <p>@product.Description</p>
+        <div class="detail-price-row">
+            <strong class="price">@product.SalePrice.ToString("N0") ₫</strong>
+            @if (product.DiscountPercent > 0)
+            {
+                <span class="price-old">@product.Price.ToString("N0") ₫</span>
+                <span class="badge badge-sale">-@product.DiscountPercent%</span>
+            }
+        </div>
+        <span class="stock-indicator @stockClass">@stockText</span>
+
+        <div class="product-actions">
+            <div class="qty-selector quantity-stepper">
+                <button type="button" id="qtyMinus" data-qty-minus>−</button>
+                <input id="qtyInput" type="number" value="1" min="1" max="@Math.Max(product.Stock, 1)" />
+                <button type="button" id="qtyPlus" data-qty-plus>+</button>
+            </div>
+            <button class="btn-primary btn-add-cart" id="btnAddCart" type="button" data-product-id="@product.Id" @(product.Stock == 0 ? "disabled" : "")>
+                @(product.Stock == 0 ? "Hết hàng" : "Thêm vào giỏ")
+            </button>
+            <button class="btn-ghost btn-wishlist detail-wish @(Model.IsWishlisted ? "active" : "")" type="button" data-product-id="@product.Id">
+                @(Model.IsWishlisted ? "♥ Đã yêu thích" : "♡ Yêu thích")
+            </button>
+        </div>
+
+        <div class="share-bar">
+            <span>Chia sẻ:</span>
+            <button type="button" data-copy-link>Copy link</button>
+            <a href="https://www.facebook.com/sharer/sharer.php?u=@Uri.EscapeDataString(currentUrl)" target="_blank" rel="noopener">Facebook</a>
+            <a href="https://zalo.me/share?u=@Uri.EscapeDataString(currentUrl)" target="_blank" rel="noopener">Zalo</a>
+        </div>
+    </div>
+</section>
+
+<section class="product-info-tabs section reveal">
+    <div class="product-tabs">
+        <button class="tab-btn active" type="button" data-tab="description">Mô tả</button>
+        <button class="tab-btn" type="button" data-tab="specs">Thông số</button>
+        <button class="tab-btn" type="button" data-tab="reviews">Đánh giá (@Model.ReviewCount)</button>
+    </div>
+
+    <div class="tab-panel active" data-tab-panel="description">
+        <h2>Mô tả sản phẩm</h2>
+        <p>@product.Description</p>
+    </div>
+
+    <div class="tab-panel" data-tab-panel="specs">
+        <h2>Thông số kỹ thuật</h2>
+        <dl class="spec-list">
+            <div><dt>Danh mục</dt><dd>@product.Category?.Name</dd></div>
+            <div><dt>Mã sản phẩm</dt><dd>VTX-@product.Id.ToString("0000")</dd></div>
+            <div><dt>Tình trạng kho</dt><dd>@stockText</dd></div>
+            <div><dt>Bảo hành</dt><dd>12 tháng chính hãng</dd></div>
+        </dl>
+    </div>
+
+    <div class="tab-panel" data-tab-panel="reviews">
+        <div class="review-summary">
+            <div class="avg-score">
+                <strong>@Model.AverageRating.ToString("0.0") ★</strong>
+                <span>@Model.ReviewCount lượt đánh giá</span>
+            </div>
+            <div class="rating-bars">
+                @for (var star = 5; star >= 1; star--)
+                {
+                    var count = Model.RatingDistribution.GetValueOrDefault(star);
+                    var pct = Model.ReviewCount == 0 ? 0 : (count * 100 / Model.ReviewCount);
+                    <div><span>@star sao</span><progress value="@pct" max="100"></progress><small>@pct%</small></div>
+                }
+            </div>
+        </div>
+
+        @if (Model.CanReview)
+        {
+            <form class="review-form" id="reviewForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="productId" value="@product.Id" />
+                <div class="star-picker">
+                    @for (var star = 5; star >= 1; star--)
+                    {
+                        <input id="star-@star" type="radio" name="rating" value="@star" />
+                        <label for="star-@star">★</label>
+                    }
+                </div>
+                <textarea name="comment" rows="4" minlength="10" maxlength="1000" placeholder="Chia sẻ trải nghiệm của bạn, tối thiểu 10 ký tự"></textarea>
+                <button class="btn-primary" type="submit">Gửi đánh giá</button>
+            </form>
+        }
+        else if (!Model.IsAuthenticated)
+        {
+            <p class="review-note"><a asp-controller="Account" asp-action="Login">Đăng nhập</a> để đánh giá sau khi mua sản phẩm.</p>
+        }
+        else if (!Model.HasPurchased)
+        {
+            <p class="review-note">Bạn cần có đơn hàng đã giao chứa sản phẩm này để đánh giá.</p>
+        }
+        else if (Model.HasReviewed)
+        {
+            <p class="review-note">Bạn đã đánh giá sản phẩm này.</p>
+        }
+
+        <div class="review-list" id="reviewList">
+            @foreach (var review in Model.Reviews.Select((value, index) => new { value, index }))
+            {
+                var item = review.value;
+                var hue = Math.Abs(item.UserId.GetHashCode()) % 360;
+                <article class="review-item @(review.index >= 5 ? "is-hidden" : "")" style="--avatar-hue:@hue">
+                    <div class="review-avatar">@((item.User?.FullName ?? "K").Substring(0, 1).ToUpper())</div>
+                    <div>
+                        <div class="review-meta">
+                            <strong>@(item.User?.FullName ?? "Khách hàng")</strong>
+                            <span>@item.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy")</span>
+                        </div>
+                        <div class="review-stars">
+                            @for (var star = 1; star <= 5; star++)
+                            {
+                                <span class="@(star <= item.Rating ? "filled" : "")">★</span>
+                            }
+                        </div>
+                        <p>@item.Comment</p>
+                    </div>
+                </article>
+            }
+        </div>
+        @if (Model.ReviewCount > 5)
+        {
+            <button class="btn-ghost load-more-reviews" type="button" data-load-reviews>Xem thêm đánh giá</button>
+        }
+    </div>
+</section>
+
+<section class="section reveal">
+    <div class="section-heading">
+        <div>
+            <span class="eyebrow">Gợi ý</span>
+            <h2>Sản phẩm liên quan</h2>
+        </div>
+    </div>
+    <div class="related-scroll compact-related">
+        @foreach (var item in Model.RelatedProducts.Take(4))
+        {
+            <partial name="_ProductCard" model="item" />
+        }
+    </div>
+</section>

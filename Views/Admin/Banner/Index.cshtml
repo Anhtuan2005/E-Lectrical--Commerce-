@@ -1,0 +1,32 @@
+@model IEnumerable<Banner>
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Quản lý banner";
+}
+
+<section class="admin-panel">
+    <div class="panel-head">
+        <h2>Banner / Slider</h2>
+        <a class="admin-button" href="/Admin/Banner/Create">Thêm banner</a>
+    </div>
+    <table class="admin-table">
+        <thead><tr><th>Ảnh</th><th>Nội dung</th><th>Liên kết</th><th>Thứ tự</th><th>Trạng thái</th><th></th></tr></thead>
+        <tbody data-sortable-banners>
+            @foreach (var banner in Model)
+            {
+                <tr class="drag-row" data-id="@banner.Id">
+                    <td><img class="banner-thumb" src="@banner.ImageUrl" alt="@banner.Title" /></td>
+                    <td><strong>@banner.Title</strong><br /><small>@banner.Subtitle</small></td>
+                    <td>@banner.LinkUrl</td>
+                    <td>@banner.SortOrder</td>
+                    <td><span class="adm-pill @(banner.IsActive ? "" : "off")">@(banner.IsActive ? "Đang bật" : "Đã tắt")</span></td>
+                    <td class="actions-cell">
+                        <a class="admin-link" href="/Admin/Banner/Edit/@banner.Id">Sửa</a>
+                        <form action="/Admin/Banner/ToggleActive/@banner.Id" method="post">@Html.AntiForgeryToken()<button class="admin-link" type="submit">Bật/tắt</button></form>
+                        <form action="/Admin/Banner/Delete/@banner.Id" method="post" data-confirm="Xoá banner này?">@Html.AntiForgeryToken()<button class="danger-link" type="submit">Xoá</button></form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</section>

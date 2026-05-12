@@ -1,0 +1,28 @@
+@model Banner
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = Model.Id == 0 ? "Thêm banner" : "Sửa banner";
+}
+
+<section class="admin-panel narrow">
+    <div class="panel-head"><h2>@ViewData["Title"]</h2></div>
+    <form method="post" enctype="multipart/form-data" class="stack-form">
+        <label>Tiêu đề</label>
+        <input asp-for="Title" />
+        <span asp-validation-for="Title"></span>
+        <label>Mô tả</label>
+        <textarea asp-for="Subtitle" rows="3"></textarea>
+        <label>URL ảnh hiện có</label>
+        <input asp-for="ImageUrl" />
+        <label>Tải ảnh mới</label>
+        <input type="file" name="imageFile" accept="image/*" />
+        <label>Link đích</label>
+        <input asp-for="LinkUrl" />
+        <label>Text nút</label>
+        <input asp-for="ButtonText" />
+        <label>Thứ tự</label>
+        <input asp-for="SortOrder" type="number" />
+        <label class="check-row"><input asp-for="IsActive" /> Đang bật</label>
+        <button class="admin-button" type="submit">Lưu banner</button>
+    </form>
+</section>

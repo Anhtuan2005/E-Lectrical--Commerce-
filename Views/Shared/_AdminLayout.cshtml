@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voltix Admin - @ViewData["Title"]</title>
+    <link rel="icon" href="~/images/voltix-favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+</head>
+<body>
+    <aside class="adm-sidebar">
+        <a class="adm-brand" href="/Admin/Dashboard"><img src="~/images/voltix-logo.svg" alt="Voltix" /></a>
+        <nav class="adm-nav">
+            <a class="adm-nav-item" href="/Admin/Dashboard"><span>⌘</span><span>Dashboard</span></a>
+            <a class="adm-nav-item" href="/Admin/Order"><span>ORD</span><span>Đơn hàng</span> <em id="new-order-badge"></em></a>
+            <a class="adm-nav-item" href="/Admin/Product"><span>PRD</span><span>Sản phẩm</span></a>
+            <a class="adm-nav-item" href="/Admin/Category"><span>CAT</span><span>Danh mục</span></a>
+            <a class="adm-nav-item" href="/Admin/Banner"><span>BNR</span><span>Banner</span></a>
+            <a class="adm-nav-item" href="/Admin/Voucher"><span>VCH</span><span>Voucher</span></a>
+            <a class="adm-nav-item" href="/Admin/Review"><span>REV</span><span>Review</span></a>
+            <a class="adm-nav-item" href="/Admin/Report"><span>RPT</span><span>Báo cáo</span></a>
+            <a class="adm-nav-item" href="/Admin/Shipping"><span>SHP</span><span>Vận chuyển</span></a>
+            <a class="adm-nav-item" href="/Admin/User"><span>USR</span><span>Người dùng</span></a>
+        </nav>
+    </aside>
+    <div class="adm-main">
+        <header class="adm-header">
+            <div>
+                <span>Quản trị vận hành Voltix</span>
+                <strong>@ViewData["Title"]</strong>
+            </div>
+            <form asp-controller="Account" asp-action="Logout" method="post">
+                @Html.AntiForgeryToken()
+                <button class="adm-ghost" type="submit">Đăng xuất</button>
+            </form>
+        </header>
+        <div class="adm-toast-stack" id="admin-toast-stack">
+            @if (TempData["Success"] is string success)
+            {
+                <div class="adm-toast success">@success</div>
+            }
+            @if (TempData["Error"] is string error)
+            {
+                <div class="adm-toast error">@error</div>
+            }
+        </div>
+        <main class="adm-content">
+            @RenderBody()
+        </main>
+    </div>
+    <script src="~/js/admin.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

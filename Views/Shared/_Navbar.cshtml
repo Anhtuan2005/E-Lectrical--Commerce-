@@ -1,0 +1,102 @@
+@using System.Security.Claims
+@inject EcommerceApp.Services.ICartService CartService
+@inject EcommerceApp.Data.AppDbContext Db
+@{
+    var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    var cartCount = await CartService.GetCountAsync(userId, Context.Session.Id);
+    var wishlistCount = string.IsNullOrWhiteSpace(userId) ? 0 : await Db.WishlistItems.CountAsync(item => item.UserId == userId);
+    var categories = await Db.Categories.OrderBy(category => category.Name).ToListAsync();
+}
+
+<nav class="site-nav">
+    <div class="nav-inner">
+        <a class="brand brand-logo" asp-controller="Home" asp-action="Index" aria-label="Voltix">
+            <img src="~/images/voltix-logo.svg" alt="Voltix" />
+        </a>
+
+        <div class="nav-menu">
+            <a class="nav-link" asp-controller="Home" asp-action="Index">Trang chủ</a>
+            <a class="nav-link" asp-controller="Product" asp-action="Index">Sản phẩm</a>
+            <div class="nav-item">
+                <a class="nav-link" asp-controller="Product" asp-action="Index">Danh mục</a>
+                <div class="nav-dropdown">
+                    @foreach (var category in categories)
+                    {
+                        <a asp-controller="Product" asp-action="Index" asp-route-categoryId="@category.Id">@category.Name</a>
+                    }
+                </div>
+            </div>
+            <a class="nav-link" asp-controller="Product" asp-action="Index" asp-route-sortBy="price_asc">Khuyến mãi</a>
+        </div>
+
+        <div class="nav-actions">
+            <form class="nav-search" asp-controller="Product" asp-action="Index" method="get" autocomplete="off">
+                <div class="nav-search-box">
+                    <input class="nav-search-input" name="search" placeholder="Tìm sản phẩm" aria-label="Tìm sản phẩm" data-search-autocomplete />
+                    <div class="search-suggestions" id="searchSuggestions"></div>
+                </div>
+                <button class="nav-icon nav-search-btn" type="button" aria-label="Mở tìm kiếm">⌕</button>
+            </form>
+            <a class="nav-icon nav-badge-link" asp-controller="Wishlist" asp-action="Index" aria-label="Yêu thích">
+                <span>♡</span><em id="wishlist-count">@wishlistCount</em>
+            </a>
+            <a class="nav-icon nav-badge-link" asp-controller="Cart" asp-action="Index" aria-label="Giỏ hàng">
+                <span>⌁</span><em id="cart-count">@cartCount</em>
+            </a>
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <div class="avatar-menu">
+                    <button class="avatar-btn" type="button" aria-label="Tài khoản">@((User.Identity.Name ?? "U").Substring(0, 1).ToUpper())</button>
+                    <div class="avatar-dropdown">
+                        <span>@User.Identity.Name</span>
+                        <a asp-controller="Account" asp-action="Profile">Hồ sơ cá nhân</a>
+                        <a asp-controller="Order" asp-action="History">Đơn hàng của tôi</a>
+                        <a asp-controller="Wishlist" asp-action="Index">Danh sách yêu thích</a>
+                        <form asp-controller="Account" asp-action="Logout" method="post">
+                            @Html.AntiForgeryToken()
+                            <button type="submit">Đăng xuất</button>
+                        </form>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <a class="nav-login" asp-controller="Account" asp-action="Login">Đăng nhập</a>
+            }
+            <button class="nav-hamburger" type="button" aria-label="Mở menu">☰</button>
+        </div>
+    </div>
+</nav>
+
+<div class="nav-overlay"></div>
+<aside class="nav-drawer" aria-label="Menu di động">
+    <div class="drawer-head">
+        <a class="brand brand-logo" asp-controller="Home" asp-action="Index" aria-label="Voltix">
+            <img src="~/images/voltix-logo.svg" alt="Voltix" />
+        </a>
+        <button class="nav-drawer-close" type="button" aria-label="Đóng menu">×</button>
+    </div>
+    <a asp-controller="Home" asp-action="Index">Trang chủ</a>
+    <a asp-controller="Product" asp-action="Index">Sản phẩm</a>
+    @foreach (var category in categories)
+    {
+        <a asp-controller="Product" asp-action="Index" asp-route-categoryId="@category.Id">@category.Name</a>
+    }
+    <a asp-controller="Product" asp-action="Index" asp-route-sortBy="price_asc">Khuyến mãi</a>
+    <a asp-controller="Wishlist" asp-action="Index">Yêu thích</a>
+    <a asp-controller="Cart" asp-action="Index">Giỏ hàng</a>
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <a asp-controller="Account" asp-action="Profile">Hồ sơ cá nhân</a>
+        <a asp-controller="Order" asp-action="History">Đơn hàng</a>
+        <form asp-controller="Account" asp-action="Logout" method="post">
+            @Html.AntiForgeryToken()
+            <button type="submit">Đăng xuất</button>
+        </form>
+    }
+    else
+    {
+        <a asp-controller="Account" asp-action="Login">Đăng nhập</a>
+        <a asp-controller="Account" asp-action="Register">Đăng ký</a>
+    }
+</aside>

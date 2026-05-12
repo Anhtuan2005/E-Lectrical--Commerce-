@@ -1,0 +1,43 @@
+@model Product
+@{
+    var badge = Model.DiscountPercent > 0 ? $"-{Model.DiscountPercent}%" : (Model.IsFeatured ? "Hot" : (Model.CreatedAt > DateTime.UtcNow.AddDays(-21) ? "Mới" : ""));
+    var stockClass = Model.Stock == 0 ? "out" : (Model.Stock <= 5 ? "low" : "ok");
+    var stockText = Model.Stock == 0 ? "Hết hàng" : $"Còn {Model.Stock} cái";
+}
+<article class="product-card reveal">
+    <div class="card-media">
+        <a asp-controller="Product" asp-action="Detail" asp-route-id="@Model.Id">
+            <img src="@Model.ImageUrl" alt="@Model.Name" loading="lazy" />
+        </a>
+        <div class="card-badges">
+            @if (!string.IsNullOrWhiteSpace(badge))
+            {
+                <span class="badge @(Model.DiscountPercent > 0 ? "badge-sale" : badge == "Hot" ? "badge-hot" : "badge-new")">@badge</span>
+            }
+            <span class="stock-badge @stockClass">@stockText</span>
+        </div>
+        <div class="card-actions">
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <button class="btn-wishlist" type="button" data-product-id="@Model.Id" title="Yêu thích">♡</button>
+            }
+            else
+            {
+                <span class="btn-wishlist locked" title="Đăng nhập để yêu thích">♡</span>
+            }
+            <button class="btn-card-cart" type="button" data-cart-product="@Model.Id" @(Model.Stock == 0 ? "disabled" : "")>@(Model.Stock == 0 ? "Hết hàng" : "Thêm vào giỏ")</button>
+        </div>
+    </div>
+    <a class="card-body" asp-controller="Product" asp-action="Detail" asp-route-id="@Model.Id">
+        <span class="card-category">@Model.Category?.Name</span>
+        <h3>@Model.Name</h3>
+        <div class="card-rating">★★★★★ <span>(@Math.Max(3, Math.Min(5, Model.Stock % 6)))</span></div>
+        <div class="card-price">
+            <span class="price-current">@Model.SalePrice.ToString("N0") ₫</span>
+            @if (Model.DiscountPercent > 0)
+            {
+                <span class="price-old">@Model.Price.ToString("N0") ₫</span>
+            }
+        </div>
+    </a>
+</article>

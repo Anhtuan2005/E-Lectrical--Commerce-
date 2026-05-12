@@ -1,0 +1,32 @@
+@model IEnumerable<WishlistItem>
+@{
+    ViewData["Title"] = "Yêu thích";
+}
+
+<section class="page-head">
+    <div>
+        <span class="eyebrow">Danh sách yêu thích</span>
+        <h1>Sản phẩm bạn đã lưu</h1>
+    </div>
+</section>
+
+@if (!Model.Any())
+{
+    <section class="empty-state">
+        <h2>Chưa có sản phẩm yêu thích</h2>
+        <p>Lưu sản phẩm để quay lại nhanh khi bạn cần so sánh hoặc mua sau.</p>
+        <a class="btn-primary" asp-controller="Product" asp-action="Index">Khám phá sản phẩm</a>
+    </section>
+}
+else
+{
+    <section class="product-grid section">
+        @foreach (var item in Model)
+        {
+            if (item.Product is not null)
+            {
+                <partial name="_ProductCard" model="item.Product" />
+            }
+        }
+    </section>
+}

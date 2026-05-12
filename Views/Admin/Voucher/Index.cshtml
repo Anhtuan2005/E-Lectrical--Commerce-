@@ -1,0 +1,40 @@
+@model IEnumerable<Voucher>
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Quản lý voucher";
+    var filter = ViewBag.Filter as string;
+}
+
+<section class="admin-panel">
+    <div class="panel-head">
+        <h2>Voucher</h2>
+        <a class="admin-button" href="/Admin/Voucher/Create">Tạo voucher</a>
+    </div>
+    <div class="admin-filters">
+        <a class="admin-button secondary" href="/Admin/Voucher">Tất cả</a>
+        <a class="admin-button secondary" href="/Admin/Voucher?filter=active">Đang hoạt động</a>
+        <a class="admin-button secondary" href="/Admin/Voucher?filter=expired">Hết hạn</a>
+        <a class="admin-button secondary" href="/Admin/Voucher?filter=used">Hết lượt</a>
+    </div>
+    <table class="admin-table">
+        <thead><tr><th>Code</th><th>Loại</th><th>Giá trị</th><th>Đã dùng</th><th>Ngày hết hạn</th><th>Trạng thái</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var voucher in Model)
+            {
+                <tr>
+                    <td><strong>@voucher.Code</strong></td>
+                    <td>@(voucher.Type == VoucherType.Percent ? "Phần trăm" : "Tiền mặt")</td>
+                    <td>@(voucher.Type == VoucherType.Percent ? $"{voucher.Value:N0}%" : $"{voucher.Value:N0} ₫")</td>
+                    <td>@voucher.UsedCount/@voucher.UsageLimit</td>
+                    <td>@voucher.EndDate.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                    <td><span class="adm-pill @(voucher.IsActive ? "" : "off")">@(voucher.IsActive ? "Đang bật" : "Đã tắt")</span></td>
+                    <td class="actions-cell">
+                        <a class="admin-link" href="/Admin/Voucher/Edit/@voucher.Id">Sửa</a>
+                        <form action="/Admin/Voucher/Toggle/@voucher.Id" method="post">@Html.AntiForgeryToken()<button class="admin-link" type="submit">Bật/tắt</button></form>
+                        <form action="/Admin/Voucher/Delete/@voucher.Id" method="post" data-confirm="Xoá voucher này?">@Html.AntiForgeryToken()<button class="danger-link" type="submit">Xoá</button></form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</section>

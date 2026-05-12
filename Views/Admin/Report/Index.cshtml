@@ -1,0 +1,55 @@
+@model AdminReportViewModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Báo cáo nâng cao";
+    var dailyLabels = System.Text.Json.JsonSerializer.Serialize(Model.DailyRevenue.Select(point => point.Label));
+    var dailyValues = System.Text.Json.JsonSerializer.Serialize(Model.DailyRevenue.Select(point => point.Revenue));
+    var categoryLabels = System.Text.Json.JsonSerializer.Serialize(Model.RevenueByCategory.Keys);
+    var categoryValues = System.Text.Json.JsonSerializer.Serialize(Model.RevenueByCategory.Values);
+    var productLabels = System.Text.Json.JsonSerializer.Serialize(Model.TopProducts.Select(product => product.ProductName));
+    var productSold = System.Text.Json.JsonSerializer.Serialize(Model.TopProducts.Select(product => product.QuantitySold));
+}
+
+<section class="metric-grid">
+    <article><span>Doanh thu kỳ này</span><strong>@Model.CurrentPeriodRevenue.ToString("N0") ₫</strong></article>
+    <article><span>Tăng trưởng</span><strong>@Model.GrowthPercent.ToString("0.0")%</strong></article>
+    <article><span>Tổng đơn</span><strong>@Model.TotalOrders</strong></article>
+    <article><span>Khách hàng</span><strong>@Model.TotalCustomers</strong></article>
+</section>
+
+<section class="admin-panel">
+    <form class="admin-filters" method="get">
+        <select name="period">
+            <option value="7" selected="@(Model.Period == "7")">7 ngày</option>
+            <option value="30" selected="@(Model.Period == "30")">30 ngày</option>
+            <option value="90" selected="@(Model.Period == "90")">3 tháng</option>
+            <option value="custom" selected="@(Model.Period == "custom")">Tùy chọn</option>
+        </select>
+        <input type="date" name="fromDate" value="@Model.FromDate?.ToString("yyyy-MM-dd")" />
+        <input type="date" name="toDate" value="@Model.ToDate?.ToString("yyyy-MM-dd")" />
+        <button class="admin-button" type="submit">Lọc</button>
+    </form>
+</section>
+
+<section class="chart-grid">
+    <div class="admin-panel"><div class="panel-head"><h2>Doanh thu theo ngày</h2></div><canvas id="dailyRevenueChart" height="150"></canvas></div>
+    <div class="admin-panel"><div class="panel-head"><h2>Doanh thu theo danh mục</h2></div><canvas id="categoryRevenueChart" height="150"></canvas></div>
+    <div class="admin-panel"><div class="panel-head"><h2>Top 10 bán chạy</h2></div><canvas id="topProductsChart" height="190"></canvas></div>
+    <div class="admin-panel"><div class="panel-head"><h2>So sánh kỳ</h2></div><canvas id="periodCompareChart" height="190"></canvas></div>
+</section>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        window.reportData = {
+            dailyLabels: @Html.Raw(dailyLabels),
+            dailyValues: @Html.Raw(dailyValues),
+            categoryLabels: @Html.Raw(categoryLabels),
+            categoryValues: @Html.Raw(categoryValues),
+            productLabels: @Html.Raw(productLabels),
+            productSold: @Html.Raw(productSold),
+            currentRevenue: @Model.CurrentPeriodRevenue,
+            previousRevenue: @Model.PreviousPeriodRevenue
+        };
+    </script>
+}

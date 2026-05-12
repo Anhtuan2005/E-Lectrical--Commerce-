@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 80" fill="none">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5C842"/>
+      <stop offset="50%" stop-color="#FFE066"/>
+      <stop offset="100%" stop-color="#C8960C"/>
+    </linearGradient>
+    <filter id="glowCyan">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <polygon points="10,8 50,8 30,52" fill="none" stroke="url(#goldGrad)" stroke-width="3"/>
+  <path d="M27,14 L20,32 L28,32 L22,50 L36,28 L28,28 L34,14 Z" fill="url(#goldGrad)"/>
+  <text x="62" y="52" font-family="'Orbitron', 'Segoe UI', sans-serif" font-weight="700" font-size="32" fill="#374151" letter-spacing="2">VOLTI</text>
+  <text x="212" y="52" font-family="'Orbitron', 'Segoe UI', sans-serif" font-weight="700" font-size="32" fill="#00D4FF" filter="url(#glowCyan)" letter-spacing="2">X</text>
+</svg>

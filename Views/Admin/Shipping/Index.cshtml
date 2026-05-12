@@ -1,0 +1,53 @@
+@model ShippingDashboardViewModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Quản lý vận chuyển";
+    var statuses = ViewBag.Statuses as IEnumerable<string> ?? ShippingStatuses.All;
+}
+
+<section class="metric-grid">
+    <article><span>Thiếu mã vận đơn</span><strong>@Model.MissingTrackingCount</strong></article>
+    <article><span>Đơn chậm trễ</span><strong>@Model.DelayedCount</strong></article>
+    @foreach (var status in ShippingStatuses.All)
+    {
+        <article><span>@status</span><strong>@Model.OrdersByShippingStatus.GetValueOrDefault(status)</strong></article>
+    }
+</section>
+
+<section class="admin-panel">
+    <div class="panel-head"><h2>Đơn cần xử lý</h2></div>
+    <table class="admin-table">
+        <thead><tr><th>Mã</th><th>Khách hàng</th><th>Trạng thái đơn</th><th>Vận chuyển</th><th>Cập nhật</th></tr></thead>
+        <tbody>
+            @foreach (var order in Model.ActionNeededOrders)
+            {
+                <tr>
+                    <td>#@order.Id</td>
+                    <td>@order.User?.FullName</td>
+                    <td>@order.Status</td>
+                    <td>@(order.ShippingInfo?.Carrier ?? "Chưa gán")<br /><small>@(order.ShippingInfo?.TrackingCode ?? "Chưa có mã")</small></td>
+                    <td>
+                        @if (order.ShippingInfo is not null)
+                        {
+                            <form action="/Admin/Shipping/UpdateStatus" method="post" class="inline-form">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="orderId" value="@order.Id" />
+                                <select name="status">
+                                    @foreach (var status in statuses)
+                                    {
+                                        <option value="@status" selected="@(order.ShippingInfo.Status == status)">@status</option>
+                                    }
+                                </select>
+                                <button class="admin-button" type="submit">Lưu</button>
+                            </form>
+                        }
+                        else
+                        {
+                            <a class="admin-link" href="/Admin/Order/@order.Id">Gán vận chuyển</a>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</section>

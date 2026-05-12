@@ -1,0 +1,91 @@
+@model ProductViewModel
+@{
+    ViewData["Title"] = "Sản phẩm";
+    var selectedCategory = Model.Categories.FirstOrDefault(category => category.Id == Model.CategoryId);
+}
+
+<section class="page-head product-page-head">
+    <div>
+        <span class="eyebrow">Voltix Store</span>
+        <h1>Tìm thiết bị phù hợp</h1>
+        <p>Hiển thị @Model.FromItem-@Model.ToItem trong @Model.TotalItems sản phẩm</p>
+    </div>
+    <form class="filter-bar compact-search" method="get">
+        <input name="search" value="@Model.Search" placeholder="Tìm kiếm sản phẩm" />
+        <input type="hidden" name="categoryId" value="@Model.CategoryId" />
+        <input type="hidden" name="minPrice" value="@Model.MinPrice" />
+        <input type="hidden" name="maxPrice" value="@Model.MaxPrice" />
+        <select name="sortBy" onchange="this.form.submit()">
+            <option value="newest" selected="@(string.IsNullOrWhiteSpace(Model.SortBy) || Model.SortBy == "newest")">Mới nhất</option>
+            <option value="price_asc" selected="@(Model.SortBy == "price_asc")">Giá tăng dần</option>
+            <option value="price_desc" selected="@(Model.SortBy == "price_desc")">Giá giảm dần</option>
+            <option value="name_asc" selected="@(Model.SortBy == "name_asc")">Tên A-Z</option>
+        </select>
+        <button class="btn-primary" type="submit">Tìm</button>
+    </form>
+</section>
+
+<section class="product-catalog">
+    <aside class="catalog-sidebar">
+        <form method="get" class="catalog-filter">
+            <input type="hidden" name="search" value="@Model.Search" />
+            <input type="hidden" name="sortBy" value="@Model.SortBy" />
+            <h2>Bộ lọc</h2>
+            <div class="filter-group">
+                <strong>Danh mục</strong>
+                <label class="filter-check">
+                    <input type="radio" name="categoryId" value="" checked="@(!Model.CategoryId.HasValue)" />
+                    <span>Tất cả</span>
+                </label>
+                @foreach (var category in Model.Categories)
+                {
+                    <label class="filter-check">
+                        <input type="radio" name="categoryId" value="@category.Id" checked="@(Model.CategoryId == category.Id)" />
+                        <span>@category.Name</span>
+                    </label>
+                }
+            </div>
+            <div class="filter-group">
+                <strong>Khoảng giá</strong>
+                <input name="minPrice" type="number" min="0" step="100000" value="@Model.MinPrice" placeholder="Từ" />
+                <input name="maxPrice" type="number" min="0" step="100000" value="@Model.MaxPrice" placeholder="Đến" />
+            </div>
+            <button class="btn-primary" type="submit">Áp dụng</button>
+        </form>
+    </aside>
+
+    <div class="catalog-results">
+        <div class="active-filters">
+            @if (!string.IsNullOrWhiteSpace(Model.Search))
+            {
+                <a asp-action="Index" asp-route-categoryId="@Model.CategoryId" asp-route-minPrice="@Model.MinPrice" asp-route-maxPrice="@Model.MaxPrice" asp-route-sortBy="@Model.SortBy">Từ khóa: @Model.Search ×</a>
+            }
+            @if (selectedCategory is not null)
+            {
+                <a asp-action="Index" asp-route-search="@Model.Search" asp-route-minPrice="@Model.MinPrice" asp-route-maxPrice="@Model.MaxPrice" asp-route-sortBy="@Model.SortBy">Danh mục: @selectedCategory.Name ×</a>
+            }
+            @if (Model.MinPrice.HasValue)
+            {
+                <a asp-action="Index" asp-route-search="@Model.Search" asp-route-categoryId="@Model.CategoryId" asp-route-maxPrice="@Model.MaxPrice" asp-route-sortBy="@Model.SortBy">Từ @Model.MinPrice.Value.ToString("N0") ₫ ×</a>
+            }
+            @if (Model.MaxPrice.HasValue)
+            {
+                <a asp-action="Index" asp-route-search="@Model.Search" asp-route-categoryId="@Model.CategoryId" asp-route-minPrice="@Model.MinPrice" asp-route-sortBy="@Model.SortBy">Đến @Model.MaxPrice.Value.ToString("N0") ₫ ×</a>
+            }
+        </div>
+
+        <div class="product-grid">
+            @foreach (var product in Model.Products)
+            {
+                <partial name="_ProductCard" model="product" />
+            }
+        </div>
+
+        <nav class="pagination">
+            @for (var i = 1; i <= Model.TotalPages; i++)
+            {
+                <a class="@(i == Model.CurrentPage ? "active" : "")" asp-action="Index" asp-route-page="@i" asp-route-search="@Model.Search" asp-route-categoryId="@Model.CategoryId" asp-route-minPrice="@Model.MinPrice" asp-route-maxPrice="@Model.MaxPrice" asp-route-sortBy="@Model.SortBy">@i</a>
+            }
+        </nav>
+    </div>
+</section>

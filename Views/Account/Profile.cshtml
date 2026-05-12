@@ -1,0 +1,39 @@
+@model ProfileViewModel
+@{
+    ViewData["Title"] = "Hồ sơ cá nhân";
+}
+
+<section class="account-shell">
+    <aside class="account-menu">
+        <img src="~/images/voltix-logo.svg" alt="Voltix" />
+        <a class="active" asp-action="Profile">Hồ sơ</a>
+        <a asp-action="ChangePassword">Đổi mật khẩu</a>
+        <a asp-controller="Order" asp-action="History">Lịch sử đơn hàng</a>
+    </aside>
+    <form asp-action="Profile" method="post" class="form-panel account-form">
+        @Html.AntiForgeryToken()
+        <h1>Hồ sơ cá nhân</h1>
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+        <label>Họ tên</label>
+        <input asp-for="FullName" />
+        <span asp-validation-for="FullName" class="field-error"></span>
+
+        <label>Email</label>
+        <input asp-for="Email" readonly />
+
+        <label>Số điện thoại</label>
+        <input asp-for="PhoneNumber" />
+        <span asp-validation-for="PhoneNumber" class="field-error"></span>
+
+        <label>Địa chỉ mặc định</label>
+        <textarea asp-for="Address" rows="3"></textarea>
+        <span asp-validation-for="Address" class="field-error"></span>
+
+        <button class="btn-primary" type="submit">Lưu hồ sơ</button>
+    </form>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -1,0 +1,124 @@
+@model CheckoutViewModel
+@{
+    ViewData["Title"] = "Thanh toán";
+    var provinces = new[]
+    {
+        "Hồ Chí Minh", "Hà Nội", "Đà Nẵng", "Cần Thơ", "Hải Phòng", "Bình Dương", "Đồng Nai",
+        "Bà Rịa - Vũng Tàu", "An Giang", "Bắc Giang", "Bắc Ninh", "Bến Tre", "Bình Định",
+        "Bình Phước", "Bình Thuận", "Cà Mau", "Đắk Lắk", "Đồng Tháp", "Gia Lai", "Khánh Hòa",
+        "Lâm Đồng", "Long An", "Nghệ An", "Quảng Nam", "Quảng Ninh", "Thanh Hóa", "Thừa Thiên Huế"
+    };
+    var shippingFee = 0m;
+    var subtotal = Model.Cart.Total;
+}
+
+<section class="checkout-layout">
+    <form asp-action="Checkout" method="post" class="form-panel checkout-form" id="checkoutForm" novalidate>
+        @Html.AntiForgeryToken()
+        <div class="checkout-head">
+            <span class="eyebrow">Voltix Checkout</span>
+            <h1>Thông tin giao hàng</h1>
+        </div>
+
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+        <label>Họ tên người nhận</label>
+        <input asp-for="RecipientName" autocomplete="name" />
+        <span asp-validation-for="RecipientName" class="field-error"></span>
+
+        <label>Số điện thoại</label>
+        <input asp-for="RecipientPhone" autocomplete="tel" inputmode="tel" placeholder="VD: 0901234567" />
+        <span asp-validation-for="RecipientPhone" class="field-error"></span>
+
+        @if (!string.IsNullOrWhiteSpace(Model.ProfileAddress))
+        {
+            <button class="profile-address-fill" type="button" data-profile-address="@Model.ProfileAddress">
+                Dùng địa chỉ đã lưu: @Model.ProfileAddress
+            </button>
+        }
+
+        <div class="address-grid">
+            <div>
+                <label>Tỉnh / Thành phố</label>
+                <select asp-for="Province">
+                    <option value="">-- Chọn tỉnh thành --</option>
+                    @foreach (var province in provinces)
+                    {
+                        <option value="@province">@province</option>
+                    }
+                </select>
+                <span asp-validation-for="Province" class="field-error"></span>
+            </div>
+            <div>
+                <label>Quận / Huyện</label>
+                <input asp-for="District" placeholder="VD: Quận 1" />
+                <span asp-validation-for="District" class="field-error"></span>
+            </div>
+            <div>
+                <label>Phường / Xã</label>
+                <input asp-for="Ward" placeholder="VD: Phường Bến Thành" />
+                <span asp-validation-for="Ward" class="field-error"></span>
+            </div>
+            <div>
+                <label>Số nhà, tên đường</label>
+                <input asp-for="Street" placeholder="VD: 123 Nguyễn Trãi" />
+                <span asp-validation-for="Street" class="field-error"></span>
+            </div>
+        </div>
+
+        <div class="payment-choice">
+            <label class="payment-option">
+                <input asp-for="PaymentMethod" type="radio" value="COD" />
+                <span class="payment-icon">COD</span>
+                <span><strong>Thanh toán khi nhận hàng</strong><small>Kiểm tra hàng rồi thanh toán trực tiếp.</small></span>
+            </label>
+            <label class="payment-option">
+                <input asp-for="PaymentMethod" type="radio" value="VNPAY" />
+                <span class="payment-icon">VNPAY</span>
+                <span><strong>VNPAY</strong><small>Bạn sẽ được chuyển sang cổng VNPAY bảo mật.</small></span>
+            </label>
+        </div>
+        <div class="vnpay-safe" id="vnpaySafe">Thanh toán an toàn qua VNPAY. Sau khi thanh toán thành công, Voltix sẽ tự cập nhật đơn hàng.</div>
+
+        <input asp-for="VoucherCode" type="hidden" id="VoucherCode" />
+        <input asp-for="DiscountAmount" type="hidden" id="DiscountAmount" />
+        <button class="btn-primary checkout-submit" type="submit" id="checkoutSubmit">Đặt hàng</button>
+    </form>
+
+    <aside class="checkout-summary">
+        <span>Đơn hàng của bạn</span>
+        @foreach (var item in Model.Cart.Items)
+        {
+            var price = item.Product?.SalePrice ?? item.Product?.Price ?? 0;
+            <div class="summary-item">
+                <img src="@(item.Product?.ImageUrl ?? "/images/placeholder.svg")" alt="@item.Product?.Name" />
+                <div>
+                    <strong>@item.Product?.Name</strong>
+                    <small>Số lượng: @item.Quantity × @price.ToString("N0") ₫</small>
+                </div>
+                <b>@((price * item.Quantity).ToString("N0")) ₫</b>
+            </div>
+        }
+        <div class="summary-line"><span>Tạm tính</span><strong>@subtotal.ToString("N0") ₫</strong></div>
+        <div class="summary-line"><span>Phí vận chuyển</span><strong>@shippingFee.ToString("N0") ₫</strong></div>
+        <div class="voucher-box">
+            <label for="voucherInput">Mã giảm giá</label>
+            <div>
+                <input id="voucherInput" placeholder="WELCOME10" />
+                <button class="btn-ghost" type="button" id="applyVoucher">Áp dụng</button>
+            </div>
+            <span class="voucher-message" id="voucherMessage"></span>
+        </div>
+        <div class="summary-line discount-line" id="discountLine">
+            <span>Giảm giá</span>
+            <strong id="discountText">0 ₫</strong>
+        </div>
+        <strong class="summary-total" id="checkoutTotal" data-subtotal="@subtotal">@((subtotal + shippingFee).ToString("N0")) ₫</strong>
+    </aside>
+</section>
+
+@section Scripts {
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
+}

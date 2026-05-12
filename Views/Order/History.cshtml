@@ -1,0 +1,46 @@
+@model IEnumerable<Order>
+@{
+    ViewData["Title"] = "Lịch sử đơn hàng";
+}
+
+<section class="page-head">
+    <div>
+        <span class="eyebrow">Tài khoản</span>
+        <h1>Lịch sử đơn hàng</h1>
+    </div>
+    <a class="btn-ghost" asp-controller="Account" asp-action="Profile">Hồ sơ cá nhân</a>
+</section>
+
+<div class="order-stack">
+    @foreach (var order in Model)
+    {
+        <article class="order-card">
+            <div>
+                <h3>Đơn #@order.Id</h3>
+                <span>@order.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+            </div>
+            <strong>@order.TotalAmount.ToString("N0") ₫</strong>
+            <span class="status-pill">@order.Status</span>
+            <p>Vận chuyển: @(order.ShippingInfo?.Carrier ?? "Chưa gán") - @(order.ShippingInfo?.TrackingCode ?? "Chưa có mã")</p>
+            <ul>
+                @foreach (var item in order.Items)
+                {
+                    <li>@item.Product?.Name × @item.Quantity</li>
+                }
+            </ul>
+            @if (!string.IsNullOrWhiteSpace(order.CancelledReason))
+            {
+                <p class="cancel-reason">Lý do huỷ: @order.CancelledReason</p>
+            }
+            @if (order.Status == OrderStatuses.Pending)
+            {
+                <form asp-action="Cancel" method="post" class="cancel-order-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@order.Id" />
+                    <input name="reason" maxlength="500" placeholder="Lý do huỷ đơn" required />
+                    <button class="btn-ghost danger" type="submit" onclick="return confirm('Bạn chắc chắn muốn huỷ đơn này?')">Huỷ đơn</button>
+                </form>
+            }
+        </article>
+    }
+</div>

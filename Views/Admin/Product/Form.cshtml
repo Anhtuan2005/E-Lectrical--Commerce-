@@ -1,0 +1,66 @@
+@model ProductFormViewModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = Model.Id == 0 ? "Thêm sản phẩm" : "Sửa sản phẩm";
+}
+
+<section class="admin-panel narrow">
+    <div class="panel-head"><h2>@ViewData["Title"]</h2></div>
+    <form method="post" enctype="multipart/form-data" class="stack-form">
+        <label>Tên sản phẩm</label>
+        <input asp-for="Name" />
+        <span asp-validation-for="Name"></span>
+        <label>Mô tả</label>
+        <textarea asp-for="Description" rows="5"></textarea>
+        <span asp-validation-for="Description"></span>
+        <label>Giá</label>
+        <input asp-for="Price" type="number" min="0" />
+        <span asp-validation-for="Price"></span>
+        <label>Tồn kho</label>
+        <input asp-for="Stock" type="number" min="0" />
+        <span asp-validation-for="Stock"></span>
+        <label>Giảm giá (%)</label>
+        <input asp-for="DiscountPercent" type="number" min="0" max="100" />
+        <span asp-validation-for="DiscountPercent"></span>
+        <label>Danh mục</label>
+        <select asp-for="CategoryId">
+            @foreach (var category in Model.Categories)
+            {
+                <option value="@category.Id">@category.Name</option>
+            }
+        </select>
+        <label>URL ảnh hiện có</label>
+        <input asp-for="ImageUrl" />
+        <label>Tải ảnh mới</label>
+        <input type="file" name="imageFile" accept="image/*" />
+        <label class="check-row"><input asp-for="IsFeatured" /> Sản phẩm nổi bật</label>
+        <button class="admin-button" type="submit">Lưu sản phẩm</button>
+    </form>
+</section>
+
+@if (Model.Id != 0)
+{
+    <section class="admin-panel narrow">
+        <div class="panel-head"><h2>Lịch sử tồn kho</h2></div>
+        <table class="admin-table">
+            <thead><tr><th>Thời gian</th><th>Thay đổi</th><th>Lý do</th><th>Người cập nhật</th></tr></thead>
+            <tbody>
+                @foreach (var log in Model.StockLogs)
+                {
+                    <tr>
+                        <td>@log.ChangedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>@(log.ChangeAmount > 0 ? "+" : "")@log.ChangeAmount</td>
+                        <td>@log.Reason</td>
+                        <td>@(log.ChangedByUser?.FullName ?? "Admin")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+}
+
+@section Scripts {
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
+}

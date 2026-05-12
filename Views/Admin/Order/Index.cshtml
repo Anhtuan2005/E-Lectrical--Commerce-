@@ -1,0 +1,47 @@
+@model OrderListViewModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Quản lý đơn hàng";
+}
+
+<section class="admin-panel">
+    <div class="panel-head">
+        <h2>Bộ lọc đơn hàng</h2>
+        <a class="admin-button" href="/Admin/Order/ExportCsv?status=@Model.Status&customer=@Model.Customer&fromDate=@Model.FromDate?.ToString("yyyy-MM-dd")&toDate=@Model.ToDate?.ToString("yyyy-MM-dd")">Export CSV</a>
+    </div>
+    <form class="admin-filters" method="get">
+        <select name="status">
+            <option value="">Tất cả trạng thái</option>
+            @foreach (var status in Model.Statuses)
+            {
+                <option value="@status" selected="@(Model.Status == status)">@status</option>
+            }
+        </select>
+        <input name="customer" value="@Model.Customer" placeholder="Tên hoặc email khách hàng" />
+        <input type="date" name="fromDate" value="@Model.FromDate?.ToString("yyyy-MM-dd")" />
+        <input type="date" name="toDate" value="@Model.ToDate?.ToString("yyyy-MM-dd")" />
+        <button class="admin-button" type="submit">Lọc</button>
+    </form>
+</section>
+
+<section class="admin-panel">
+    <table class="admin-table">
+        <thead>
+            <tr><th>Mã</th><th>Khách hàng</th><th>Ngày đặt</th><th>Trạng thái</th><th>Vận chuyển</th><th>Tổng tiền</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var order in Model.Orders)
+            {
+                <tr>
+                    <td>#@order.Id</td>
+                    <td>@order.User?.FullName<br /><small>@order.User?.Email</small></td>
+                    <td>@order.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                    <td><span class="admin-pill">@order.Status</span></td>
+                    <td>@(order.ShippingInfo?.Carrier ?? "Chưa gán")<br /><small>@(order.ShippingInfo?.TrackingCode ?? "")</small></td>
+                    <td>@order.TotalAmount.ToString("N0") ₫</td>
+                    <td><a class="admin-link" href="/Admin/Order/@order.Id">Chi tiết</a></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</section>

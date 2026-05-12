@@ -1,0 +1,63 @@
+@model ProductViewModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Quản lý sản phẩm";
+}
+
+<section class="admin-panel">
+    <div class="panel-head">
+        <h2>Sản phẩm</h2>
+        <a class="admin-button" href="/Admin/Product/Create">Thêm sản phẩm</a>
+    </div>
+    <form class="admin-filters" method="get">
+        <input name="search" value="@Model.Search" placeholder="Tìm sản phẩm" />
+        <select name="categoryId">
+            <option value="">Tất cả danh mục</option>
+            @foreach (var category in Model.Categories)
+            {
+                <option value="@category.Id" selected="@(Model.CategoryId == category.Id)">@category.Name</option>
+            }
+        </select>
+        <button class="admin-button" type="submit">Lọc</button>
+    </form>
+    <table class="admin-table">
+        <thead><tr><th>Sản phẩm</th><th>Danh mục</th><th>Giá</th><th>Tồn kho</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var product in Model.Products)
+            {
+                <tr>
+                    <td>@product.Name</td>
+                    <td>@product.Category?.Name</td>
+                    <td>@product.Price.ToString("N0") ₫</td>
+                    <td>@product.Stock</td>
+                    <td class="actions-cell">
+                        <a class="admin-link" href="/Admin/Product/Edit/@product.Id">Sửa</a>
+                        <form action="/Admin/Product/Delete/@product.Id" method="post" data-confirm="Xoá sản phẩm này?">
+                            @Html.AntiForgeryToken()
+                            <button class="danger-link" type="submit">Xoá</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</section>
+
+<section class="admin-panel">
+    <div class="panel-head"><h2>Danh mục</h2></div>
+    <form action="/Admin/Product/CreateCategory" method="post" class="admin-filters">
+        @Html.AntiForgeryToken()
+        <input name="name" placeholder="Tên danh mục mới" />
+        <button class="admin-button" type="submit">Thêm danh mục</button>
+    </form>
+    <div class="category-admin-list">
+        @foreach (var category in Model.Categories)
+        {
+            <form action="/Admin/Product/DeleteCategory/@category.Id" method="post" data-confirm="Xoá danh mục này?">
+                @Html.AntiForgeryToken()
+                <span>@category.Name</span>
+                <button class="danger-link" type="submit">Xoá</button>
+            </form>
+        }
+    </div>
+</section>

@@ -1,0 +1,57 @@
+@model CartViewModel
+@{
+    ViewData["Title"] = "Giỏ hàng";
+}
+
+<section class="page-head">
+    <div>
+        <span class="eyebrow">Giỏ hàng</span>
+        <h1>Sản phẩm đã chọn</h1>
+    </div>
+    <a class="btn-ghost" asp-controller="Product" asp-action="Index">Tiếp tục mua</a>
+</section>
+
+@if (!Model.Items.Any())
+{
+    <section class="empty-state">
+        <h2>Giỏ hàng đang trống</h2>
+        <p>Chọn vài sản phẩm trước khi thanh toán.</p>
+        <a class="btn-primary" asp-controller="Product" asp-action="Index">Xem sản phẩm</a>
+    </section>
+}
+else
+{
+    <section class="cart-layout">
+        <div class="cart-list">
+            @foreach (var item in Model.Items)
+            {
+                <article class="cart-item" data-product-id="@item.ProductId">
+                    <img src="@item.Product?.ImageUrl" alt="@item.Product?.Name" />
+                    <div>
+                        <h3>@item.Product?.Name</h3>
+                        <span>@((item.Product?.SalePrice ?? item.Product?.Price ?? 0).ToString("N0")) ₫</span>
+                    </div>
+                    <div class="quantity-stepper cart-stepper">
+                        <button type="button" data-qty-minus>-</button>
+                        <input class="cart-qty" type="number" min="0" max="@item.Product?.Stock" value="@item.Quantity" />
+                        <button type="button" data-qty-plus>+</button>
+                    </div>
+                    <strong class="line-total">@(((item.Product?.SalePrice ?? item.Product?.Price ?? 0) * item.Quantity).ToString("N0")) ₫</strong>
+                    <button class="icon-button cart-remove" type="button" aria-label="Xoá">×</button>
+                </article>
+            }
+        </div>
+        <aside class="checkout-summary">
+            <span>Tổng tiền</span>
+            <strong id="cart-total">@Model.Total.ToString("N0") ₫</strong>
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <a class="btn-primary" asp-controller="Order" asp-action="Checkout">Tiến hành thanh toán</a>
+            }
+            else
+            {
+                <a class="btn-primary" asp-controller="Account" asp-action="Login" asp-route-returnUrl="/Order/Checkout">Đăng nhập để thanh toán</a>
+            }
+        </aside>
+    </section>
+}

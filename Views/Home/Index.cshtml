@@ -1,33 +1,51 @@
-﻿@model HomeViewModel
+@model HomeViewModel
 @{
     ViewData["Title"] = "Trang chủ";
     var banners = Model.Banners.Any()
         ? Model.Banners
         : new[]
         {
-            new Banner { Title = "iPhone 15 Pro.\nTitan. Đỉnh cao.", Subtitle = "Camera 48MP, chip A17 Pro, thiết kế titan lần đầu tiên.", LinkUrl = "/Product", ButtonText = "Khám phá ngay", ImageUrl = "https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=1100&q=80" },
-            new Banner { Title = "MacBook Air M3.\nMỏng nhẹ, bền bỉ.", Subtitle = "Hiệu năng mượt mà cho học tập, công việc và sáng tạo mỗi ngày.", LinkUrl = "/Product", ButtonText = "Xem laptop", ImageUrl = "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1100&q=80" },
-            new Banner { Title = "Phụ kiện chuẩn gu.\nGiá tốt hôm nay.", Subtitle = "Tai nghe, bàn phím, chuột và sạc nhanh cho góc làm việc gọn gàng.", LinkUrl = "/Product", ButtonText = "Mua phụ kiện", ImageUrl = "https://images.unsplash.com/photo-1618384887929-16ec33fab9ef?auto=format&fit=crop&w=1100&q=80" }
+            new Banner { Title = "Build PC chuẩn gu.\nHiệu năng đúng tiền.", Subtitle = "Chọn linh kiện, xem tổng tiền realtime và thêm cả cấu hình vào giỏ chỉ trong một bước.", LinkUrl = "/BuildPc", ButtonText = "Build PC ngay", ImageUrl = "https://images.unsplash.com/photo-1587202372634-32705e3bf49c?auto=format&fit=crop&w=1400&q=85" },
+            new Banner { Title = "Laptop hiệu năng.\nSẵn sàng làm việc.", Subtitle = "MacBook, Dell, ASUS và Lenovo chính hãng, giá rõ ràng, bảo hành minh bạch.", LinkUrl = "/Product", ButtonText = "Xem laptop", ImageUrl = "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1400&q=85" },
+            new Banner { Title = "Linh kiện nâng cấp.\nNhanh hơn mỗi ngày.", Subtitle = "CPU, VGA, RAM, SSD và phụ kiện setup góc làm việc gọn, mạnh, bền.", LinkUrl = "/Product", ButtonText = "Mua linh kiện", ImageUrl = "https://images.unsplash.com/photo-1591488320449-011701bb6704?auto=format&fit=crop&w=1400&q=85" }
         };
 }
 
-<section class="home-shell">
-    <section class="hero-slider reveal" id="heroSlider">
+@functions {
+    private static string CategoryIcon(string name)
+    {
+        var value = (name ?? string.Empty).ToLowerInvariant();
+        if (value.Contains("cpu")) return "cpu";
+        if (value.Contains("vga") || value.Contains("gpu")) return "monitor";
+        if (value.Contains("ram")) return "memory-stick";
+        if (value.Contains("ssd")) return "hard-drive";
+        if (value.Contains("laptop")) return "laptop";
+        if (value.Contains("điện thoại") || value.Contains("phone")) return "smartphone";
+        if (value.Contains("màn hình")) return "monitor";
+        if (value.Contains("phụ kiện")) return "keyboard";
+        if (value.Contains("mainboard")) return "circuit-board";
+        if (value.Contains("psu") || value.Contains("nguồn")) return "plug-zap";
+        return "boxes";
+    }
+}
+
+<section class="home-shell tv-home">
+    <section class="hero-slider hero-premium reveal" id="heroSlider">
         <div class="slider-track">
             @foreach (var banner in banners.Take(3))
             {
                 <div class="slide">
+                    <div class="slide-bg">
+                        <img src="@banner.ImageUrl" alt="@banner.Title" />
+                    </div>
                     <div class="slide-content">
-                        <p class="slide-eyebrow">Techvora Energy</p>
+                        <p class="slide-eyebrow"><span></span> Techvora Signature</p>
                         <h1 class="slide-title">@Html.Raw(banner.Title.Replace("\n", "<br />"))</h1>
                         <p class="slide-sub">@banner.Subtitle</p>
                         <div class="slide-actions">
                             <a href="@(string.IsNullOrWhiteSpace(banner.LinkUrl) ? "/Product" : banner.LinkUrl)" class="btn-primary">@banner.ButtonText</a>
-                            <a href="/Product" class="btn-ghost">Tìm hiểu thêm →</a>
+                            <a href="/Product" class="btn-ghost">Xem bộ sưu tập</a>
                         </div>
-                    </div>
-                    <div class="slide-visual">
-                        <img src="@banner.ImageUrl" alt="@banner.Title" />
                     </div>
                 </div>
             }
@@ -38,38 +56,39 @@
                 <button class="dot @(i == 0 ? "active" : "")" data-index="@i" aria-label="Slide @(i + 1)"></button>
             }
         </div>
-        <button class="slider-arrow slider-prev" type="button" aria-label="Slide trước">‹</button>
-        <button class="slider-arrow slider-next" type="button" aria-label="Slide sau">›</button>
+        <button class="slider-arrow slider-prev" type="button" aria-label="Slide trước"><i data-lucide="chevron-left" aria-hidden="true"></i></button>
+        <button class="slider-arrow slider-next" type="button" aria-label="Slide sau"><i data-lucide="chevron-right" aria-hidden="true"></i></button>
     </section>
 
-    <section class="usp-bar reveal">
-        <div class="usp-item"><span class="usp-icon">24H</span><div><strong>Giao hàng miễn phí</strong><p>Cho đơn từ 500.000 ₫</p></div></div>
-        <div class="usp-item"><span class="usp-icon">30D</span><div><strong>Đổi trả 30 ngày</strong><p>Không cần lý do</p></div></div>
-        <div class="usp-item"><span class="usp-icon">BH</span><div><strong>Bảo hành chính hãng</strong><p>12 tháng toàn quốc</p></div></div>
-        <div class="usp-item"><span class="usp-icon">PAY</span><div><strong>Thanh toán an toàn</strong><p>COD, chuyển khoản, VNPAY</p></div></div>
+    <section class="usp-bar usp-premium reveal">
+        <div class="usp-item"><span class="usp-icon"><i data-lucide="truck" aria-hidden="true"></i></span><div><strong>Giao nhanh toàn quốc</strong><p>Miễn phí cho đơn từ 500.000 ₫</p></div></div>
+        <div class="usp-item"><span class="usp-icon"><i data-lucide="refresh-cw" aria-hidden="true"></i></span><div><strong>Đổi trả 30 ngày</strong><p>Quy trình rõ ràng, phản hồi nhanh</p></div></div>
+        <div class="usp-item"><span class="usp-icon"><i data-lucide="shield-check" aria-hidden="true"></i></span><div><strong>Bảo hành chính hãng</strong><p>12 tháng toàn quốc</p></div></div>
+        <div class="usp-item"><span class="usp-icon"><i data-lucide="credit-card" aria-hidden="true"></i></span><div><strong>Thanh toán an toàn</strong><p>COD, Banking, VNPAY</p></div></div>
     </section>
 
-    <section class="vnpay-promo reveal">
+    <section class="vnpay-promo tech-promo reveal">
         <div>
-            <span class="eyebrow">VNPAY Sandbox</span>
-            <h2>Thanh toán nhanh, xác nhận gọn.</h2>
-            <p>Chọn VNPAY tại checkout để chuyển sang cổng sandbox bảo mật, hỗ trợ thẻ test NCB.</p>
+            <span class="eyebrow">Thanh toán thông minh</span>
+            <h2>VNPAY xác nhận gọn, đơn hàng xử lý nhanh.</h2>
+            <p>Chọn VNPAY tại checkout để thanh toán qua cổng sandbox bảo mật, phù hợp khi mua cấu hình giá trị cao.</p>
         </div>
-        <a class="btn-primary" asp-controller="Product" asp-action="Index">Khám phá ngay</a>
+        <a class="btn-primary" asp-controller="Product" asp-action="Index">Khám phá sản phẩm</a>
     </section>
 
     <section class="section reveal">
-        <div class="section-heading">
+        <div class="section-heading tech-heading">
             <div>
                 <span class="eyebrow">Bộ sưu tập</span>
                 <h2>Danh mục nổi bật</h2>
             </div>
             <a asp-controller="Product" asp-action="Index">Xem tất cả</a>
         </div>
-        <div class="category-grid">
-            @foreach (var category in Model.Categories)
+        <div class="category-grid tech-category-grid">
+            @foreach (var category in Model.Categories.Take(8))
             {
                 <a class="category-tile" asp-controller="Product" asp-action="Index" asp-route-categoryId="@category.Id">
+                    <span class="category-icon"><i data-lucide="@CategoryIcon(category.Name)" aria-hidden="true"></i></span>
                     <span>@category.Name</span>
                     <small>@category.Products.Count sản phẩm</small>
                 </a>
@@ -78,7 +97,7 @@
     </section>
 
     <section class="section reveal">
-        <div class="section-heading">
+        <div class="section-heading tech-heading">
             <div>
                 <span class="eyebrow">Được chọn nhiều</span>
                 <h2>Sản phẩm nổi bật</h2>
@@ -93,27 +112,28 @@
         </div>
     </section>
 
-    <section class="flash-sale reveal">
+    <section class="flash-sale flash-premium reveal">
+        <div class="sale-badge"><i data-lucide="zap" aria-hidden="true"></i><span>SALE</span></div>
         <div>
             <span class="eyebrow">Flash Sale</span>
-            <h2>Giảm nhanh trong hôm nay.</h2>
-            <p>Chọn sản phẩm hot, áp mã SALE20 để nhận ưu đãi tối đa 200.000 ₫.</p>
-            <a class="btn-primary" asp-controller="Product" asp-action="Index">Săn deal</a>
+            <h2>Deal linh kiện kết thúc trước nửa đêm.</h2>
+            <p>Chọn sản phẩm hot, áp mã SALE20 để nhận ưu đãi tối đa 200.000 ₫ cho setup mới.</p>
+            <a class="btn-primary" asp-controller="Product" asp-action="Index" asp-route-sortBy="discount_desc">Săn deal ngay</a>
         </div>
         <div class="countdown-box">
             <span>Kết thúc sau</span>
-            <strong id="countdown">06:00:00</strong>
+            <strong id="countdown">00:00:00</strong>
         </div>
     </section>
 
     <section class="section reveal">
-        <div class="section-heading">
+        <div class="section-heading tech-heading">
             <div>
                 <span class="eyebrow">Vừa lên kệ</span>
                 <h2>Sản phẩm mới nhất</h2>
             </div>
         </div>
-        <div class="latest-scroll">
+        <div class="latest-scroll product-rail latest-products-rail">
             @foreach (var product in Model.LatestProducts)
             {
                 <partial name="_ProductCard" model="product" />
@@ -122,17 +142,16 @@
     </section>
 
     <section class="section reveal">
-        <div class="section-heading">
+        <div class="section-heading tech-heading">
             <div>
                 <span class="eyebrow">Khách hàng nói gì</span>
                 <h2>Trải nghiệm nổi bật</h2>
             </div>
         </div>
-        <div class="review-grid">
-            <article><p>“Đặt MacBook buổi sáng, chiều đã có hàng. Gói gọn, giá rõ ràng, không cần hỏi lại.”</p><strong>Minh Anh</strong></article>
-            <article><p>“Trang sản phẩm dễ xem, thanh toán nhanh. Mã giảm giá áp dụng ngay không vòng vo.”</p><strong>Quốc Huy</strong></article>
-            <article><p>“Mình thích phần theo dõi đơn và thông tin bảo hành, cảm giác rất yên tâm.”</p><strong>Thanh Mai</strong></article>
+        <div class="review-grid tech-review-grid">
+            <article><span><i data-lucide="star" aria-hidden="true"></i></span><p>Đặt MacBook buổi sáng, chiều đã có hàng. Gói gọn, giá rõ ràng, không cần hỏi lại.</p><strong>Minh Anh</strong></article>
+            <article><span><i data-lucide="star" aria-hidden="true"></i></span><p>Trang sản phẩm dễ xem, thanh toán nhanh. Mã giảm giá áp dụng ngay không vòng vo.</p><strong>Quốc Huy</strong></article>
+            <article><span><i data-lucide="star" aria-hidden="true"></i></span><p>Mình thích phần theo dõi đơn và thông tin bảo hành, cảm giác rất yên tâm.</p><strong>Thanh Mai</strong></article>
         </div>
     </section>
 </section>
-

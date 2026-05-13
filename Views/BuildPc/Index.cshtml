@@ -9,7 +9,7 @@
             name = "Gaming Cơ Bản",
             budget = "~10 triệu",
             description = "Chơi game esport mượt mà, phù hợp sinh viên.",
-            icon = "🎮",
+            icon = "gamepad-2",
             slots = new Dictionary<string, string>
             {
                 ["CPU"] = "Ryzen 5",
@@ -24,7 +24,7 @@
             name = "Gaming Chiến Mọi Game",
             budget = "~25 triệu",
             description = "AAA games ở thiết lập cao, đủ sức livestream.",
-            icon = "🔥",
+            icon = "flame",
             slots = new Dictionary<string, string>
             {
                 ["CPU"] = "Core i7",
@@ -39,7 +39,7 @@
             name = "Workstation Đồ Họa",
             budget = "~35 triệu",
             description = "Dành cho render, 3D và dựng video chuyên nghiệp.",
-            icon = "🎨",
+            icon = "pen-tool",
             slots = new Dictionary<string, string>
             {
                 ["CPU"] = "Ryzen 9",
@@ -55,15 +55,15 @@
 @functions {
     private static string GetSlotIcon(string slot) => slot switch
     {
-        "CPU" => "▣",
-        "VGA" => "🎮",
-        "RAM" => "▥",
-        "SSD" => "◈",
-        "Mainboard" => "▤",
-        "PSU" => "⚡",
-        "Case" => "▱",
-        "Cooling" => "❄",
-        _ => "◇"
+        "CPU" => "cpu",
+        "VGA" => "monitor-up",
+        "RAM" => "memory-stick",
+        "SSD" => "hard-drive",
+        "Mainboard" => "circuit-board",
+        "PSU" => "zap",
+        "Case" => "box",
+        "Cooling" => "fan",
+        _ => "settings"
     };
 
     private static string GetSlotLabel(string slot) => slot switch
@@ -99,7 +99,7 @@
         @foreach (var preset in presets)
         {
             <article class="preset-card">
-                <div class="preset-icon">@preset.icon</div>
+                <div class="preset-icon"><i data-lucide="@preset.icon" aria-hidden="true"></i></div>
                 <h3>@preset.name</h3>
                 <strong class="preset-budget">@preset.budget</strong>
                 <p>@preset.description</p>
@@ -123,7 +123,7 @@
             @foreach (var slot in EcommerceApp.Controllers.PcSlots.All)
             {
                 <div class="slot-row" data-slot="@slot">
-                    <div class="slot-icon">@GetSlotIcon(slot)</div>
+                    <div class="slot-icon"><i data-lucide="@GetSlotIcon(slot)" aria-hidden="true"></i></div>
                     <div class="slot-info">
                         <span class="slot-name">@GetSlotLabel(slot)</span>
                         <span class="slot-selected-name">Chưa chọn</span>
@@ -146,8 +146,12 @@
             </div>
             <div class="compat-warnings" id="compatWarnings"></div>
             <div class="wattage-info" id="wattageInfo" hidden>
-                <span>⚡ Ước tính công suất: <strong id="wattageVal">—</strong> W</span>
+                <span>Ước tính công suất: <strong id="wattageVal">—</strong> W</span>
             </div>
+            <button class="btn-ghost btn-preview-3d" id="btnPreview3d" type="button" disabled>
+                <i data-lucide="box" aria-hidden="true"></i>
+                Xem 3D Preview
+            </button>
             <button class="btn-primary btn-add-all" id="btnAddAll" type="button" disabled>Thêm tất cả vào giỏ</button>
             <button class="btn-ghost btn-reset-build" id="btnReset" type="button">Đặt lại</button>
         </aside>

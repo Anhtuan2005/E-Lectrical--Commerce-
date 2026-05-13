@@ -270,7 +270,7 @@
             <h2>Sản phẩm liên quan</h2>
         </div>
     </div>
-    <div class="related-scroll compact-related">
+    <div class="related-scroll compact-related related-products-grid">
         @foreach (var item in Model.RelatedProducts.Take(4))
         {
             <partial name="_ProductCard" model="item" />

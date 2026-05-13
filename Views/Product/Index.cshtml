@@ -30,25 +30,38 @@
         <form method="get" class="catalog-filter">
             <input type="hidden" name="search" value="@Model.Search" />
             <input type="hidden" name="sortBy" value="@Model.SortBy" />
-            <h2>Bộ lọc</h2>
-            <div class="filter-group">
-                <strong>Danh mục</strong>
-                <label class="filter-check">
-                    <input type="radio" name="categoryId" value="" checked="@(!Model.CategoryId.HasValue)" />
-                    <span>Tất cả</span>
-                </label>
-                @foreach (var category in Model.Categories)
-                {
+            <div class="filter-title-row">
+                <h2>Bộ lọc</h2>
+                <a asp-action="Index" asp-route-search="@Model.Search" asp-route-sortBy="@Model.SortBy">Xóa lọc</a>
+            </div>
+            <div class="filter-group category-filter-group">
+                <div class="filter-group-head">
+                    <strong>Danh mục</strong>
+                    <span>@Model.Categories.Count()</span>
+                </div>
+                <div class="category-filter-grid">
                     <label class="filter-check">
-                        <input type="radio" name="categoryId" value="@category.Id" checked="@(Model.CategoryId == category.Id)" />
-                        <span>@category.Name</span>
+                        <input type="radio" name="categoryId" value="" checked="@(!Model.CategoryId.HasValue)" />
+                        <span>Tất cả</span>
                     </label>
-                }
+                    @foreach (var category in Model.Categories)
+                    {
+                        <label class="filter-check">
+                            <input type="radio" name="categoryId" value="@category.Id" checked="@(Model.CategoryId == category.Id)" />
+                            <span>@category.Name</span>
+                        </label>
+                    }
+                </div>
             </div>
             <div class="filter-group">
-                <strong>Khoảng giá</strong>
-                <input name="minPrice" type="number" min="0" step="100000" value="@Model.MinPrice" placeholder="Từ" />
-                <input name="maxPrice" type="number" min="0" step="100000" value="@Model.MaxPrice" placeholder="Đến" />
+                <div class="filter-group-head">
+                    <strong>Khoảng giá</strong>
+                    <span>VNĐ</span>
+                </div>
+                <div class="price-filter-grid">
+                    <input name="minPrice" type="number" min="0" step="100000" value="@Model.MinPrice" placeholder="Từ" />
+                    <input name="maxPrice" type="number" min="0" step="100000" value="@Model.MaxPrice" placeholder="Đến" />
+                </div>
             </div>
             <button class="btn-primary" type="submit">Áp dụng</button>
         </form>

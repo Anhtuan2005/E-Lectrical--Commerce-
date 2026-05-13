@@ -1,11 +1,9 @@
-using EcommerceApp.Data;
 using EcommerceApp.Models;
 using EcommerceApp.Models.ViewModels;
 using EcommerceApp.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace EcommerceApp.Controllers;
@@ -17,20 +15,17 @@ public class OrderController : Controller
     private readonly ICartService _cartService;
     private readonly IVnpayService _vnpayService;
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly AppDbContext _db;
 
     public OrderController(
         IOrderService orderService,
         ICartService cartService,
         IVnpayService vnpayService,
-        UserManager<ApplicationUser> userManager,
-        AppDbContext db)
+        UserManager<ApplicationUser> userManager)
     {
         _orderService = orderService;
         _cartService = cartService;
         _vnpayService = vnpayService;
         _userManager = userManager;
-        _db = db;
     }
 
     public async Task<IActionResult> Checkout()
@@ -85,42 +80,53 @@ public class OrderController : Controller
     public async Task<IActionResult> Confirmation(int id)
     {
         var order = await _orderService.GetOrderAsync(id);
-        return order is null || order.UserId != User.FindFirstValue(ClaimTypes.NameIdentifier) ? NotFound() : View(order);
+        return order is null || order.UserId != User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ? NotFound()
+            : View(order);
     }
 
-    public async Task<IActionResult> History()
+    public async Task<IActionResult> History(string? status)
     {
-        return View(await _orderService.GetUserOrdersAsync(User.FindFirstValue(ClaimTypes.NameIdentifier)!));
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        return View(await _orderService.GetUserOrderHistoryAsync(userId, status));
+    }
+
+    public async Task<IActionResult> Detail(int id)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var order = await _orderService.GetUserOrderAsync(id, userId);
+        return order is null ? NotFound() : View(order);
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Cancel(int id, string reason)
+    public async Task<IActionResult> Cancel(int id, string? reason, string? returnStatus)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        var order = await _db.Orders.FirstOrDefaultAsync(row => row.Id == id && row.UserId == userId);
-        if (order is null)
+        var cancelled = await _orderService.CancelUserOrderAsync(id, userId, reason);
+        if (!cancelled)
         {
-            return NotFound();
+            TempData["Error"] = "Chỉ có thể hủy đơn đang chờ xác nhận.";
+            return RedirectToAction(nameof(History), new { status = returnStatus });
         }
 
-        if (order.Status != OrderStatuses.Pending)
+        TempData["Success"] = "Đã hủy đơn hàng.";
+        return RedirectToAction(nameof(History), new { status = returnStatus });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Reorder(int id)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var added = await _orderService.ReorderAsync(id, userId, HttpContext.Session.Id);
+        if (added == 0)
         {
-            TempData["Error"] = "Chỉ có thể huỷ đơn đang chờ xác nhận.";
-            return RedirectToAction(nameof(History));
+            TempData["Error"] = "Các sản phẩm trong đơn hiện chưa còn hàng để mua lại.";
+            return RedirectToAction(nameof(Detail), new { id });
         }
 
-        if (string.IsNullOrWhiteSpace(reason))
-        {
-            TempData["Error"] = "Vui lòng nhập lý do huỷ đơn.";
-            return RedirectToAction(nameof(History));
-        }
-
-        order.Status = OrderStatuses.Cancelled;
-        order.CancelledReason = reason.Trim();
-        order.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
-        TempData["Success"] = "Đã huỷ đơn hàng.";
-        return RedirectToAction(nameof(History));
+        TempData["Success"] = "Đã thêm sản phẩm còn hàng vào giỏ.";
+        return RedirectToAction("Index", "Cart");
     }
 }

@@ -1,5 +1,6 @@
 using EcommerceApp.Models;
 using System.Globalization;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -18,8 +19,8 @@ public class VnpayService : IVnpayService
     {
         var section = _configuration.GetSection("Vnpay");
         var baseUrl = section["BaseUrl"] ?? throw new InvalidOperationException("Thiếu VNPAY BaseUrl.");
-        var tmnCode = section["TmnCode"] ?? throw new InvalidOperationException("Thiếu VNPAY TmnCode.");
-        var hashSecret = section["HashSecret"] ?? throw new InvalidOperationException("Thiếu VNPAY HashSecret.");
+        var tmnCode = section["TmnCode"]?.Trim() ?? throw new InvalidOperationException("Thiếu VNPAY TmnCode.");
+        var hashSecret = section["HashSecret"]?.Trim() ?? throw new InvalidOperationException("Thiếu VNPAY HashSecret.");
         var returnUrl = section["ReturnUrl"] ?? throw new InvalidOperationException("Thiếu VNPAY ReturnUrl.");
 
         var now = DateTime.Now;
@@ -47,7 +48,7 @@ public class VnpayService : IVnpayService
             ["vnp_ExpireDate"] = now.AddMinutes(15).ToString("yyyyMMddHHmmss")
         };
 
-        var queryToSign = BuildRawQuery(parameters);
+        var queryToSign = BuildSignedQuery(parameters);
         var secureHash = HmacSha512(hashSecret, queryToSign);
 
         return $"{baseUrl}?{queryToSign}&vnp_SecureHash={secureHash}";
@@ -72,32 +73,39 @@ public class VnpayService : IVnpayService
             fields[kv.Key] = kv.Value.ToString();
         }
 
-        var rawData = BuildRawQuery(fields);
-        var expectedHash = HmacSha512(_configuration["Vnpay:HashSecret"] ?? string.Empty, rawData);
+        var rawData = BuildSignedQuery(fields);
+        var expectedHash = HmacSha512(_configuration["Vnpay:HashSecret"]?.Trim() ?? string.Empty, rawData);
         var actualHash = query["vnp_SecureHash"].ToString();
         var sigValid = expectedHash.Equals(actualHash, StringComparison.OrdinalIgnoreCase);
 
         var txnRef = query["vnp_TxnRef"].ToString();
         var orderId = txnRef.Split('_')[0];
         var responseCode = query["vnp_ResponseCode"].ToString();
-        var amount = decimal.TryParse(query["vnp_Amount"], out var raw) ? raw / 100m : 0m;
+        var transactionStatus = query["vnp_TransactionStatus"].ToString();
+        var amount = decimal.TryParse(query["vnp_Amount"], NumberStyles.Number, CultureInfo.InvariantCulture, out var raw) ? raw / 100m : 0m;
 
         return new VnpayResponse
         {
             IsSignatureValid = sigValid,
-            IsSuccess = sigValid && responseCode == "00",
+            IsSuccess = sigValid && responseCode == "00" && transactionStatus == "00",
             TransactionId = query["vnp_TransactionNo"].ToString(),
             OrderId = orderId,
             Amount = amount,
-            ResponseCode = responseCode
+            ResponseCode = responseCode,
+            TransactionStatus = transactionStatus
         };
     }
 
-    private static string BuildRawQuery(SortedDictionary<string, string> data)
+    private static string BuildSignedQuery(SortedDictionary<string, string> data)
     {
         return string.Join("&", data
             .Where(item => !string.IsNullOrWhiteSpace(item.Value))
-            .Select(item => $"{item.Key}={Uri.EscapeDataString(item.Value)}"));
+            .Select(item => $"{Encode(item.Key)}={Encode(item.Value)}"));
+    }
+
+    private static string Encode(string value)
+    {
+        return WebUtility.UrlEncode(value) ?? string.Empty;
     }
 
     private static string HmacSha512(string key, string data)

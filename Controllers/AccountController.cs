@@ -163,6 +163,23 @@ public class AccountController : Controller
     }
 
     [Authorize]
+    [HttpPost("/account/delete-address")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteAddress()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user is null)
+        {
+            return Challenge();
+        }
+
+        user.Address = null;
+        await _userManager.UpdateAsync(user);
+        TempData["Success"] = "Đã xóa địa chỉ đã lưu.";
+        return RedirectToAction(nameof(Profile));
+    }
+
+    [Authorize]
     [HttpGet("/account/change-password")]
     public IActionResult ChangePassword()
     {

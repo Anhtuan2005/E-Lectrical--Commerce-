@@ -1,0 +1,166 @@
+@model Order
+@{
+    ViewData["Title"] = $"Đơn hàng #DH{Model.Id:D4}";
+    var subtotal = Model.Items.Sum(item => item.Quantity * item.UnitPrice);
+    var shippingFee = 0m;
+    var discount = Math.Max(0, subtotal + shippingFee - Model.TotalAmount);
+    var currentStep = OrderStatusFilters.StepIndex(Model.Status);
+}
+
+<section class="order-detail-page">
+    <header class="order-detail-head">
+        <div>
+            <a class="orders-back" asp-action="History"><i data-lucide="arrow-left" aria-hidden="true"></i> Đơn hàng của tôi</a>
+            <h1>#DH@(Model.Id.ToString("D4"))</h1>
+            <p>Đặt lúc @Model.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
+        </div>
+        <span class="order-status @StatusClass(Model.Status)">@OrderStatusFilters.ToDisplayLabel(Model.Status)</span>
+    </header>
+
+    <div class="order-detail-grid">
+        <main class="order-detail-main">
+            <section class="order-panel">
+                <div class="panel-title">
+                    <h2>Tiến trình đơn hàng</h2>
+                    <span>Cập nhật gần nhất @Model.UpdatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                </div>
+
+                @if (Model.Status == OrderStatuses.Cancelled)
+                {
+                    <div class="cancelled-timeline">
+                        <i data-lucide="circle-x" aria-hidden="true"></i>
+                        <div>
+                            <strong>Đơn hàng đã hủy</strong>
+                            <span>@(string.IsNullOrWhiteSpace(Model.CancelledReason) ? "Đơn hàng không còn được xử lý." : Model.CancelledReason)</span>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <ol class="order-timeline">
+                        @foreach (var step in TimelineSteps())
+                        {
+                            var done = step.Index <= currentStep;
+                            <li class="@(done ? "done" : "")">
+                                <span><i data-lucide="@step.Icon" aria-hidden="true"></i></span>
+                                <div>
+                                    <strong>@step.Label</strong>
+                                    <small>@step.Description</small>
+                                </div>
+                            </li>
+                        }
+                    </ol>
+                }
+            </section>
+
+            <section class="order-panel">
+                <div class="panel-title">
+                    <h2>Sản phẩm</h2>
+                    <span>@Model.Items.Sum(item => item.Quantity) sản phẩm</span>
+                </div>
+                <div class="order-detail-items">
+                    @foreach (var item in Model.Items)
+                    {
+                        <article class="order-detail-item">
+                            @if (!string.IsNullOrWhiteSpace(item.Product?.ImageUrl))
+                            {
+                                <img src="@item.Product.ImageUrl" alt="@item.Product.Name" />
+                            }
+                            else
+                            {
+                                <div class="order-item-fallback"><i data-lucide="cpu" aria-hidden="true"></i></div>
+                            }
+                            <div>
+                                <h3>@(item.Product?.Name ?? "Sản phẩm đã ngừng bán")</h3>
+                                <span>@item.UnitPrice.ToString("N0") đ x @item.Quantity</span>
+                            </div>
+                            <strong>@((item.UnitPrice * item.Quantity).ToString("N0")) đ</strong>
+                        </article>
+                    }
+                </div>
+            </section>
+        </main>
+
+        <aside class="order-detail-side">
+            <section class="order-panel">
+                <h2>Giao hàng</h2>
+                <dl class="order-info-list">
+                    <div><dt>Người nhận</dt><dd>@Model.RecipientName</dd></div>
+                    <div><dt>Số điện thoại</dt><dd>@Model.RecipientPhone</dd></div>
+                    <div><dt>Địa chỉ</dt><dd>@Model.ShippingAddress</dd></div>
+                    <div><dt>Đơn vị vận chuyển</dt><dd>@(Model.ShippingInfo?.Carrier ?? "Chưa gán")</dd></div>
+                    <div><dt>Mã vận đơn</dt><dd>@(Model.ShippingInfo?.TrackingCode ?? "Chưa có")</dd></div>
+                </dl>
+            </section>
+
+            <section class="order-panel">
+                <h2>Thanh toán</h2>
+                <dl class="order-info-list">
+                    <div><dt>Phương thức</dt><dd>@Model.PaymentMethod</dd></div>
+                    <div><dt>Trạng thái</dt><dd>@(Model.IsPaid ? "Đã thanh toán" : "Chưa thanh toán")</dd></div>
+                    @if (!string.IsNullOrWhiteSpace(Model.VnpayTransactionId))
+                    {
+                        <div><dt>Mã giao dịch VNPAY</dt><dd>@Model.VnpayTransactionId</dd></div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.VnpayResponseCode))
+                    {
+                        <div><dt>Mã phản hồi VNPAY</dt><dd>@Model.VnpayResponseCode</dd></div>
+                    }
+                    @if (Model.PaidAt.HasValue)
+                    {
+                        <div><dt>Thanh toán lúc</dt><dd>@Model.PaidAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd></div>
+                    }
+                </dl>
+            </section>
+
+            <section class="order-panel">
+                <h2>Tổng kết</h2>
+                <dl class="order-price-list">
+                    <div><dt>Tạm tính</dt><dd>@subtotal.ToString("N0") đ</dd></div>
+                    <div><dt>Phí vận chuyển</dt><dd>@shippingFee.ToString("N0") đ</dd></div>
+                    @if (discount > 0)
+                    {
+                        <div><dt>Giảm giá</dt><dd>-@discount.ToString("N0") đ</dd></div>
+                    }
+                    <div class="grand-total"><dt>Tổng tiền</dt><dd>@Model.TotalAmount.ToString("N0") đ</dd></div>
+                </dl>
+
+                <div class="order-detail-actions">
+                    <form asp-action="Reorder" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <button class="btn-primary" type="submit">Mua lại</button>
+                    </form>
+                    @if (Model.Status == OrderStatuses.Pending)
+                    {
+                        <form asp-action="Cancel" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@Model.Id" />
+                            <button class="btn-ghost danger" type="submit" onclick="return confirm('Hủy đơn hàng #DH@(Model.Id.ToString("D4"))?')">Hủy đơn</button>
+                        </form>
+                    }
+                </div>
+            </section>
+        </aside>
+    </div>
+</section>
+
+@functions {
+    private static string StatusClass(string status)
+    {
+        if (status == OrderStatuses.Pending) return "pending";
+        if (status == OrderStatuses.Confirmed) return "processing";
+        if (status == OrderStatuses.Shipping) return "shipping";
+        if (status == OrderStatuses.Delivered) return "completed";
+        if (status == OrderStatuses.Cancelled) return "cancelled";
+        return "pending";
+    }
+
+    private static IEnumerable<(int Index, string Label, string Description, string Icon)> TimelineSteps()
+    {
+        yield return (0, "Chờ xác nhận", "Techvora đã nhận đơn và đang kiểm tra thông tin.", "clipboard-check");
+        yield return (1, "Đang xử lý", "Đơn được xác nhận, linh kiện đang được chuẩn bị.", "settings");
+        yield return (2, "Đang giao", "Đơn đã bàn giao cho vận chuyển.", "truck");
+        yield return (3, "Hoàn thành", "Đơn đã giao thành công.", "badge-check");
+    }
+}

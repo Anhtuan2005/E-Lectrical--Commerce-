@@ -1,46 +1,126 @@
-@model IEnumerable<Order>
+@model UserOrdersViewModel
 @{
-    ViewData["Title"] = "Lịch sử đơn hàng";
+    ViewData["Title"] = "Đơn hàng của tôi";
 }
 
-<section class="page-head">
-    <div>
-        <span class="eyebrow">Tài khoản</span>
-        <h1>Lịch sử đơn hàng</h1>
-    </div>
-    <a class="btn-ghost" asp-controller="Account" asp-action="Profile">Hồ sơ cá nhân</a>
+<section class="orders-page">
+    <header class="orders-hero">
+        <div>
+            <span class="eyebrow">Tài khoản</span>
+            <h1>Đơn hàng của tôi</h1>
+            <p>Theo dõi và quản lý đơn hàng của bạn</p>
+        </div>
+        <a class="btn-ghost" asp-controller="Product" asp-action="Index">
+            <i data-lucide="shopping-bag" aria-hidden="true"></i>
+            Tiếp tục mua sắm
+        </a>
+    </header>
+
+    <nav class="order-tabs" aria-label="Lọc đơn hàng theo trạng thái">
+        @foreach (var tab in Model.Tabs)
+        {
+            <a class="order-tab @(tab.IsActive ? "active" : "")" asp-action="History" asp-route-status="@tab.Key">
+                <span>@tab.Label</span>
+                <em>@tab.Count</em>
+            </a>
+        }
+    </nav>
+
+    @if (!Model.Orders.Any())
+    {
+        <div class="orders-empty">
+            <div class="orders-empty-icon"><i data-lucide="package-open" aria-hidden="true"></i></div>
+            <h2>Bạn chưa có đơn hàng nào</h2>
+            <p>Những đơn linh kiện PC của bạn sẽ xuất hiện tại đây sau khi checkout.</p>
+            <a class="btn-primary" asp-controller="Product" asp-action="Index">Mua sắm ngay</a>
+        </div>
+    }
+    else
+    {
+        <div class="order-stack">
+            @foreach (var order in Model.Orders)
+            {
+                var previewItems = order.Items.Take(2).ToList();
+                var extraCount = Math.Max(0, order.Items.Count - previewItems.Count);
+                <article class="order-card order-card-modern">
+                    <div class="order-card-top">
+                        <div>
+                            <a class="order-code" asp-action="Detail" asp-route-id="@order.Id">#DH@(order.Id.ToString("D4"))</a>
+                            <span>@order.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                        </div>
+                        <span class="order-status @StatusClass(order.Status)">@OrderStatusFilters.ToDisplayLabel(order.Status)</span>
+                    </div>
+
+                    <div class="order-card-body">
+                        <div class="order-products-preview">
+                            @foreach (var item in previewItems)
+                            {
+                                <div class="order-product-line">
+                                    @if (!string.IsNullOrWhiteSpace(item.Product?.ImageUrl))
+                                    {
+                                        <img src="@item.Product.ImageUrl" alt="@item.Product.Name" />
+                                    }
+                                    else
+                                    {
+                                        <div class="order-item-fallback"><i data-lucide="cpu" aria-hidden="true"></i></div>
+                                    }
+                                    <div>
+                                        <strong>@(item.Product?.Name ?? "Sản phẩm đã ngừng bán")</strong>
+                                        <span>Số lượng: @item.Quantity</span>
+                                    </div>
+                                </div>
+                            }
+                            @if (extraCount > 0)
+                            {
+                                <span class="order-more">+@extraCount sản phẩm khác</span>
+                            }
+                        </div>
+
+                        <div class="order-meta-grid">
+                            <span>Ngày mua <strong>@order.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy")</strong></span>
+                            <span>Thanh toán <strong>@order.PaymentMethod</strong></span>
+                            <span>Trạng thái tiền <strong>@(order.IsPaid ? "Đã thanh toán" : "Chưa thanh toán")</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="order-card-bottom">
+                        <div class="order-total">
+                            <span>Tổng tiền</span>
+                            <strong>@order.TotalAmount.ToString("N0") đ</strong>
+                        </div>
+                        <div class="order-actions">
+                            <a class="btn-ghost" asp-action="Detail" asp-route-id="@order.Id">Xem chi tiết</a>
+                            <form asp-action="Reorder" method="post">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@order.Id" />
+                                <button class="btn-primary" type="submit">Mua lại</button>
+                            </form>
+                            @if (order.Status == OrderStatuses.Pending)
+                            {
+                                <form asp-action="Cancel" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@order.Id" />
+                                    <input type="hidden" name="returnStatus" value="@Model.ActiveStatus" />
+                                    <button class="btn-ghost danger" type="submit" onclick="return confirm('Hủy đơn hàng #DH@(order.Id.ToString("D4"))?')">Hủy đơn</button>
+                                </form>
+                            }
+                        </div>
+                    </div>
+                </article>
+            }
+        </div>
+    }
 </section>
 
-<div class="order-stack">
-    @foreach (var order in Model)
+@functions {
+    private static string StatusClass(string status)
     {
-        <article class="order-card">
-            <div>
-                <h3>Đơn #@order.Id</h3>
-                <span>@order.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
-            </div>
-            <strong>@order.TotalAmount.ToString("N0") ₫</strong>
-            <span class="status-pill">@order.Status</span>
-            <p>Vận chuyển: @(order.ShippingInfo?.Carrier ?? "Chưa gán") - @(order.ShippingInfo?.TrackingCode ?? "Chưa có mã")</p>
-            <ul>
-                @foreach (var item in order.Items)
-                {
-                    <li>@item.Product?.Name × @item.Quantity</li>
-                }
-            </ul>
-            @if (!string.IsNullOrWhiteSpace(order.CancelledReason))
-            {
-                <p class="cancel-reason">Lý do huỷ: @order.CancelledReason</p>
-            }
-            @if (order.Status == OrderStatuses.Pending)
-            {
-                <form asp-action="Cancel" method="post" class="cancel-order-form">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="id" value="@order.Id" />
-                    <input name="reason" maxlength="500" placeholder="Lý do huỷ đơn" required />
-                    <button class="btn-ghost danger" type="submit" onclick="return confirm('Bạn chắc chắn muốn huỷ đơn này?')">Huỷ đơn</button>
-                </form>
-            }
-        </article>
+        if (status == OrderStatuses.Pending) return "pending";
+        if (status == OrderStatuses.Confirmed) return "processing";
+        if (status == OrderStatuses.Shipping) return "shipping";
+        if (status == OrderStatuses.Delivered) return "completed";
+        if (status == OrderStatuses.Cancelled) return "cancelled";
+        return "pending";
     }
-</div>
+
+}

@@ -25,20 +25,18 @@ public static class SeedData
         }
 
         await EnsureUserAsync(userManager, "admin@shop.vn", "Quản trị viên", "Hồ Chí Minh", "0900000000", "Admin@123", "Admin");
-        var sampleUsers = new List<ApplicationUser>
-        {
-            await EnsureUserAsync(userManager, "khachhang1@shop.vn", "Minh Anh", "Hà Nội", "0911111111", "User@123", "User"),
-            await EnsureUserAsync(userManager, "khachhang2@shop.vn", "Quốc Huy", "Đà Nẵng", "0911111112", "User@123", "User"),
-            await EnsureUserAsync(userManager, "khachhang3@shop.vn", "Thanh Mai", "Hồ Chí Minh", "0911111113", "User@123", "User"),
-            await EnsureUserAsync(userManager, "khachhang4@shop.vn", "Hoàng Nam", "Cần Thơ", "0911111114", "User@123", "User"),
-            await EnsureUserAsync(userManager, "khachhang5@shop.vn", "Linh Chi", "Hải Phòng", "0911111115", "User@123", "User")
-        };
+        await EnsureUserAsync(userManager, "khachhang1@shop.vn", "Minh Anh", "Hà Nội", "0911111111", "User@123", "User");
+        await EnsureUserAsync(userManager, "khachhang2@shop.vn", "Quốc Huy", "Đà Nẵng", "0911111112", "User@123", "User");
+        await EnsureUserAsync(userManager, "khachhang3@shop.vn", "Thanh Mai", "Hồ Chí Minh", "0911111113", "User@123", "User");
+        await EnsureUserAsync(userManager, "khachhang4@shop.vn", "Hoàng Nam", "Cần Thơ", "0911111114", "User@123", "User");
+        await EnsureUserAsync(userManager, "khachhang5@shop.vn", "Linh Chi", "Hải Phòng", "0911111115", "User@123", "User");
 
         var categories = await EnsureCategoriesAsync(db);
         await EnsureProductsAsync(db, categories);
+        await EnsurePcBuildProductsAsync(db);
         await EnsureBannersAsync(db);
         await EnsureVouchersAsync(db);
-        await EnsureReviewsAsync(db, sampleUsers);
+        await RemoveIneligibleReviewsAsync(db);
     }
 
     private static async Task MarkInitialMigrationForLegacyDatabaseAsync(AppDbContext db)
@@ -97,7 +95,15 @@ END");
             new Category { Name = "Laptop", Slug = "laptop" },
             new Category { Name = "Phụ kiện", Slug = "phu-kien" },
             new Category { Name = "Màn hình", Slug = "man-hinh" },
-            new Category { Name = "Đồng hồ thông minh", Slug = "dong-ho-thong-minh" }
+            new Category { Name = "Đồng hồ thông minh", Slug = "dong-ho-thong-minh" },
+            new Category { Name = "CPU", Slug = "cpu" },
+            new Category { Name = "VGA", Slug = "vga" },
+            new Category { Name = "RAM", Slug = "ram" },
+            new Category { Name = "SSD", Slug = "ssd" },
+            new Category { Name = "Mainboard", Slug = "mainboard" },
+            new Category { Name = "PSU", Slug = "psu" },
+            new Category { Name = "Case", Slug = "case" },
+            new Category { Name = "Cooling", Slug = "cooling" }
         };
 
         foreach (var seed in seeds)
@@ -214,6 +220,76 @@ END");
         };
     }
 
+    private static async Task EnsurePcBuildProductsAsync(AppDbContext db)
+    {
+        var categories = await db.Categories.ToDictionaryAsync(category => category.Slug);
+        var now = DateTime.UtcNow;
+        var products = new[]
+        {
+            P("AMD Ryzen 5 5600 CPU", "CPU 6 nhân 12 luồng, socket AM4, hiệu năng tốt cho gaming phổ thông.", 2990000, 18, "https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?auto=format&fit=crop&w=900&q=80", categories["cpu"].Id, true, 1),
+            P("Intel Core i5-13400F CPU", "CPU Intel Core i5 thế hệ 13, 10 nhân, tối ưu cho build gaming tầm trung.", 4690000, 14, "https://images.unsplash.com/photo-1555617981-dac3880eac6e?auto=format&fit=crop&w=900&q=80", categories["cpu"].Id, true, 2),
+            P("AMD Ryzen 7 7800X3D CPU", "CPU gaming cao cấp với 3D V-Cache, phù hợp cấu hình RTX 4070 trở lên.", 9690000, 9, "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=900&q=80", categories["cpu"].Id, false, 3),
+
+            P("ASUS Dual GeForce RTX 4060 OC VGA 8GB", "VGA NVIDIA GeForce RTX 4060 8GB, tiết kiệm điện, chơi game 1080p mượt.", 8290000, 12, "https://images.unsplash.com/photo-1591488320449-011701bb6704?auto=format&fit=crop&w=900&q=80", categories["vga"].Id, true, 4),
+            P("MSI GeForce RTX 4070 SUPER Ventus VGA 12GB", "VGA RTX 4070 SUPER 12GB cho gaming 2K, render và livestream.", 18990000, 7, "https://images.unsplash.com/photo-1587202372775-e229f172b9d7?auto=format&fit=crop&w=900&q=80", categories["vga"].Id, true, 5),
+            P("Sapphire Pulse Radeon RX 7800 XT VGA 16GB", "VGA Radeon RX 7800 XT 16GB, hiệu năng mạnh cho màn hình 2K.", 14990000, 8, "https://images.unsplash.com/photo-1587302912306-cf1ed9c33146?auto=format&fit=crop&w=900&q=80", categories["vga"].Id, false, 6),
+
+            P("Kingston Fury Beast RAM DDR4 16GB 3200MHz", "RAM DDR4 16GB bus 3200MHz, lựa chọn ổn định cho build phổ thông.", 1090000, 30, "https://images.unsplash.com/photo-1562976540-1502c2145186?auto=format&fit=crop&w=900&q=80", categories["ram"].Id, true, 7),
+            P("Corsair Vengeance RAM DDR5 32GB 5600MHz", "Kit RAM DDR5 32GB tốc độ cao cho gaming và workstation.", 2890000, 24, "https://images.unsplash.com/photo-1612198188060-c7c2a3b66eae?auto=format&fit=crop&w=900&q=80", categories["ram"].Id, true, 8),
+            P("G.Skill Trident Z5 RAM DDR5 64GB 6000MHz", "RAM DDR5 64GB cho render, dựng video và tác vụ đa nhiệm nặng.", 5890000, 10, "https://images.unsplash.com/photo-1592664474496-8f55b99e7ef6?auto=format&fit=crop&w=900&q=80", categories["ram"].Id, false, 9),
+
+            P("Samsung 980 PRO SSD NVMe M.2 1TB", "SSD NVMe PCIe 4.0 tốc độ cao, phù hợp hệ điều hành và game nặng.", 2490000, 28, "https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?auto=format&fit=crop&w=900&q=80", categories["ssd"].Id, true, 10),
+            P("WD Blue SN580 SSD NVMe M.2 1TB", "SSD NVMe 1TB cân bằng giá và hiệu năng cho build gaming.", 1790000, 34, "https://images.unsplash.com/photo-1611175140159-8f22dfb8ce2b?auto=format&fit=crop&w=900&q=80", categories["ssd"].Id, false, 11),
+            P("Crucial P3 Plus SSD NVMe M.2 2TB", "SSD NVMe 2TB dành cho thư viện game, video và project lớn.", 3390000, 16, "https://images.unsplash.com/photo-1601737487795-dab272f52420?auto=format&fit=crop&w=900&q=80", categories["ssd"].Id, false, 12),
+
+            P("ASUS TUF Gaming B550M-PLUS Mainboard", "Mainboard AM4 B550, VRM tốt, hỗ trợ Ryzen 5000 và RAM DDR4.", 2790000, 13, "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=900&q=80", categories["mainboard"].Id, true, 13),
+            P("MSI PRO B760M-A WiFi Mainboard DDR5", "Mainboard Intel B760 DDR5, tích hợp WiFi, phù hợp Core i5/i7 thế hệ 13.", 3990000, 10, "https://images.unsplash.com/photo-1562408590-e32931084e23?auto=format&fit=crop&w=900&q=80", categories["mainboard"].Id, true, 14),
+            P("Gigabyte B650 AORUS Elite AX Mainboard", "Mainboard AM5 B650, WiFi, hỗ trợ Ryzen 7000 và RAM DDR5.", 5290000, 8, "https://images.unsplash.com/photo-1597852074816-d933c7d2b988?auto=format&fit=crop&w=900&q=80", categories["mainboard"].Id, false, 15),
+
+            P("Corsair CX550 550W PSU 80 Plus Bronze", "Nguồn 550W chuẩn 80 Plus Bronze cho cấu hình không VGA cao cấp.", 1290000, 20, "https://images.unsplash.com/photo-1624705002806-5d72df19c3ad?auto=format&fit=crop&w=900&q=80", categories["psu"].Id, true, 16),
+            P("Cooler Master MWE Gold 750W PSU", "Nguồn 750W 80 Plus Gold, phù hợp RTX 4070 và CPU hiệu năng cao.", 2490000, 16, "https://images.unsplash.com/photo-1600348712270-5af9e3590f66?auto=format&fit=crop&w=900&q=80", categories["psu"].Id, true, 17),
+            P("Seasonic Focus GX 850W PSU", "Nguồn 850W 80 Plus Gold, full modular, dành cho build workstation.", 3490000, 9, "https://images.unsplash.com/photo-1624705002806-5d72df19c3ad?auto=format&fit=crop&w=900&q=80", categories["psu"].Id, false, 18),
+
+            P("NZXT H5 Flow Case Mid Tower", "Case airflow tốt, thiết kế tối giản, hỗ trợ radiator và VGA dài.", 2290000, 15, "https://images.unsplash.com/photo-1587202372634-32705e3bf49c?auto=format&fit=crop&w=900&q=80", categories["case"].Id, true, 19),
+            P("Lian Li Lancool 216 Case", "Case mid tower nhiều gió, dễ đi dây, phù hợp cấu hình gaming mạnh.", 2590000, 12, "https://images.unsplash.com/photo-1616588589676-62b3bd4ff6d2?auto=format&fit=crop&w=900&q=80", categories["case"].Id, false, 20),
+            P("Cooler Master MasterBox TD500 Mesh Case", "Case mesh RGB, không gian rộng, hỗ trợ tản nhiệt nước AIO.", 2490000, 11, "https://images.unsplash.com/photo-1593640408182-31c70c8268f5?auto=format&fit=crop&w=900&q=80", categories["case"].Id, false, 21),
+
+            P("DeepCool AK400 CPU Cooler", "Tản nhiệt khí hiệu quả, êm, phù hợp CPU tầm trung.", 690000, 25, "https://images.unsplash.com/photo-1605648916361-9bc12ad6a569?auto=format&fit=crop&w=900&q=80", categories["cooling"].Id, true, 22),
+            P("ID-Cooling FrostFlow X 240 AIO Cooler", "Tản nhiệt nước AIO 240mm cho CPU gaming hiệu năng cao.", 1690000, 14, "https://images.unsplash.com/photo-1587202372775-e229f172b9d7?auto=format&fit=crop&w=900&q=80", categories["cooling"].Id, false, 23),
+            P("Noctua NH-D15 CPU Cooler", "Tản nhiệt khí cao cấp, hiệu năng mạnh và độ ồn thấp.", 2590000, 7, "https://images.unsplash.com/photo-1605648916361-9bc12ad6a569?auto=format&fit=crop&w=900&q=80", categories["cooling"].Id, false, 24)
+        };
+
+        foreach (var product in products)
+        {
+            if (!await db.Products.AnyAsync(row => row.Name == product.Name))
+            {
+                db.Products.Add(product);
+            }
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task RemoveIneligibleReviewsAsync(AppDbContext db)
+    {
+        // Reviews must represent real delivered purchases; legacy sample reviews are removed during startup.
+        var reviews = await db.Reviews.ToListAsync();
+        foreach (var review in reviews)
+        {
+            var hasDeliveredOrder = await db.Orders.AnyAsync(order =>
+                order.UserId == review.UserId
+                && order.Status == OrderStatuses.Delivered
+                && order.Items.Any(item => item.ProductId == review.ProductId));
+
+            if (!hasDeliveredOrder)
+            {
+                db.Reviews.Remove(review);
+            }
+        }
+
+        await db.SaveChangesAsync();
+    }
+
     private static async Task EnsureBannersAsync(AppDbContext db)
     {
         if (await db.Banners.AnyAsync())
@@ -250,36 +326,4 @@ END");
         await db.SaveChangesAsync();
     }
 
-    private static async Task EnsureReviewsAsync(AppDbContext db, List<ApplicationUser> users)
-    {
-        var firstProduct = await db.Products.OrderBy(product => product.Id).FirstOrDefaultAsync();
-        if (firstProduct is null || await db.Reviews.AnyAsync(review => review.ProductId == firstProduct.Id))
-        {
-            return;
-        }
-
-        var comments = new[]
-        {
-            "Máy đẹp, cầm chắc tay và hiệu năng rất mượt trong mọi tác vụ.",
-            "Camera chụp thiếu sáng tốt hơn kỳ vọng, giao hàng cũng nhanh.",
-            "Pin đủ dùng cả ngày, màn hình sáng và màu rất dễ chịu.",
-            "Đóng gói cẩn thận, sản phẩm đúng mô tả, đáng tiền.",
-            "Tư vấn rõ ràng, kích hoạt bảo hành nhanh, mình rất hài lòng."
-        };
-
-        for (var i = 0; i < comments.Length; i++)
-        {
-            db.Reviews.Add(new Review
-            {
-                ProductId = firstProduct.Id,
-                UserId = users[i].Id,
-                Rating = i == 1 ? 4 : 5,
-                Comment = comments[i],
-                CreatedAt = DateTime.UtcNow.AddDays(-(i + 1)),
-                IsApproved = true
-            });
-        }
-
-        await db.SaveChangesAsync();
-    }
 }

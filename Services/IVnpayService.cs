@@ -16,4 +16,5 @@ public class VnpayResponse
     public string OrderId { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public string ResponseCode { get; set; } = string.Empty;
+    public string TransactionStatus { get; set; } = string.Empty;
 }

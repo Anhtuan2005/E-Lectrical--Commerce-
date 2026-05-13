@@ -18,12 +18,12 @@
             <a class="nav-link" asp-controller="Home" asp-action="Index">Trang chủ</a>
             <a class="nav-link" asp-controller="Product" asp-action="Index">Sản phẩm</a>
             <div class="nav-item">
-                <a class="nav-link" asp-controller="Product" asp-action="Index">Danh mục ▾</a>
+                <a class="nav-link nav-link-with-icon" asp-controller="Product" asp-action="Index">Danh mục <i data-lucide="chevron-down" aria-hidden="true"></i></a>
                 <div class="nav-dropdown">
-                    <a class="nav-chip-link" asp-controller="Product" asp-action="Index" asp-route-search="CPU">🔲 CPU</a>
-                    <a class="nav-chip-link" asp-controller="Product" asp-action="Index" asp-route-search="VGA">🎮 VGA</a>
-                    <a class="nav-chip-link" asp-controller="Product" asp-action="Index" asp-route-search="RAM">💾 RAM</a>
-                    <a class="nav-chip-link" asp-controller="Product" asp-action="Index" asp-route-search="SSD">💿 SSD</a>
+                    <a class="nav-chip-link" asp-controller="Product" asp-action="Index" asp-route-search="CPU"><i data-lucide="cpu" aria-hidden="true"></i> CPU</a>
+                    <a class="nav-chip-link" asp-controller="Product" asp-action="Index" asp-route-search="VGA"><i data-lucide="monitor" aria-hidden="true"></i> VGA</a>
+                    <a class="nav-chip-link" asp-controller="Product" asp-action="Index" asp-route-search="RAM"><i data-lucide="memory-stick" aria-hidden="true"></i> RAM</a>
+                    <a class="nav-chip-link" asp-controller="Product" asp-action="Index" asp-route-search="SSD"><i data-lucide="hard-drive" aria-hidden="true"></i> SSD</a>
                     <hr class="dropdown-divider" />
                     @foreach (var category in categories)
                     {
@@ -31,8 +31,8 @@
                     }
                 </div>
             </div>
-            <a class="nav-link nav-flash" asp-controller="Product" asp-action="Index" asp-route-sortBy="discount_desc">🔥 Flash Sale</a>
-            <a class="nav-link" asp-controller="BuildPc" asp-action="Index">⚙ Build PC</a>
+            <a class="nav-link nav-flash nav-link-with-icon" asp-controller="Product" asp-action="Index" asp-route-sortBy="discount_desc"><i data-lucide="zap" aria-hidden="true"></i> Flash Sale</a>
+            <a class="nav-link nav-link-with-icon" asp-controller="BuildPc" asp-action="Index"><i data-lucide="cpu" aria-hidden="true"></i> Build PC</a>
         </div>
 
         <div class="nav-actions">
@@ -41,18 +41,18 @@
                     <input class="nav-search-input" name="search" placeholder="Tìm sản phẩm" aria-label="Tìm sản phẩm" data-search-autocomplete />
                     <div class="search-suggestions" id="searchSuggestions"></div>
                 </div>
-                <button class="nav-icon nav-search-btn" type="button" aria-label="Mở tìm kiếm">⌕</button>
+                <button class="nav-icon nav-search-btn" type="button" aria-label="Mở tìm kiếm"><i data-lucide="search" aria-hidden="true"></i></button>
             </form>
             <a class="nav-icon nav-badge-link" asp-controller="Wishlist" asp-action="Index" aria-label="Yêu thích">
-                <span>♡</span><em id="wishlist-count">@wishlistCount</em>
+                <i data-lucide="heart" aria-hidden="true"></i><em id="wishlist-count">@wishlistCount</em>
             </a>
             <a class="nav-icon nav-badge-link" asp-controller="Cart" asp-action="Index" aria-label="Giỏ hàng">
-                <span>⌁</span><em id="cart-count">@cartCount</em>
+                <i data-lucide="shopping-cart" aria-hidden="true"></i><em id="cart-count">@cartCount</em>
             </a>
             @if (User.Identity?.IsAuthenticated == true)
             {
                 <div class="avatar-menu">
-                    <button class="avatar-btn" type="button" aria-label="Tài khoản">@((User.Identity.Name ?? "U").Substring(0, 1).ToUpper())</button>
+                    <button class="avatar-btn" type="button" aria-label="Tài khoản"><i data-lucide="user-circle" aria-hidden="true"></i></button>
                     <div class="avatar-dropdown">
                         <span>@User.Identity.Name</span>
                         <a asp-controller="Account" asp-action="Profile">Hồ sơ cá nhân</a>
@@ -69,7 +69,7 @@
             {
                 <a class="nav-login" asp-controller="Account" asp-action="Login">Đăng nhập</a>
             }
-            <button class="nav-hamburger" type="button" aria-label="Mở menu">☰</button>
+            <button class="nav-hamburger" type="button" aria-label="Mở menu"><i data-lucide="menu" aria-hidden="true"></i></button>
         </div>
     </div>
 </nav>
@@ -80,21 +80,21 @@
         <a class="brand brand-logo" asp-controller="Home" asp-action="Index" aria-label="Techvora">
             <partial name="_TechvoraLogo" />
         </a>
-        <button class="nav-drawer-close" type="button" aria-label="Đóng menu">×</button>
+        <button class="nav-drawer-close" type="button" aria-label="Đóng menu"><i data-lucide="x" aria-hidden="true"></i></button>
     </div>
     <a asp-controller="Home" asp-action="Index">Trang chủ</a>
     <a asp-controller="Product" asp-action="Index">Sản phẩm</a>
     <a asp-controller="Product" asp-action="Index">Danh mục</a>
-    <a asp-controller="Product" asp-action="Index" asp-route-search="CPU">🔲 CPU</a>
-    <a asp-controller="Product" asp-action="Index" asp-route-search="VGA">🎮 VGA</a>
-    <a asp-controller="Product" asp-action="Index" asp-route-search="RAM">💾 RAM</a>
-    <a asp-controller="Product" asp-action="Index" asp-route-search="SSD">💿 SSD</a>
+    <a asp-controller="Product" asp-action="Index" asp-route-search="CPU"><i data-lucide="cpu" aria-hidden="true"></i> CPU</a>
+    <a asp-controller="Product" asp-action="Index" asp-route-search="VGA"><i data-lucide="monitor" aria-hidden="true"></i> VGA</a>
+    <a asp-controller="Product" asp-action="Index" asp-route-search="RAM"><i data-lucide="memory-stick" aria-hidden="true"></i> RAM</a>
+    <a asp-controller="Product" asp-action="Index" asp-route-search="SSD"><i data-lucide="hard-drive" aria-hidden="true"></i> SSD</a>
     @foreach (var category in categories)
     {
         <a asp-controller="Product" asp-action="Index" asp-route-categoryId="@category.Id">@category.Name</a>
     }
-    <a class="nav-flash" asp-controller="Product" asp-action="Index" asp-route-sortBy="discount_desc">🔥 Flash Sale</a>
-    <a asp-controller="BuildPc" asp-action="Index">⚙ Build PC</a>
+    <a class="nav-flash" asp-controller="Product" asp-action="Index" asp-route-sortBy="discount_desc"><i data-lucide="zap" aria-hidden="true"></i> Flash Sale</a>
+    <a asp-controller="BuildPc" asp-action="Index"><i data-lucide="cpu" aria-hidden="true"></i> Build PC</a>
     <a asp-controller="Wishlist" asp-action="Index">Yêu thích</a>
     <a asp-controller="Cart" asp-action="Index">Giỏ hàng</a>
     @if (User.Identity?.IsAuthenticated == true)

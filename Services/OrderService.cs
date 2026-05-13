@@ -98,6 +98,50 @@ public class OrderService : IOrderService
             .ToListAsync();
     }
 
+    public async Task<UserOrdersViewModel> GetUserOrderHistoryAsync(string userId, string? status)
+    {
+        var activeStatus = OrderStatusFilters.Normalize(status);
+        var targetStatus = OrderStatusFilters.ToOrderStatus(activeStatus);
+        var query = _db.Orders
+            .Include(order => order.Items).ThenInclude(item => item.Product)
+            .Include(order => order.ShippingInfo)
+            .Where(order => order.UserId == userId);
+
+        var counts = await _db.Orders
+            .Where(order => order.UserId == userId)
+            .GroupBy(order => order.Status)
+            .Select(group => new { Status = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(row => row.Status, row => row.Count);
+        var total = counts.Values.Sum();
+
+        if (!string.IsNullOrWhiteSpace(targetStatus))
+        {
+            query = query.Where(order => order.Status == targetStatus);
+        }
+
+        return new UserOrdersViewModel
+        {
+            ActiveStatus = activeStatus,
+            Orders = await query.OrderByDescending(order => order.CreatedAt).ToListAsync(),
+            Tabs = OrderStatusFilters.Tabs.Select(tab => new OrderStatusTabViewModel
+            {
+                Key = tab.Key,
+                Label = tab.Label,
+                Count = tab.Status is null ? total : counts.GetValueOrDefault(tab.Status),
+                IsActive = tab.Key == activeStatus
+            }).ToList()
+        };
+    }
+
+    public async Task<Order?> GetUserOrderAsync(int id, string userId)
+    {
+        return await _db.Orders
+            .Include(order => order.User)
+            .Include(order => order.Items).ThenInclude(item => item.Product)
+            .Include(order => order.ShippingInfo)
+            .FirstOrDefaultAsync(order => order.Id == id && order.UserId == userId);
+    }
+
     public async Task<OrderListViewModel> GetOrdersAsync(string? status, string? customer, DateTime? fromDate, DateTime? toDate)
     {
         var query = _db.Orders
@@ -172,6 +216,65 @@ public class OrderService : IOrderService
 
         await _db.SaveChangesAsync();
         _logger.LogInformation("Admin updated order {OrderId} status to {Status}", id, status);
+    }
+
+    public async Task<bool> CancelUserOrderAsync(int id, string userId, string? reason)
+    {
+        var order = await _db.Orders
+            .Include(row => row.Items)
+            .FirstOrDefaultAsync(row => row.Id == id && row.UserId == userId);
+        if (order is null || order.Status != OrderStatuses.Pending)
+        {
+            return false;
+        }
+
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+        order.Status = OrderStatuses.Cancelled;
+        order.CancelledReason = string.IsNullOrWhiteSpace(reason)
+            ? "Khách hàng hủy đơn trước khi xác nhận."
+            : reason.Trim();
+        order.UpdatedAt = DateTime.UtcNow;
+
+        foreach (var item in order.Items)
+        {
+            await _db.Database.ExecuteSqlRawAsync(
+                "UPDATE Products SET Stock = Stock + {0} WHERE Id = {1}",
+                item.Quantity,
+                item.ProductId);
+        }
+
+        await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
+        _logger.LogInformation("User {UserId} cancelled order {OrderId}", userId, id);
+        return true;
+    }
+
+    public async Task<int> ReorderAsync(int id, string userId, string sessionId)
+    {
+        var order = await _db.Orders
+            .Include(row => row.Items)
+            .ThenInclude(item => item.Product)
+            .FirstOrDefaultAsync(row => row.Id == id && row.UserId == userId);
+        if (order is null)
+        {
+            return 0;
+        }
+
+        var added = 0;
+        foreach (var item in order.Items)
+        {
+            if (item.Product is null || item.Product.Stock <= 0)
+            {
+                continue;
+            }
+
+            var quantity = Math.Min(item.Quantity, item.Product.Stock);
+            await _cartService.AddAsync(item.ProductId, quantity, userId, sessionId);
+            added++;
+        }
+
+        _logger.LogInformation("User {UserId} reordered {AddedCount} items from order {OrderId}", userId, added, id);
+        return added;
     }
 
     public async Task<AdminDashboardViewModel> GetDashboardAsync()

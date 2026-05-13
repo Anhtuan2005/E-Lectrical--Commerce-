@@ -40,7 +40,7 @@
         <div class="address-grid">
             <div>
                 <label>Tỉnh / Thành phố</label>
-                <select asp-for="Province">
+                <select asp-for="Province" data-province-select data-current="@Model.Province">
                     <option value="">-- Chọn tỉnh thành --</option>
                     @foreach (var province in provinces)
                     {
@@ -51,12 +51,16 @@
             </div>
             <div>
                 <label>Quận / Huyện</label>
-                <input asp-for="District" placeholder="VD: Quận 1" />
+                <select asp-for="District" data-district-select data-current="@Model.District">
+                    <option value="">-- Chọn quận huyện --</option>
+                </select>
                 <span asp-validation-for="District" class="field-error"></span>
             </div>
             <div>
                 <label>Phường / Xã</label>
-                <input asp-for="Ward" placeholder="VD: Phường Bến Thành" />
+                <select asp-for="Ward" data-ward-select data-current="@Model.Ward">
+                    <option value="">-- Chọn phường xã --</option>
+                </select>
                 <span asp-validation-for="Ward" class="field-error"></span>
             </div>
             <div>

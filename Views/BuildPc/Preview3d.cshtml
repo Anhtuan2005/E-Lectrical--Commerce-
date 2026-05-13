@@ -1,0 +1,43 @@
+@{
+    Layout = "_FocusLayout";
+    ViewData["Title"] = "3D Preview Build PC";
+    ViewData["BodyClass"] = "preview-focus";
+}
+
+<section class="pc3d-page" id="pc3dPage">
+    <aside class="pc3d-sidebar">
+        <a class="btn-ghost pc3d-back" asp-controller="BuildPc" asp-action="Index">
+            <i data-lucide="arrow-left" aria-hidden="true"></i>
+            Quay lại Build PC
+        </a>
+        <div>
+            <span class="eyebrow">3D Build Preview</span>
+            <h1>Case PC Techvora</h1>
+            <p>Kéo để xoay, scroll để zoom. Preview đọc đúng cấu hình bạn vừa chọn ở trang Build PC.</p>
+        </div>
+        <div class="pc3d-selected">
+            <h2>Linh kiện đã chọn</h2>
+            <ul id="pc3dPartList">
+                <li>Đang tải cấu hình...</li>
+            </ul>
+            <div class="pc3d-page-total">
+                <span>Tổng cộng</span>
+                <strong id="pc3dTotal">0 ₫</strong>
+            </div>
+        </div>
+        <div class="pc3d-empty" id="pc3dEmpty" hidden>
+            Chưa có linh kiện nào để preview. Hãy quay lại Build PC và chọn cấu hình trước.
+        </div>
+    </aside>
+
+    <div class="pc3d-stage pc3d-page-stage" id="pc3dStage">
+        <div class="pc3d-viewport" id="pc3dViewport"></div>
+        <div class="pc3d-tooltip" id="pc3dTooltip" hidden></div>
+        <div class="pc3d-hint">Kéo để xoay · Scroll để zoom</div>
+        <div class="pc3d-fallback" id="pc3dFallback" hidden></div>
+    </div>
+</section>
+
+@section Scripts {
+    <script type="module" src="~/js/buildpc-3d.js" asp-append-version="true"></script>
+}

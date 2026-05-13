@@ -1,92 +1,106 @@
-﻿@model RegisterViewModel
+@model RegisterViewModel
 @{
+    Layout = "_FocusLayout";
     ViewData["Title"] = "Đăng ký";
+    ViewData["BodyClass"] = "auth-focus";
 }
 
-<div class="auth-split">
-    <div class="auth-brand-panel">
-        <div class="circuit-bg"></div>
-        <div class="auth-brand-content">
+<main class="auth-page auth-register" data-auth-page>
+    <div class="auth-bg-grid"></div>
+    <div class="auth-glow auth-glow-a"></div>
+    <div class="auth-glow auth-glow-b"></div>
+
+    <section class="auth-shell">
+        <aside class="auth-showcase">
             <div class="auth-brand-logo"><partial name="_TechvoraLogo" /></div>
-            <p class="auth-tagline">Tạo tài khoản, nhận ưu đãi ngay</p>
-            <ul class="auth-features">
-                <li>Tích điểm cho mọi đơn hàng</li>
-                <li>Lưu địa chỉ giao hàng mặc định</li>
-                <li>Theo dõi bảo hành và đơn hàng dễ dàng</li>
-            </ul>
-        </div>
-    </div>
+            <span class="eyebrow">Techvora Member</span>
+            <h1>Tạo tài khoản, nhận ưu đãi ngay.</h1>
+            <p>Lưu cấu hình PC, theo dõi bảo hành và thanh toán nhanh hơn trong những lần mua tiếp theo.</p>
 
-    <div class="auth-form-panel">
-        <form asp-action="Register" method="post" class="auth-form">
-            @Html.AntiForgeryToken()
-            <h1>Tạo tài khoản</h1>
-            <p class="auth-subtitle">Gia nhập Techvora để mua sắm nhanh hơn</p>
-            <div asp-validation-summary="ModelOnly" class="alert-error"></div>
+            <div class="auth-benefit-grid">
+                <div><i data-lucide="badge-percent" aria-hidden="true"></i><span>Ưu đãi thành viên</span></div>
+                <div><i data-lucide="map-pin" aria-hidden="true"></i><span>Lưu địa chỉ mặc định</span></div>
+                <div><i data-lucide="package-check" aria-hidden="true"></i><span>Theo dõi đơn dễ dàng</span></div>
+            </div>
+        </aside>
 
-            <div class="field-group">
-                <label asp-for="FullName">Họ tên</label>
-                <div class="input-wrap">
-                    <svg class="input-icon" viewBox="0 0 20 20"><circle cx="10" cy="6" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M4 17c1-4 11-4 12 0" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-                    <input asp-for="FullName" autocomplete="name" />
-                </div>
-                <span asp-validation-for="FullName" class="field-error"></span>
+        <section class="auth-card">
+            <div class="auth-mode-switch" aria-label="Chuyển chế độ tài khoản">
+                <a asp-action="Login" data-auth-switch>Đăng nhập</a>
+                <a class="active" asp-action="Register">Đăng ký</a>
             </div>
 
-            <div class="field-group">
-                <label asp-for="Email">Email</label>
-                <div class="input-wrap">
-                    <svg class="input-icon" viewBox="0 0 20 20"><path d="M2.5 4h15v12h-15z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M2.5 4l7.5 7 7.5-7" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-                    <input asp-for="Email" type="email" autocomplete="email" />
-                </div>
-                <span asp-validation-for="Email" class="field-error"></span>
-            </div>
+            <form asp-action="Register" method="post" class="auth-form auth-form-animated">
+                @Html.AntiForgeryToken()
+                <h2>Tạo tài khoản</h2>
+                <p class="auth-subtitle">Gia nhập Techvora để mua sắm nhanh hơn.</p>
+                <div asp-validation-summary="ModelOnly" class="alert-error"></div>
 
-            <div class="field-group">
-                <label asp-for="PhoneNumber">Số điện thoại</label>
-                <div class="input-wrap">
-                    <svg class="input-icon" viewBox="0 0 20 20"><path d="M6 2h8a1 1 0 011 1v14a1 1 0 01-1 1H6a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M8 15h4" stroke="currentColor" stroke-width="1.5"/></svg>
-                    <input asp-for="PhoneNumber" autocomplete="tel" inputmode="tel" placeholder="0901234567" />
+                <div class="field-group">
+                    <label asp-for="FullName">Họ tên</label>
+                    <div class="input-wrap">
+                        <i data-lucide="user-round" class="input-icon" aria-hidden="true"></i>
+                        <input asp-for="FullName" autocomplete="name" placeholder="Nguyễn Văn A" />
+                    </div>
+                    <span asp-validation-for="FullName" class="field-error"></span>
                 </div>
-                <span asp-validation-for="PhoneNumber" class="field-error"></span>
-            </div>
 
-            <div class="field-group">
-                <label asp-for="Address">Địa chỉ mặc định</label>
-                <div class="input-wrap">
-                    <svg class="input-icon" viewBox="0 0 20 20"><path d="M10 18s6-5 6-10a6 6 0 10-12 0c0 5 6 10 6 10z" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="10" cy="8" r="2" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-                    <input asp-for="Address" autocomplete="street-address" />
+                <div class="field-group">
+                    <label asp-for="Email">Email</label>
+                    <div class="input-wrap">
+                        <i data-lucide="mail" class="input-icon" aria-hidden="true"></i>
+                        <input asp-for="Email" type="email" autocomplete="email" placeholder="ten@email.com" />
+                    </div>
+                    <span asp-validation-for="Email" class="field-error"></span>
                 </div>
-            </div>
 
-            <div class="field-group">
-                <label asp-for="Password">Mật khẩu</label>
-                <div class="input-wrap">
-                    <svg class="input-icon" viewBox="0 0 20 20"><rect x="4" y="9" width="12" height="9" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M7 9V6a3 3 0 016 0v3" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-                    <input asp-for="Password" type="password" autocomplete="new-password" data-password-input data-password-strength />
-                    <button type="button" class="toggle-pw" data-toggle-password aria-label="Hiện mật khẩu">Hiện</button>
+                <div class="field-group">
+                    <label asp-for="PhoneNumber">Số điện thoại</label>
+                    <div class="input-wrap">
+                        <i data-lucide="smartphone" class="input-icon" aria-hidden="true"></i>
+                        <input asp-for="PhoneNumber" autocomplete="tel" inputmode="tel" placeholder="0901234567" />
+                    </div>
+                    <span asp-validation-for="PhoneNumber" class="field-error"></span>
                 </div>
-                <div class="strength-track"><div class="strength-bar" id="strengthBar"></div></div>
-                <div class="strength-text">Độ mạnh: <span id="strengthLabel">Chưa nhập</span></div>
-                <span asp-validation-for="Password" class="field-error"></span>
-            </div>
 
-            <div class="field-group">
-                <label asp-for="ConfirmPassword">Nhập lại mật khẩu</label>
-                <div class="input-wrap">
-                    <svg class="input-icon" viewBox="0 0 20 20"><rect x="4" y="9" width="12" height="9" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-                    <input asp-for="ConfirmPassword" type="password" autocomplete="new-password" />
+                <div class="field-group">
+                    <label asp-for="Address">Địa chỉ mặc định</label>
+                    <div class="input-wrap">
+                        <i data-lucide="map-pin" class="input-icon" aria-hidden="true"></i>
+                        <input asp-for="Address" autocomplete="street-address" placeholder="Số nhà, phường/xã, quận/huyện..." />
+                    </div>
                 </div>
-                <span asp-validation-for="ConfirmPassword" class="field-error"></span>
-            </div>
 
-            <button type="submit" class="btn-auth-submit">Đăng ký</button>
-            <p class="auth-switch">Đã có tài khoản? <a asp-action="Login">Đăng nhập</a></p>
-        </form>
-    </div>
-</div>
+                <div class="field-group">
+                    <label asp-for="Password">Mật khẩu</label>
+                    <div class="input-wrap">
+                        <i data-lucide="lock-keyhole" class="input-icon" aria-hidden="true"></i>
+                        <input asp-for="Password" type="password" autocomplete="new-password" data-password-input data-password-strength />
+                        <button type="button" class="toggle-pw" data-toggle-password aria-label="Hiện mật khẩu">Hiện</button>
+                    </div>
+                    <div class="strength-track"><div class="strength-bar" id="strengthBar"></div></div>
+                    <div class="strength-text">Độ mạnh: <span id="strengthLabel">Chưa nhập</span></div>
+                    <span asp-validation-for="Password" class="field-error"></span>
+                </div>
+
+                <div class="field-group">
+                    <label asp-for="ConfirmPassword">Nhập lại mật khẩu</label>
+                    <div class="input-wrap">
+                        <i data-lucide="badge-check" class="input-icon" aria-hidden="true"></i>
+                        <input asp-for="ConfirmPassword" type="password" autocomplete="new-password" />
+                    </div>
+                    <span asp-validation-for="ConfirmPassword" class="field-error"></span>
+                </div>
+
+                <button type="submit" class="btn-auth-submit">Đăng ký</button>
+                <p class="auth-switch">Đã có tài khoản? <a asp-action="Login" data-auth-switch>Đăng nhập</a></p>
+            </form>
+        </section>
+    </section>
+</main>
 
 @section Scripts {
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/auth.js" asp-append-version="true"></script>
 }
-

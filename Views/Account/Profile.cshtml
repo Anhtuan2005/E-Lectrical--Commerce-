@@ -8,7 +8,7 @@
         <partial name="_TechvoraLogo" />
         <a class="active" asp-action="Profile">Hồ sơ</a>
         <a asp-action="ChangePassword">Đổi mật khẩu</a>
-        <a asp-controller="Order" asp-action="History">Lịch sử đơn hàng</a>
+        <a asp-controller="Order" asp-action="History">Đơn hàng của tôi</a>
     </aside>
     <form asp-action="Profile" method="post" class="form-panel account-form">
         @Html.AntiForgeryToken()
@@ -29,6 +29,16 @@
         <label>Địa chỉ mặc định</label>
         <textarea asp-for="Address" rows="3"></textarea>
         <span asp-validation-for="Address" class="field-error"></span>
+
+        @if (!string.IsNullOrWhiteSpace(Model.Address))
+        {
+            <div class="saved-address-actions">
+                <span>Địa chỉ này sẽ được gợi ý ở checkout.</span>
+                <button class="btn-ghost danger" type="submit" formaction="/account/delete-address" formmethod="post" onclick="return confirm('Xóa địa chỉ đã lưu?')">
+                    Xóa địa chỉ
+                </button>
+            </div>
+        }
 
         <button class="btn-primary" type="submit">Lưu hồ sơ</button>
     </form>

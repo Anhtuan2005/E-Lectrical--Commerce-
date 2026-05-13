@@ -42,7 +42,7 @@ public class PaymentController : Controller
     public async Task<IActionResult> VnpayReturn()
     {
         var response = _vnpayService.ProcessCallback(Request.Query);
-        _logger.LogInformation("VNPAY return received for order {OrderId}. Success={Success}, SignatureValid={SignatureValid}, ResponseCode={ResponseCode}", response.OrderId, response.IsSuccess, response.IsSignatureValid, response.ResponseCode);
+        _logger.LogInformation("VNPAY return received for order {OrderId}. Success={Success}, SignatureValid={SignatureValid}, ResponseCode={ResponseCode}, TransactionStatus={TransactionStatus}", response.OrderId, response.IsSuccess, response.IsSignatureValid, response.ResponseCode, response.TransactionStatus);
         var order = await UpdateOrderPaymentAsync(response);
         TempData["PaymentResult"] = response.IsSuccess
             ? "Thanh toán VNPAY thành công."
@@ -59,20 +59,45 @@ public class PaymentController : Controller
     public async Task<IActionResult> VnpayIpn()
     {
         var response = _vnpayService.ProcessCallback(Request.Query);
-        _logger.LogInformation("VNPAY IPN received for order {OrderId}. Success={Success}, SignatureValid={SignatureValid}, ResponseCode={ResponseCode}", response.OrderId, response.IsSuccess, response.IsSignatureValid, response.ResponseCode);
-        var order = await UpdateOrderPaymentAsync(response);
+        _logger.LogInformation("VNPAY IPN received for order {OrderId}. Success={Success}, SignatureValid={SignatureValid}, ResponseCode={ResponseCode}, TransactionStatus={TransactionStatus}", response.OrderId, response.IsSuccess, response.IsSignatureValid, response.ResponseCode, response.TransactionStatus);
+
+        if (!response.IsSignatureValid)
+        {
+            return Json(new { RspCode = "97", Message = "Invalid signature" });
+        }
+
+        if (!int.TryParse(response.OrderId, out var id))
+        {
+            return Json(new { RspCode = "01", Message = "Order not found" });
+        }
+
+        var order = await _db.Orders.FirstOrDefaultAsync(row => row.Id == id);
         if (order is null)
         {
             return Json(new { RspCode = "01", Message = "Order not found" });
         }
 
-        return Json(response.IsSuccess
-            ? new { RspCode = "00", Message = "Confirm Success" }
-            : new { RspCode = "97", Message = "Invalid signature or failed payment" });
+        if (order.TotalAmount != response.Amount)
+        {
+            return Json(new { RspCode = "04", Message = "Invalid amount" });
+        }
+
+        if (order.IsPaid || order.Status != OrderStatuses.Pending)
+        {
+            return Json(new { RspCode = "02", Message = "Order already confirmed" });
+        }
+
+        await UpdateOrderPaymentAsync(response, order);
+        return Json(new { RspCode = "00", Message = "Confirm Success" });
     }
 
     private async Task<Order?> UpdateOrderPaymentAsync(VnpayResponse response)
     {
+        if (!response.IsSignatureValid)
+        {
+            return null;
+        }
+
         if (!int.TryParse(response.OrderId, out var id))
         {
             return null;
@@ -84,6 +109,17 @@ public class PaymentController : Controller
             return null;
         }
 
+        if (order.TotalAmount != response.Amount)
+        {
+            return null;
+        }
+
+        await UpdateOrderPaymentAsync(response, order);
+        return order;
+    }
+
+    private async Task UpdateOrderPaymentAsync(VnpayResponse response, Order order)
+    {
         order.VnpayTransactionId = response.TransactionId;
         order.VnpayResponseCode = response.ResponseCode;
         if (response.IsSuccess)
@@ -98,6 +134,5 @@ public class PaymentController : Controller
 
         order.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
-        return order;
     }
 }

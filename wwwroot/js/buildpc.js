@@ -3,6 +3,7 @@
 
   var slotProducts = window.SLOT_PRODUCTS || {};
   var build = {};
+  window.build = build;
   var currentSlot = null;
 
   var modal = document.getElementById("slotModal");
@@ -13,11 +14,13 @@
   var summaryList = document.getElementById("summaryList");
   var buildTotal = document.getElementById("buildTotal");
   var btnAddAll = document.getElementById("btnAddAll");
+  var btnPreview3d = document.getElementById("btnPreview3d");
   var btnReset = document.getElementById("btnReset");
   var warningsEl = document.getElementById("compatWarnings");
   var wattageInfo = document.getElementById("wattageInfo");
   var wattageVal = document.getElementById("wattageVal");
 
+  // Conservative slot-level wattage estimate for quick buyer warnings, not a replacement for exact PSU calculators.
   var wattageEstimate = { CPU: 95, VGA: 200, RAM: 10, SSD: 5, Mainboard: 50, PSU: 0, Case: 0, Cooling: 15 };
 
   document.querySelectorAll("[data-choose]").forEach(function (button) {
@@ -52,6 +55,13 @@
   }
 
   if (btnAddAll) btnAddAll.addEventListener("click", addAllToCart);
+  if (btnPreview3d) {
+    btnPreview3d.addEventListener("click", function () {
+      if (!Object.keys(build).length) return;
+      persistBuild();
+      window.location.href = "/BuildPc/Preview3d";
+    });
+  }
   if (btnReset) btnReset.addEventListener("click", resetBuild);
 
   function openModal(slot) {
@@ -107,6 +117,7 @@
     updateSlotRow(slot, product);
     updateSummary();
     checkCompatibility();
+    persistBuild();
   }
 
   function updateSlotRow(slot, product) {
@@ -128,6 +139,7 @@
     row.classList.remove("has-product");
     updateSummary();
     checkCompatibility();
+    persistBuild();
   }
 
   function updateSummary() {
@@ -148,6 +160,7 @@
     }, 0);
     buildTotal.textContent = total.toLocaleString("vi-VN") + " ₫";
     btnAddAll.disabled = entries.length === 0;
+    if (btnPreview3d) btnPreview3d.disabled = entries.length === 0;
     updateWattage();
   }
 
@@ -188,37 +201,35 @@
     btnAddAll.disabled = true;
     btnAddAll.textContent = "Đang thêm...";
 
-    var successCount = 0;
-    for (var i = 0; i < items.length; i++) {
-      var product = items[i];
-      try {
-        var body = new URLSearchParams();
-        body.append("productId", product.id);
-        body.append("quantity", "1");
-        var response = await fetch("/Cart/Add", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "RequestVerificationToken": antiForgeryToken()
-          },
-          body: body.toString()
-        });
-        var data = await response.json();
-        if (data.success) {
-          successCount++;
-          var cartCount = document.getElementById("cart-count");
-          if (cartCount) cartCount.textContent = data.itemCount;
-        }
-      } catch (error) {
-        console.error("Lỗi thêm giỏ:", error);
+    try {
+      var body = new URLSearchParams();
+      items.forEach(function (product) {
+        body.append("productIds", product.id);
+      });
+      var response = await fetch("/BuildPc/AddToCart", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "RequestVerificationToken": antiForgeryToken()
+        },
+        body: body.toString()
+      });
+      var data = await response.json();
+      if (!data.success) {
+        btnAddAll.disabled = false;
+        btnAddAll.textContent = "Thêm tất cả vào giỏ";
+        if (window.showToast) window.showToast(data.message, "error");
+        return;
       }
-    }
-
-    btnAddAll.textContent = "Đã thêm " + successCount + "/" + items.length + " sản phẩm";
-    window.setTimeout(function () {
+      var cartCount = document.getElementById("cart-count");
+      if (cartCount) cartCount.textContent = data.itemCount;
+      btnAddAll.textContent = "Đã thêm vào giỏ";
+      window.location.href = data.redirectUrl || "/Cart";
+    } catch (error) {
+      console.error("Lỗi thêm giỏ:", error);
       btnAddAll.disabled = false;
       btnAddAll.textContent = "Thêm tất cả vào giỏ";
-    }, 2200);
+    }
   }
 
   function resetBuild() {
@@ -226,6 +237,7 @@
     if (!window.confirm("Đặt lại toàn bộ cấu hình?")) return;
     Object.keys(build).forEach(clearSlot);
     warningsEl.innerHTML = "";
+    persistBuild();
   }
 
   function applyPreset(preset) {
@@ -265,5 +277,13 @@
 
   function cssEscape(value) {
     return window.CSS && CSS.escape ? CSS.escape(value) : String(value).replace(/"/g, '\\"');
+  }
+
+  function persistBuild() {
+    try {
+      sessionStorage.setItem("techvoraBuildPcPreview", JSON.stringify(build));
+    } catch (error) {
+      console.warn("Không thể lưu cấu hình preview 3D:", error);
+    }
   }
 })();

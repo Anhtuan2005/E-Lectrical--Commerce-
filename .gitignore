@@ -13,6 +13,7 @@ logs/
 # ASP.NET secrets
 appsettings.Development.json
 
+# Browser data
 .edge-3d-test/
 
 # Rider / VSCode
@@ -21,4 +22,4 @@ appsettings.Development.json
 
 # OS
 .DS_Store
-Thumbs.db.edge-3d-test/
+Thumbs.db

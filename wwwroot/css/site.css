@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --bg: #ffffff;
   --bg-soft: #f5f5f7;
   --bg-card: #ffffff;
@@ -836,19 +836,33 @@
   min-height: 480px;
   position: relative;
   overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(0, 200, 255, 0.28), transparent 34%),
+    radial-gradient(circle at 72% 64%, rgba(59, 130, 246, 0.16), transparent 26%),
+    #07131f;
 }
 
 .pc3d-viewport {
   position: absolute;
   inset: 0;
+  z-index: 5;
+  width: 100%;
+  height: 100%;
   min-width: 640px;
   min-height: 480px;
 }
 
 .pc3d-viewport canvas {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   display: block;
+  z-index: 1;
+  opacity: 1;
+  visibility: visible;
+  mix-blend-mode: normal;
+  filter: none;
 }
 
 .pc3d-tooltip {
@@ -874,13 +888,31 @@
   position: absolute;
   left: 18px;
   bottom: 18px;
-  z-index: 3;
+  z-index: 12;
   padding: 9px 12px;
   border-radius: 999px;
-  color: color-mix(in srgb, var(--voltix-text) 72%, transparent);
-  background: color-mix(in srgb, var(--tech-dark) 62%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  color: #e6f7ff;
+  background: rgba(3, 12, 24, 0.76);
+  border: 1px solid rgba(0, 200, 255, 0.32);
   font-size: 13px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+}
+
+.pc3d-stage::before {
+  content: "";
+  position: absolute;
+  inset: auto 7% 6% 7%;
+  height: 28%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(0, 200, 255, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 200, 255, 0.09) 1px, transparent 1px);
+  background-size: 42px 42px;
+  transform: perspective(720px) rotateX(66deg);
+  transform-origin: bottom;
+  opacity: 0.65;
+  mask-image: linear-gradient(to top, #000 20%, transparent 100%);
 }
 
 .pc3d-fallback {
@@ -894,6 +926,16 @@
   background: #060a10;
   text-align: center;
   font-weight: 800;
+  cursor: grab;
+  touch-action: none;
+}
+
+.pc3d-fallback[hidden] {
+  display: none;
+}
+
+.pc3d-fallback:active {
+  cursor: grabbing;
 }
 
 .pc3d-css-preview {
@@ -919,9 +961,12 @@
   position: relative;
   width: min(430px, 78vw);
   aspect-ratio: 0.72;
-  transform: rotateX(58deg) rotateZ(-32deg);
+  --rx: 58deg;
+  --rz: -32deg;
+  --preview-scale: 1;
+  transform: rotateX(var(--rx)) rotateZ(var(--rz)) scale(var(--preview-scale));
   transform-style: preserve-3d;
-  animation: pc3dCompatFloat 5s var(--ease) infinite alternate;
+  transition: transform 120ms ease;
 }
 
 .pc3d-css-shell {
@@ -1023,8 +1068,8 @@
 }
 
 @keyframes pc3dCompatFloat {
-  from { transform: rotateX(58deg) rotateZ(-32deg) translateY(0); }
-  to { transform: rotateX(54deg) rotateZ(-25deg) translateY(-10px); }
+  from { transform: rotateX(var(--rx)) rotateZ(var(--rz)) scale(var(--preview-scale)) translateY(0); }
+  to { transform: rotateX(var(--rx)) rotateZ(var(--rz)) scale(var(--preview-scale)) translateY(-10px); }
 }
 
 .pc3d-label {
@@ -1155,12 +1200,261 @@
 }
 
 .pc3d-page-stage {
+  height: calc(100vh - 56px);
   min-height: calc(100vh - 56px);
+  background:
+    radial-gradient(circle at 48% 42%, rgba(0, 200, 255, 0.3), transparent 30%),
+    radial-gradient(circle at 64% 56%, rgba(34, 197, 94, 0.14), transparent 22%),
+    linear-gradient(135deg, #07131f 0%, #0b1b2b 48%, #04101d 100%);
 }
 
 .pc3d-page .pc3d-viewport {
   min-width: 100%;
   min-height: 100%;
+}
+
+.pc3d-page .pc3d-viewport[hidden] {
+  display: none;
+}
+
+.pc3d-dom-preview {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  padding: clamp(26px, 5vw, 70px);
+  perspective: 1200px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.pc3d-dom-preview.is-dragging {
+  cursor: grabbing;
+}
+
+.pc3d-dom-case {
+  --rx: 6deg;
+  --ry: -18deg;
+  --preview-scale: 1;
+  position: relative;
+  width: min(520px, 44vw, 62vh);
+  aspect-ratio: 0.74;
+  transform-style: preserve-3d;
+  transform: rotateX(var(--rx)) rotateY(var(--ry)) scale(var(--preview-scale));
+  transition: transform 140ms ease;
+  filter: drop-shadow(0 42px 60px rgba(0, 0, 0, 0.42));
+}
+
+.pc3d-dom-shell,
+.pc3d-dom-board,
+.pc3d-dom-glass,
+.pc3d-dom-part {
+  position: absolute;
+  transform-style: preserve-3d;
+}
+
+.pc3d-dom-shell {
+  inset: 0;
+  border: 3px solid rgba(125, 211, 252, 0.78);
+  border-radius: 28px;
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.92), rgba(3, 7, 18, 0.74)),
+    radial-gradient(circle at 72% 18%, rgba(0, 200, 255, 0.32), transparent 34%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+    0 0 52px rgba(0, 200, 255, 0.22),
+    24px 22px 0 rgba(15, 23, 42, 0.9);
+}
+
+.pc3d-dom-shell::before,
+.pc3d-dom-shell::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: rgba(0, 200, 255, 0.9);
+  box-shadow: 0 0 28px rgba(0, 200, 255, 0.72);
+}
+
+.pc3d-dom-shell::before {
+  left: 16px;
+  top: 20px;
+  width: 10px;
+  height: calc(100% - 40px);
+}
+
+.pc3d-dom-shell::after {
+  right: 18px;
+  top: 22px;
+  width: 9px;
+  height: calc(100% - 44px);
+}
+
+.pc3d-dom-board {
+  left: 18%;
+  top: 16%;
+  width: 58%;
+  height: 58%;
+  border-radius: 16px;
+  border: 1px solid rgba(52, 211, 153, 0.66);
+  background:
+    linear-gradient(135deg, rgba(21, 128, 61, 0.86), rgba(6, 78, 59, 0.9)),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0 1px, transparent 1px 16px);
+  transform: translateZ(28px);
+  box-shadow: 0 0 32px rgba(34, 197, 94, 0.26), inset 0 0 34px rgba(2, 6, 23, 0.4);
+}
+
+.pc3d-dom-glass {
+  inset: 4%;
+  border-radius: 24px;
+  border: 1px solid rgba(191, 219, 254, 0.26);
+  background: linear-gradient(120deg, rgba(191, 219, 254, 0.12), transparent 42%);
+  transform: translateZ(82px);
+  pointer-events: none;
+}
+
+.pc3d-dom-part {
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  color: #f8fbff;
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  opacity: 0.22;
+  background: rgba(148, 163, 184, 0.34);
+  box-shadow: 0 14px 28px rgba(2, 6, 23, 0.38), inset 0 1px rgba(255, 255, 255, 0.24);
+}
+
+.pc3d-dom-part.is-active {
+  opacity: 1;
+}
+
+.pc3d-dom-part span {
+  position: relative;
+  z-index: 1;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.56);
+  white-space: nowrap;
+}
+
+.pc3d-dom-mainboard {
+  left: 18%;
+  top: 16%;
+  width: 58%;
+  height: 58%;
+  transform: translateZ(42px);
+  background: rgba(34, 197, 94, 0.34);
+}
+
+.pc3d-dom-mainboard.is-active {
+  background: linear-gradient(135deg, #22c55e, #15803d);
+}
+
+.pc3d-dom-cpu {
+  left: 39%;
+  top: 32%;
+  width: 16%;
+  height: 11%;
+  transform: translateZ(62px);
+}
+
+.pc3d-dom-cpu.is-active {
+  background: linear-gradient(135deg, #fbbf24, #f97316);
+}
+
+.pc3d-dom-ram {
+  left: 27%;
+  top: 23%;
+  width: 8%;
+  height: 36%;
+  transform: translateZ(70px);
+}
+
+.pc3d-dom-ram::after {
+  content: "";
+  position: absolute;
+  inset: 0 -140% 0 140%;
+  border-radius: inherit;
+  border: inherit;
+  background: inherit;
+  box-shadow: inherit;
+}
+
+.pc3d-dom-ram.is-active {
+  background: linear-gradient(180deg, #a855f7, #6d28d9);
+}
+
+.pc3d-dom-vga {
+  left: 17%;
+  top: 58%;
+  width: 64%;
+  height: 11%;
+  transform: translateZ(76px);
+}
+
+.pc3d-dom-vga.is-active {
+  background: linear-gradient(135deg, #2563eb, #06b6d4);
+}
+
+.pc3d-dom-ssd {
+  left: 59%;
+  top: 39%;
+  width: 15%;
+  height: 20%;
+  transform: translateZ(66px);
+}
+
+.pc3d-dom-ssd.is-active {
+  background: linear-gradient(135deg, #38bdf8, #0f766e);
+}
+
+.pc3d-dom-psu {
+  left: 24%;
+  bottom: 8%;
+  width: 43%;
+  height: 15%;
+  transform: translateZ(54px);
+}
+
+.pc3d-dom-psu.is-active {
+  background: linear-gradient(135deg, #94a3b8, #334155);
+}
+
+.pc3d-dom-cooling {
+  left: 39%;
+  top: 18%;
+  width: 18%;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  transform: translateZ(88px);
+}
+
+.pc3d-dom-cooling.is-active {
+  background:
+    radial-gradient(circle, rgba(255,255,255,0.95) 0 20%, transparent 21%),
+    conic-gradient(from 30deg, #e5e7eb, #38bdf8, #e5e7eb);
+}
+
+.pc3d-dom-caption {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(24px, 5vh, 54px);
+  transform: translateX(-50%);
+  max-width: min(560px, calc(100% - 48px));
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 200, 255, 0.28);
+  background: rgba(5, 10, 18, 0.72);
+  color: rgba(240, 244, 255, 0.86);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
 }
 
 .modal-panel {
@@ -3098,6 +3392,110 @@ progress { width: 100%; height: 8px; accent-color: var(--warning); }
   background: var(--bg-card);
 }
 
+.star-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.star-meter-star {
+  position: relative;
+  display: inline-block;
+  width: 17px;
+  height: 17px;
+  color: var(--line);
+  font-size: 17px;
+  line-height: 17px;
+}
+
+.star-meter-star::before {
+  content: "★";
+  position: absolute;
+  inset: 0;
+  width: var(--fill);
+  overflow: hidden;
+  color: var(--warning);
+}
+
+.star-meter-star > span {
+  color: var(--line);
+}
+
+.pdp-rating-line .star-meter {
+  gap: 3px;
+}
+
+.pdp-rating-line .star-meter-star {
+  width: 19px;
+  height: 19px;
+  font-size: 19px;
+  line-height: 19px;
+}
+
+.card-rating {
+  gap: 8px;
+}
+
+.card-rating .star-meter-star {
+  width: 14px;
+  height: 14px;
+  font-size: 14px;
+  line-height: 14px;
+}
+
+.card-rating > span:not(.star-meter) {
+  font-size: 12px;
+}
+
+.pdp-icon-actions a,
+.pdp-icon-actions button {
+  color: var(--accent);
+}
+
+.pdp-chip-row button.active {
+  box-shadow: 0 10px 24px rgba(0, 102, 255, 0.12);
+}
+
+.pdp-coupon-box {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0;
+}
+
+.pdp-coupon-box label {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.pdp-coupon-box > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.pdp-coupon-box input {
+  height: 42px;
+  border-radius: 12px;
+  text-transform: uppercase;
+}
+
+.pdp-coupon-box small {
+  color: var(--ink-muted);
+}
+
+.pdp-coupon {
+  margin: 0;
+  width: auto;
+  white-space: nowrap;
+}
+
+.pdp-side-row button {
+  color: var(--accent);
+  font-weight: 800;
+}
+
 @media (max-width: 1024px) {
   .product-catalog {
     grid-template-columns: 260px minmax(0, 1fr);
@@ -3159,6 +3557,18 @@ progress { width: 100%; height: 8px; accent-color: var(--warning); }
     position: static;
     padding: 0 14px 14px;
   }
+}
+
+.pdp-coupon-box .pdp-coupon {
+  width: auto;
+  margin: 0;
+  padding: 0 14px;
+}
+
+.pdp-coupon-box > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
 }
 
 .slide-title, .section-heading h2, .page-head h1, .detail-copy h1, .auth-card h1 {
@@ -4634,9 +5044,25 @@ body.auth-focus .auth-form {
     margin: 0 auto;
   }
 
-  body.auth-focus .auth-form h2,
+body.auth-focus .auth-form h2,
   body.auth-focus .auth-subtitle {
     text-align: center;
   }
+}
+
+.pdp-coupon-box .pdp-coupon {
+  width: auto;
+  margin: 0;
+  padding: 0 14px;
+}
+
+.pdp-coupon-box > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.pdp-coupon-box input {
+  min-width: 0;
 }
 

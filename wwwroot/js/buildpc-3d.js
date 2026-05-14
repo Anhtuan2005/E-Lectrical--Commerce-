@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
 const viewport = document.getElementById("pc3dViewport");
 const fallback = document.getElementById("pc3dFallback");
@@ -7,278 +9,785 @@ const tooltip = document.getElementById("pc3dTooltip");
 const partList = document.getElementById("pc3dPartList");
 const totalEl = document.getElementById("pc3dTotal");
 const emptyEl = document.getElementById("pc3dEmpty");
+const hintEl = document.querySelector(".pc3d-hint");
 
 const slotLabels = {
-  CPU: "CPU",
-  VGA: "Card đồ họa",
-  RAM: "RAM",
-  SSD: "SSD",
+  Case: "V\u1ecf case",
   Mainboard: "Mainboard",
-  PSU: "Nguồn",
-  Case: "Vỏ case",
-  Cooling: "Tản nhiệt"
+  CPU: "CPU",
+  RAM: "RAM",
+  VGA: "Card \u0111\u1ed3 h\u1ecda",
+  SSD: "SSD",
+  PSU: "Ngu\u1ed3n",
+  Cooling: "T\u1ea3n nhi\u1ec7t"
 };
 
-const componentSpecs = {
-  Mainboard: { label: "Mainboard", geometry: [20, 0.8, 24], color: 0x1a472a, position: [0, 0, -3] },
-  CPU: { label: "CPU", geometry: [8, 2, 8], color: 0xe5a100, position: [0, 2, -5] },
-  VGA: { label: "VGA", geometry: [25, 4, 12], color: 0x1a1a3e, position: [0, -8, 3] },
-  RAM: { label: "RAM", geometry: [1.5, 12, 4], color: 0x2e1a5e, positions: [[-6, 4.5, -5], [-3.7, 4.5, -3.7]] },
-  SSD: { label: "SSD", geometry: [6, 0.5, 10], color: 0x1e3a5f, position: [6, 1.1, 0] },
-  PSU: { label: "PSU", geometry: [15, 8.5, 14], color: 0x2a2a2a, position: [-2, -17, 10] },
-  Cooling: { label: "Cooling", cylinder: [5, 5, 6, 16], color: 0x444444, position: [0, 6.2, -5] }
+const slotOrder = ["Case", "Mainboard", "CPU", "RAM", "VGA", "SSD", "PSU", "Cooling"];
+
+const slotSpecs = {
+  Case: { size: [30, 50, 58], position: [0, 0, 0], rotation: [0, 0, 0], model: "/models/case.glb", always: true },
+  Mainboard: { size: [22, 30, 1.1], position: [0, 2, -12], rotation: [0, 0, 0], model: "/models/mainboard.glb", always: true },
+  CPU: { size: [4.8, 4.8, 0.8], position: [0, 7, -10.8], rotation: [0, 0, 0], model: "/models/cpu.glb" },
+  RAM: { size: [1.2, 12, 1.2], positions: [[-5.3, 8, -10.2], [-3.4, 8, -10.2]], rotation: [0, 0, 0], model: "/models/ram-rgb.glb" },
+  VGA: { size: [21, 4.8, 7.2], position: [0, -7.5, -5.6], rotation: [0, 0, 0], model: resolveVgaModel },
+  SSD: { size: [5.2, 9, 0.8], position: [7.4, 2, -10.5], rotation: [0, 0, 0], model: "/models/ssd.glb" },
+  PSU: { size: [14, 8.5, 13], position: [0, -18.5, 7.5], rotation: [0, 0, 0], model: "/models/psu.glb" },
+  Cooling: { size: [8, 8, 5], position: [0, 9, -7.5], rotation: [0, 0, 0], model: "/models/cooler.glb" }
 };
+
+const loader = new GLTFLoader();
+const modelCache = new Map();
+const minimumGlbBytes = 1024;
+const modelLoadTimeoutMs = 4500;
 
 let renderer;
 let scene;
 let camera;
 let controls;
-let caseGroup;
-let componentGroup;
+let resizeObserver;
 let raycaster;
 let pointer;
-let resizeObserver;
 let animationId = 0;
-let lastInteraction = performance.now();
+let renderVersion = 0;
+let pcGroup;
+let componentGroup;
+let worldGuideGroup;
 let currentBuild = {};
 let componentMeshes = new Map();
-let animations = [];
-let labelEls = [];
+let modelFallbackCount = 0;
+let modelFallbackSlots = new Set();
+let lastInteraction = performance.now();
+let canvasCheckTimer = 0;
 
-/**
- * Render a full-page 3D preview from the Build PC state saved by the builder page.
- * Falls back to a CSS 3D schematic when WebGL is disabled by the browser/webview.
- * @param {Record<string, {id:number,name:string,price:string,priceRaw:number}>} buildState
- */
 function openPage(buildState) {
   currentBuild = buildState || {};
   renderBuildSummary(currentBuild);
 
-  if (!Object.keys(currentBuild).length) {
-    if (emptyEl) emptyEl.hidden = false;
-    renderCssPreview(currentBuild, "Chưa có linh kiện nào để dựng preview.");
-    return;
-  }
+  if (!viewport) return;
+  if (!Object.keys(currentBuild).length && emptyEl) emptyEl.hidden = false;
 
   if (!supportsWebGL()) {
-    renderCssPreview(currentBuild, "Trình duyệt đang tắt WebGL, Techvora chuyển sang chế độ preview tương thích.");
+    renderCssPreview(currentBuild, "Trinh duyet dang tat WebGL, Techvora chuyen sang preview tuong thich.");
     return;
   }
 
   if (!initScene()) {
-    renderCssPreview(currentBuild, "Không thể khởi tạo WebGL renderer, Techvora chuyển sang chế độ preview tương thích.");
+    renderCssPreview(currentBuild, "Khong the khoi tao WebGL renderer.");
     return;
   }
 
-  update(currentBuild);
+  renderBuildModels(currentBuild);
   resize();
   startLoop();
 }
 
-/**
- * Sync scene meshes with the supplied Build PC state.
- * @param {Record<string, {id:number,name:string,price:string,priceRaw:number}>} buildState
- */
-function update(buildState) {
-  currentBuild = buildState || {};
-  if (!scene || !componentGroup) {
-    if (fallback && !fallback.hidden) renderCssPreview(currentBuild);
-    return;
+async function renderBuildModels(buildState) {
+  const version = ++renderVersion;
+  modelFallbackCount = 0;
+  modelFallbackSlots = new Set();
+  setHint("Dang tai model 3D...");
+  clearGroup(componentGroup);
+  componentMeshes = new Map();
+
+  const slotsToRender = slotOrder.filter((slot) => slotSpecs[slot]?.always || buildState[slot]);
+  const renderItems = [];
+
+  for (const slot of slotsToRender) {
+    const spec = slotSpecs[slot];
+    const product = buildState[slot] || null;
+
+    if (slot === "RAM" && spec.positions?.length) {
+      for (let index = 0; index < spec.positions.length; index += 1) {
+        renderItems.push({ slot, spec, product, position: spec.positions[index], key: `${slot}-${index + 1}`, tooltipProduct: product || { name: "RAM placeholder" } });
+      }
+      continue;
+    }
+
+    renderItems.push({ slot, spec, product, position: spec.position, key: slot, tooltipProduct: product });
   }
 
-  Object.keys(componentSpecs).forEach((slot) => {
-    if (currentBuild[slot] && !componentMeshes.has(slot)) addComponent(slot, currentBuild[slot]);
-    if (currentBuild[slot] && componentMeshes.has(slot)) componentMeshes.get(slot).userData.product = currentBuild[slot];
-    if (!currentBuild[slot] && componentMeshes.has(slot)) removeComponent(slot);
-  });
+  renderItems.forEach((item) => addFallbackToScene(item.slot, item.spec, item.product, item.position, item.key, item.tooltipProduct));
+  frameScene();
+  setHint("Dang hien preview tam thoi, model that se tu thay vao neu file GLB hop le.");
+  scheduleCanvasVisibilityCheck(version, 900);
 
-  renderLabels();
+  await Promise.allSettled(renderItems.map((item) => hydrateModel(item, version)));
+
+  if (version !== renderVersion) return;
+  frameScene();
+  setHint(buildModelHint());
+  scheduleCanvasVisibilityCheck(version, 1200);
 }
 
-/**
- * Dispose the renderer, controls, meshes and DOM overlays used by the preview page.
- */
-function close() {
-  cancelAnimationFrame(animationId);
-  animationId = 0;
-  hideTooltip();
-  clearLabels();
-  if (resizeObserver) resizeObserver.disconnect();
-  resizeObserver = null;
-  disposeScene();
+function addFallbackToScene(slot, spec, product, position, key, tooltipProduct) {
+  const object = createFallbackModel(slot, spec);
+  normalizeObject(object, spec.size);
+  tintFallback(object, slot, true);
+
+  const holder = new THREE.Group();
+  holder.name = `pc3d-${key}`;
+  holder.userData = { slot, product: tooltipProduct, usedFallback: true };
+  holder.position.fromArray(position || [0, 0, 0]);
+  holder.rotation.set(...(spec.rotation || [0, 0, 0]));
+  holder.add(object);
+  if (slot === "Case") holder.add(createVisibilityCage(spec.size));
+  componentGroup.add(holder);
+  componentMeshes.set(key, holder);
+  return holder;
+}
+
+async function hydrateModel(item, version) {
+  const { slot, spec, product, key } = item;
+  try {
+    const source = await loadModel(resolveModelPath(slot, spec, product));
+    if (version !== renderVersion) return;
+    const object = cloneModel(source);
+    normalizeObject(object, spec.size);
+    enhanceLoadedModel(object, slot);
+    replaceHolderObject(key, slot, spec, object);
+    frameScene();
+  } catch (error) {
+    modelFallbackCount += 1;
+    modelFallbackSlots.add(slotLabels[slot] || slot);
+    if (!error?.isPc3dPlaceholder) {
+      console.warn(`[pc3d] Cannot load GLB for ${slot}. Using placeholder.`, error);
+    }
+  }
+}
+
+function replaceHolderObject(key, slot, spec, object) {
+  const holder = componentMeshes.get(key);
+  if (!holder) return;
+
+  holder.children.forEach((child) => disposeObject(child));
+  holder.clear();
+  holder.add(object);
+  if (slot === "Case") holder.add(createVisibilityCage(spec.size));
+  holder.userData.usedFallback = false;
 }
 
 function initScene() {
-  if (!viewport) return false;
   if (renderer) return true;
+
+  viewport.hidden = false;
   viewport.innerHTML = "";
+  removeStablePreview();
   if (fallback) fallback.hidden = true;
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x060a10);
+  scene.background = new THREE.Color(0x0b1624);
+  scene.fog = new THREE.Fog(0x0b1624, 140, 280);
 
-  camera = new THREE.PerspectiveCamera(45, 1, 0.1, 500);
-  camera.position.set(0, 20, 70);
+  camera = new THREE.PerspectiveCamera(42, 1, 0.1, 1000);
+  camera.position.set(38, 28, 82);
 
   try {
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
   } catch {
     disposeScene();
     return false;
   }
 
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(Math.max(1, viewport.clientWidth), Math.max(1, viewport.clientHeight), false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.45;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   viewport.appendChild(renderer.domElement);
+
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmrem.dispose();
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.minDistance = 30;
-  controls.maxDistance = 150;
+  controls.enablePan = false;
+  controls.minDistance = 34;
+  controls.maxDistance = 140;
+  controls.minPolarAngle = 0.18;
+  controls.maxPolarAngle = Math.PI - 0.18;
   controls.addEventListener("start", markInteraction);
   controls.addEventListener("change", markInteraction);
+  renderer.domElement.addEventListener("dblclick", resetCamera);
 
   raycaster = new THREE.Raycaster();
   pointer = new THREE.Vector2();
-
-  /* r155+ uses physically-correct lights by default – intensities need
-     to be much higher than the old legacy model expected. */
-  scene.add(new THREE.AmbientLight(0xc8d8f0, 1.8));
-  const hemi = new THREE.HemisphereLight(0xc8e0ff, 0x1a2030, 1.5);
-  scene.add(hemi);
-  const dir = new THREE.DirectionalLight(0xffffff, 4);
-  dir.position.set(30, 60, 50);
-  scene.add(dir);
-  const dir2 = new THREE.DirectionalLight(0x88aaff, 2);
-  dir2.position.set(-20, 30, -40);
-  scene.add(dir2);
-  const spot = new THREE.SpotLight(0xffffff, 120, 300, Math.PI / 5, 0.4, 2);
-  spot.position.set(0, 80, 40);
-  scene.add(spot);
-  const cyan = new THREE.PointLight(0x00c8ff, 60, 150, 2);
-  cyan.position.set(0, 8, 4);
-  scene.add(cyan);
-
-  caseGroup = new THREE.Group();
-  componentGroup = new THREE.Group();
-  scene.add(caseGroup);
-  scene.add(componentGroup);
-  createCase();
-
   renderer.domElement.addEventListener("pointermove", onPointerMove);
   renderer.domElement.addEventListener("pointerleave", hideTooltip);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+  scene.add(new THREE.HemisphereLight(0xd9e7ff, 0x111827, 1.9));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 4.4);
+  keyLight.position.set(34, 58, 54);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(2048, 2048);
+  scene.add(keyLight);
+
+  const rimLight = new THREE.DirectionalLight(0x55c8ff, 2.5);
+  rimLight.position.set(-40, 24, -32);
+  scene.add(rimLight);
+
+  const rgbGlow = new THREE.PointLight(0x00c8ff, 70, 120, 2);
+  rgbGlow.position.set(0, 5, 18);
+  scene.add(rgbGlow);
+
+  pcGroup = new THREE.Group();
+  componentGroup = new THREE.Group();
+  pcGroup.add(componentGroup);
+  scene.add(pcGroup);
+  worldGuideGroup = createWorldGuide();
+  scene.add(worldGuideGroup);
+  scene.add(createStudioFloor());
 
   resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(viewport);
   return true;
 }
 
-function createCase() {
-  const body = new THREE.BoxGeometry(20, 45, 50);
-  const edges = new THREE.EdgesGeometry(body);
-  const line = new THREE.LineSegments(
-    edges,
-    new THREE.LineBasicMaterial({ color: 0x00c8ff, transparent: true, opacity: 0.3 })
+function createStudioFloor() {
+  const floor = new THREE.Group();
+  const plane = new THREE.Mesh(
+    new THREE.CircleGeometry(42, 96),
+    new THREE.MeshStandardMaterial({
+      color: 0x07111d,
+      roughness: 0.62,
+      metalness: 0.18
+    })
   );
-  caseGroup.add(line);
+  plane.rotation.x = -Math.PI / 2;
+  plane.position.y = -26;
+  plane.receiveShadow = true;
+  floor.add(plane);
 
-  const floor = new THREE.Mesh(
-    new THREE.BoxGeometry(18.5, 0.4, 48),
-    new THREE.MeshStandardMaterial({ color: 0x0d1522, metalness: 0.25, roughness: 0.45 })
-  );
-  floor.position.set(0, -22.7, 0);
-  caseGroup.add(floor);
+  const grid = new THREE.GridHelper(86, 24, 0x0ea5e9, 0x123146);
+  grid.position.y = -25.8;
+  grid.material.transparent = true;
+  grid.material.opacity = 0.22;
+  floor.add(grid);
+  return floor;
 }
 
-function addComponent(slot, product) {
-  const spec = componentSpecs[slot];
-  const holder = new THREE.Group();
-  holder.userData = { slot, product };
+function createWorldGuide() {
+  const group = new THREE.Group();
+  group.name = "pc3d-world-guide";
 
-  if (slot === "RAM") {
-    spec.positions.forEach((position) => {
-      const mesh = makeBox(spec.geometry, spec.color, slot, product);
-      mesh.position.set(position[0], position[1], position[2]);
-      holder.add(mesh);
-    });
-  } else {
-    const mesh = spec.cylinder ? makeCylinder(spec.cylinder, spec.color, slot, product) : makeBox(spec.geometry, spec.color, slot, product);
-    holder.add(mesh);
+  const backdrop = new THREE.Mesh(
+    new THREE.PlaneGeometry(92, 72),
+    new THREE.MeshBasicMaterial({
+      color: 0x123a55,
+      transparent: true,
+      opacity: 0.62,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false
+    })
+  );
+  backdrop.position.set(0, 0, -34);
+  backdrop.renderOrder = 850;
+  group.add(backdrop);
+
+  const targetRing = new THREE.Mesh(
+    new THREE.TorusGeometry(15, 0.65, 16, 96),
+    new THREE.MeshBasicMaterial({
+      color: 0xffd34d,
+      depthTest: false,
+      depthWrite: false
+    })
+  );
+  targetRing.position.set(0, 0, 30);
+  targetRing.renderOrder = 1100;
+  group.add(targetRing);
+
+  const caseSize = slotSpecs.Case.size;
+  const caseEdges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(caseSize[0], caseSize[1], caseSize[2])),
+    new THREE.LineBasicMaterial({
+      color: 0x45e5ff,
+      transparent: true,
+      opacity: 0.92,
+      depthTest: false,
+      depthWrite: false
+    })
+  );
+  caseEdges.renderOrder = 1000;
+  group.add(caseEdges);
+
+  const boardSpec = slotSpecs.Mainboard;
+  const board = new THREE.Mesh(
+    new THREE.BoxGeometry(boardSpec.size[0], boardSpec.size[1], 0.35),
+    new THREE.MeshBasicMaterial({
+      color: 0x22c55e,
+      transparent: true,
+      opacity: 0.42,
+      depthTest: false,
+      depthWrite: false
+    })
+  );
+  board.position.fromArray(boardSpec.position);
+  board.renderOrder = 1001;
+  group.add(board);
+
+  const beacon = new THREE.Mesh(
+    new THREE.SphereGeometry(4.2, 32, 16),
+    new THREE.MeshBasicMaterial({
+      color: 0xff3b30,
+      depthTest: false,
+      depthWrite: false
+    })
+  );
+  beacon.position.set(0, 0, 31);
+  beacon.renderOrder = 1002;
+  group.add(beacon);
+
+  return group;
+}
+
+function createFallbackModel(slot, spec) {
+  switch (slot) {
+    case "Case": return createFallbackCase(spec);
+    case "Mainboard": return createFallbackBox(spec.size, 0x16a34a, 0.72);
+    case "CPU": return createFallbackCpu();
+    case "RAM": return createFallbackRam();
+    case "VGA": return createFallbackGpu();
+    case "SSD": return createFallbackBox(spec.size, 0x0891b2, 0.9);
+    case "PSU": return createFallbackPsu();
+    case "Cooling": return createFallbackCooler();
+    default: return createFallbackBox(spec.size, 0x38bdf8, 0.9);
+  }
+}
+
+function createFallbackCase(spec) {
+  const group = new THREE.Group();
+  const [x, y, z] = spec.size;
+  const shell = new THREE.BoxGeometry(x, y, z);
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(shell),
+    new THREE.LineBasicMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0.86 })
+  );
+  group.add(edges);
+
+  const back = new THREE.Mesh(
+    new THREE.BoxGeometry(x, y, 0.5),
+    new THREE.MeshStandardMaterial({ color: 0x0b1725, metalness: 0.35, roughness: 0.5, transparent: true, opacity: 0.84 })
+  );
+  back.position.z = -z / 2;
+  back.receiveShadow = true;
+  group.add(back);
+
+  const glass = new THREE.Mesh(
+    new THREE.BoxGeometry(x * 0.94, y * 0.94, 0.28),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x38bdf8,
+      transmission: 0.2,
+      transparent: true,
+      opacity: 0.13,
+      roughness: 0.08,
+      metalness: 0.02,
+      depthWrite: false
+    })
+  );
+  glass.position.z = z / 2;
+  group.add(glass);
+  return group;
+}
+
+function createFallbackCpu() {
+  const group = createFallbackBox([5, 5, 0.8], 0xd4af37, 1);
+  const mark = new THREE.Mesh(
+    new THREE.BoxGeometry(3.4, 3.4, 0.12),
+    new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.42 })
+  );
+  mark.position.z = 0.48;
+  group.add(mark);
+  return group;
+}
+
+function createFallbackRam() {
+  const group = createFallbackBox([1.25, 12, 1], 0x8b5cf6, 1);
+  const glow = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 11, 1.2),
+    new THREE.MeshBasicMaterial({ color: 0x00c8ff })
+  );
+  glow.position.x = -0.7;
+  group.add(glow);
+  return group;
+}
+
+function createFallbackGpu() {
+  const group = createFallbackBox([21, 4.8, 7.2], 0x2563eb, 1);
+  [-5.8, 0, 5.8].forEach((x) => {
+    const fan = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.65, 1.65, 0.28, 48),
+      new THREE.MeshStandardMaterial({ color: 0x020617, metalness: 0.35, roughness: 0.34 })
+    );
+    fan.rotation.x = Math.PI / 2;
+    fan.position.set(x, 0, 3.74);
+    group.add(fan);
+  });
+  return group;
+}
+
+function createFallbackPsu() {
+  const group = createFallbackBox([14, 8.5, 13], 0x64748b, 1);
+  const fan = new THREE.Mesh(
+    new THREE.CylinderGeometry(3.1, 3.1, 0.24, 64),
+    new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.45, metalness: 0.45 })
+  );
+  fan.rotation.x = Math.PI / 2;
+  fan.position.z = 6.65;
+  group.add(fan);
+  return group;
+}
+
+function createFallbackCooler() {
+  const group = new THREE.Group();
+  const fan = new THREE.Mesh(
+    new THREE.CylinderGeometry(3.8, 3.8, 1.1, 64),
+    new THREE.MeshStandardMaterial({ color: 0xdbeafe, metalness: 0.18, roughness: 0.28 })
+  );
+  fan.rotation.x = Math.PI / 2;
+  fan.castShadow = true;
+  group.add(fan);
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(3.1, 0.18, 12, 64),
+    new THREE.MeshBasicMaterial({ color: 0x00c8ff })
+  );
+  ring.position.z = 0.62;
+  group.add(ring);
+  return group;
+}
+
+function createFallbackBox(size, color, opacity) {
+  const group = new THREE.Group();
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(size[0], size[1], size[2]),
+    new THREE.MeshStandardMaterial({
+      color,
+      metalness: 0.25,
+      roughness: 0.36,
+      transparent: opacity < 1,
+      opacity
+    })
+  );
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  group.add(mesh);
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(mesh.geometry),
+    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.72, depthTest: false })
+  );
+  edges.renderOrder = 24;
+  group.add(edges);
+  return group;
+}
+
+function createVisibilityCage(size) {
+  const cage = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(size[0] * 1.04, size[1] * 1.04, size[2] * 1.04)),
+    new THREE.LineBasicMaterial({
+      color: 0x56e8ff,
+      transparent: true,
+      opacity: 0.92,
+      depthTest: false,
+      depthWrite: false
+    })
+  );
+  cage.name = "pc3d-case-visibility-cage";
+  cage.renderOrder = 999;
+  return cage;
+}
+
+function resolveModelPath(slot, spec, product) {
+  if (product?.model3DUrl) return product.model3DUrl;
+  if (product?.modelUrl) return product.modelUrl;
+  if (typeof spec.model === "function") return spec.model(product);
+  return spec.model;
+}
+
+function resolveVgaModel(product) {
+  const name = String(product?.name || "").toLowerCase();
+  if (name.includes("dual") || name.includes("2x") || name.includes("2 fan")) return "/models/vga-dual.glb";
+  return "/models/vga-triple.glb";
+}
+
+async function loadModel(path) {
+  if (!path) return Promise.reject(new Error("Missing model path"));
+  if (modelCache.has(path)) return Promise.resolve(cloneModel(modelCache.get(path)));
+
+  const response = await fetch(path, { cache: "no-store" });
+  if (!response.ok) {
+    throw createModelPlaceholderError(`Model ${path} returned ${response.status}.`);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  assertLikelyGltfPayload(path, arrayBuffer);
+
+  return withModelTimeout(new Promise((resolve, reject) => {
+    loader.parse(
+      arrayBuffer,
+      getModelBasePath(path),
+      (gltf) => {
+        const sceneRoot = gltf.scene || gltf.scenes?.[0];
+        if (!sceneRoot) {
+          reject(new Error(`No scene in ${path}`));
+          return;
+        }
+        prepareLoadedModel(sceneRoot);
+        modelCache.set(path, sceneRoot);
+        resolve(cloneModel(sceneRoot));
+      },
+      (error) => {
+        if (isLocalModelPath(path)) error.isPc3dPlaceholder = true;
+        reject(error);
+      }
+    );
+  }), path);
+}
+
+function assertLikelyGltfPayload(path, arrayBuffer) {
+  if (!arrayBuffer || arrayBuffer.byteLength < minimumGlbBytes) {
+    throw createModelPlaceholderError(`Model ${path} is only ${arrayBuffer?.byteLength || 0} bytes.`);
   }
 
-  const position = spec.position || [0, 0, 0];
-  holder.position.set(position[0], position[1] + 30, position[2]);
-  holder.userData.target = new THREE.Vector3(position[0], position[1], position[2]);
-  componentGroup.add(holder);
-  componentMeshes.set(slot, holder);
-  animations.push({ group: holder, from: holder.position.clone(), to: holder.userData.target.clone(), start: performance.now(), duration: 600, remove: false });
+  const magic = readAscii(arrayBuffer, 0, 4);
+  const isBinaryGlb = magic === "glTF";
+  const isJsonGltf = readAscii(arrayBuffer, 0, 1).trim() === "{";
+  if (!isBinaryGlb && !isJsonGltf) {
+    throw createModelPlaceholderError(`Model ${path} is not a GLB/GLTF payload.`);
+  }
 }
 
-function removeComponent(slot) {
-  const group = componentMeshes.get(slot);
-  if (!group) return;
-  componentMeshes.delete(slot);
-  animations.push({
-    group,
-    from: group.position.clone(),
-    to: group.position.clone().add(new THREE.Vector3(0, 30, 0)),
-    start: performance.now(),
-    duration: 420,
-    remove: true
+function getModelBasePath(path) {
+  const cleanPath = path.split("?")[0];
+  return cleanPath.slice(0, cleanPath.lastIndexOf("/") + 1);
+}
+
+function createModelPlaceholderError(message) {
+  const error = new Error(`${message} Using placeholder.`);
+  error.isPc3dPlaceholder = true;
+  return error;
+}
+
+function withModelTimeout(promise, path) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(createModelPlaceholderError(`Model ${path} took too long to parse.`));
+    }, modelLoadTimeoutMs);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
+}
+
+function readAscii(arrayBuffer, start, length) {
+  return String.fromCharCode(...new Uint8Array(arrayBuffer, start, length));
+}
+
+function isLocalModelPath(path) {
+  return typeof path === "string" && path.startsWith("/models/");
+}
+
+function cloneModel(source) {
+  const clone = source.clone(true);
+  clone.traverse((node) => {
+    if (node.isMesh) {
+      node.castShadow = true;
+      node.receiveShadow = true;
+      if (node.material) {
+        node.material = Array.isArray(node.material)
+          ? node.material.map((material) => material.clone())
+          : node.material.clone();
+      }
+    }
+  });
+  return clone;
+}
+
+function prepareLoadedModel(object) {
+  object.traverse((node) => {
+    if (!node.isMesh) return;
+    node.castShadow = true;
+    node.receiveShadow = true;
+    if (node.material) {
+      const materials = Array.isArray(node.material) ? node.material : [node.material];
+      materials.forEach((material) => {
+        material.side = THREE.DoubleSide;
+        material.needsUpdate = true;
+      });
+    }
   });
 }
 
-function makeBox(size, color, slot, product) {
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(size[0], size[1], size[2]),
-    new THREE.MeshStandardMaterial({ color, metalness: 0.25, roughness: 0.38 })
-  );
-  mesh.userData = { slot, product };
-  return mesh;
+function enhanceLoadedModel(object, slot) {
+  if (slot !== "Case") return;
+
+  object.traverse((node) => {
+    if (!node.isMesh || !node.material) return;
+    node.renderOrder = 8;
+    const materials = Array.isArray(node.material) ? node.material : [node.material];
+    materials.forEach((material) => {
+      if (material.color) {
+        const hsl = {};
+        material.color.getHSL(hsl);
+        if (hsl.l < 0.34) material.color.setHSL(hsl.h, Math.min(hsl.s, 0.24), 0.42);
+      }
+      if ("emissive" in material) {
+        material.emissive = new THREE.Color(0x071522);
+        material.emissiveIntensity = 0.08;
+      }
+      if ("roughness" in material) material.roughness = Math.max(material.roughness ?? 0.5, 0.48);
+      material.needsUpdate = true;
+    });
+  });
 }
 
-function makeCylinder(size, color, slot, product) {
-  const mesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(size[0], size[1], size[2], size[3]),
-    new THREE.MeshStandardMaterial({ color, metalness: 0.18, roughness: 0.42 })
+function normalizeObject(object, targetSize) {
+  const box = new THREE.Box3().setFromObject(object);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+
+  const target = new THREE.Vector3(...targetSize);
+  const scale = Math.min(
+    safeRatio(target.x, size.x),
+    safeRatio(target.y, size.y),
+    safeRatio(target.z, size.z)
   );
-  mesh.rotation.x = Math.PI / 2;
-  mesh.userData = { slot, product };
-  return mesh;
+  if (Number.isFinite(scale) && scale > 0) {
+    object.scale.multiplyScalar(scale);
+    object.position.copy(center).multiplyScalar(-scale);
+  } else {
+    object.position.copy(center).multiplyScalar(-1);
+  }
+}
+
+function tintFallback(object, slot, usedFallback) {
+  if (!usedFallback) return;
+  object.traverse((node) => {
+    if ((!node.isMesh && !node.isLineSegments) || !node.material) return;
+    node.userData.slot = slot;
+    node.renderOrder = slot === "Case" ? 10 : 22;
+    node.material.depthTest = slot === "Case";
+    node.material.depthWrite = slot === "Case";
+    if ("emissive" in node.material) {
+      node.material.emissive = new THREE.Color(slot === "RAM" ? 0x211044 : 0x061625);
+      node.material.emissiveIntensity = 0.22;
+    }
+  });
+}
+
+function safeRatio(target, current) {
+  return current > 0.0001 ? target / current : Number.POSITIVE_INFINITY;
 }
 
 function startLoop() {
   if (animationId) return;
   const tick = () => {
     animationId = requestAnimationFrame(tick);
-    animateComponents(performance.now());
     if (controls) {
-      controls.autoRotate = performance.now() - lastInteraction > 3000;
-      controls.autoRotateSpeed = 0.55;
+      controls.autoRotate = performance.now() - lastInteraction > 4500;
+      controls.autoRotateSpeed = 0.35;
       controls.update();
     }
-    renderLabels();
     if (renderer && scene && camera) renderer.render(scene, camera);
   };
   tick();
 }
 
-function animateComponents(now) {
-  animations = animations.filter((item) => {
-    const progress = Math.min(1, (now - item.start) / item.duration);
-    const eased = easeOutBack(progress);
-    item.group.position.set(
-      lerp(item.from.x, item.to.x, eased),
-      lerp(item.from.y, item.to.y, eased),
-      lerp(item.from.z, item.to.z, eased)
-    );
-    if (progress >= 1 && item.remove) {
-      componentGroup.remove(item.group);
-      disposeObject(item.group);
-      return false;
+function scheduleCanvasVisibilityCheck(version, delayMs) {
+  window.clearTimeout(canvasCheckTimer);
+  canvasCheckTimer = window.setTimeout(() => {
+    if (version !== renderVersion || !renderer) return;
+    if (isCanvasStillBlank()) {
+      console.warn("[pc3d] WebGL canvas is still too dark after rendering models. Switching to compatible preview.");
+      renderCssPreview(currentBuild, "WebGL dang chay nhung canvas khong ve duoc model, Techvora chuyen sang preview tuong thich.");
     }
-    return progress < 1;
+  }, delayMs);
+}
+
+function buildModelHint() {
+  if (!modelFallbackCount) {
+    return "Keo de xoay 360 do, scroll de zoom. Double click de reset goc nhin.";
+  }
+
+  const slots = [...modelFallbackSlots].join(", ");
+  return `${slots} chua co GLB hop le, dang dung placeholder 3D. Keo de xoay, scroll de zoom.`;
+}
+
+function isCanvasStillBlank() {
+  try {
+    if (renderer && scene && camera) renderer.render(scene, camera);
+    const gl = renderer.getContext();
+    const width = gl.drawingBufferWidth;
+    const height = gl.drawingBufferHeight;
+    if (width < 2 || height < 2) return true;
+
+    const samplePoints = [
+      [0.5, 0.5],
+      [0.42, 0.5],
+      [0.58, 0.5],
+      [0.5, 0.38],
+      [0.5, 0.62]
+    ];
+
+    let brightest = 0;
+    const pixel = new Uint8Array(4);
+    samplePoints.forEach(([x, y]) => {
+      gl.readPixels(
+        Math.floor(width * x),
+        Math.floor(height * y),
+        1,
+        1,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        pixel
+      );
+      brightest = Math.max(brightest, pixel[0], pixel[1], pixel[2]);
+    });
+
+    return brightest < 44;
+  } catch {
+    return false;
+  }
+}
+
+function frameScene() {
+  if (!pcGroup || !camera || !controls) return;
+  const box = getExpectedComponentBox();
+  if (box.isEmpty()) return;
+
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z, 40);
+  const fov = THREE.MathUtils.degToRad(camera.fov);
+  const distance = (maxDim / (2 * Math.tan(fov / 2))) * 0.98;
+
+  controls.target.copy(center);
+  camera.position.set(center.x + maxDim * 0.34, center.y + maxDim * 0.22, center.z + distance);
+  camera.near = 0.1;
+  camera.far = Math.max(500, distance * 5);
+  camera.lookAt(center);
+  camera.updateProjectionMatrix();
+  controls.update();
+}
+
+function getExpectedComponentBox() {
+  const box = new THREE.Box3();
+  componentMeshes.forEach((holder) => {
+    const spec = slotSpecs[holder.userData?.slot];
+    if (!spec?.size) return;
+
+    const half = new THREE.Vector3(spec.size[0] / 2, spec.size[1] / 2, spec.size[2] / 2);
+    const center = holder.position.clone();
+    box.expandByPoint(center.clone().sub(half));
+    box.expandByPoint(center.clone().add(half));
   });
+  return box;
+}
+
+function resetCamera() {
+  frameScene();
+  markInteraction();
 }
 
 function onPointerMove(event) {
@@ -287,43 +796,57 @@ function onPointerMove(event) {
   pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
+
   const targets = [];
-  componentMeshes.forEach((group) => group.traverse((child) => { if (child.isMesh) targets.push(child); }));
+  componentMeshes.forEach((group) => group.traverse((child) => {
+    if (child.isMesh) targets.push(child);
+  }));
   const hit = raycaster.intersectObjects(targets, false)[0];
   if (!hit) {
     hideTooltip();
     return;
   }
-  const data = hit.object.userData;
-  tooltip.innerHTML = `<strong>${escapeHtml(data.slot)}</strong>${escapeHtml(data.product?.name || "")}<br>${escapeHtml(data.product?.price || "")}`;
+
+  const group = findComponentGroup(hit.object);
+  const data = group?.userData || hit.object.userData;
+  tooltip.innerHTML = `<strong>${escapeHtml(slotLabels[data.slot] || data.slot || "Model")}</strong>${escapeHtml(data.product?.name || "")}<br>${data.usedFallback ? "Placeholder 3D" : escapeHtml(data.product?.price || "")}`;
   tooltip.hidden = false;
   tooltip.style.left = `${event.clientX - rect.left + 16}px`;
   tooltip.style.top = `${event.clientY - rect.top + 16}px`;
 }
 
-function renderLabels() {
-  if (!renderer || !camera || !viewport) return;
-  clearLabels();
-  componentMeshes.forEach((group, slot) => {
-    const vector = group.position.clone().project(camera);
-    if (vector.z < -1 || vector.z > 1) return;
-    const label = document.createElement("span");
-    label.className = "pc3d-label";
-    label.textContent = slot;
-    label.style.left = `${(vector.x * 0.5 + 0.5) * viewport.clientWidth}px`;
-    label.style.top = `${(-vector.y * 0.5 + 0.5) * viewport.clientHeight}px`;
-    viewport.appendChild(label);
-    labelEls.push(label);
+function findComponentGroup(object) {
+  let current = object;
+  while (current) {
+    if (current.userData?.slot && ("product" in current.userData || "usedFallback" in current.userData)) return current;
+    current = current.parent;
+  }
+  return null;
+}
+
+function renderBuildSummary(buildState) {
+  const entries = Object.entries(buildState || {}).sort(([slotA], [slotB]) => {
+    const indexA = slotOrder.indexOf(slotA);
+    const indexB = slotOrder.indexOf(slotB);
+    return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
   });
+  if (partList) {
+    partList.innerHTML = entries.length
+      ? entries.map(([slot, product]) => `<li><span>${escapeHtml(slotLabels[slot] || slot)}</span><strong>${escapeHtml(product.name)}</strong><em>${escapeHtml(product.price)}</em></li>`).join("")
+      : "<li>Chua co linh kien nao.</li>";
+  }
+  const total = entries.reduce((sum, [, product]) => sum + Number(product.priceRaw || 0), 0);
+  if (totalEl) totalEl.textContent = `${total.toLocaleString("vi-VN")} \u0111`;
 }
 
 function renderCssPreview(buildState, message) {
   if (!fallback) return;
-  const entries = Object.entries(buildState || {});
+  viewport.hidden = true;
   fallback.hidden = false;
+  const entries = Object.entries(buildState || {});
   fallback.innerHTML = `
-    <div class="pc3d-css-preview" role="img" aria-label="Preview cấu hình PC dạng tương thích">
-      <div class="pc3d-css-note">${escapeHtml(message || "Chế độ preview tương thích đang bật.")}</div>
+    <div class="pc3d-css-preview" role="img" aria-label="Preview cau hinh PC dang tuong thich">
+      <div class="pc3d-css-note">${escapeHtml(message || "Che do preview tuong thich dang bat.")}</div>
       <div class="pc3d-css-case">
         <div class="pc3d-css-shell"></div>
         ${entries.map(([slot, product]) => `<div class="pc3d-css-part pc3d-slot-${escapeHtml(slot.toLowerCase())}" title="${escapeHtml(product.name)}"><span>${escapeHtml(slot)}</span></div>`).join("")}
@@ -331,28 +854,9 @@ function renderCssPreview(buildState, message) {
     </div>`;
 }
 
-function renderBuildSummary(buildState) {
-  const entries = Object.entries(buildState || {});
-  if (partList) {
-    partList.innerHTML = entries.length
-      ? entries.map(([slot, product]) => `<li><span>${escapeHtml(slotLabels[slot] || slot)}</span><strong>${escapeHtml(product.name)}</strong><em>${escapeHtml(product.price)}</em></li>`).join("")
-      : "<li>Chưa có linh kiện nào.</li>";
-  }
-  const total = entries.reduce((sum, [, product]) => sum + Number(product.priceRaw || 0), 0);
-  if (totalEl) totalEl.textContent = total.toLocaleString("vi-VN") + " ₫";
-}
-
-function readSavedBuild() {
-  try {
-    return JSON.parse(sessionStorage.getItem("techvoraBuildPcPreview") || "{}") || {};
-  } catch {
-    return {};
-  }
-}
-
-function clearLabels() {
-  labelEls.forEach((label) => label.remove());
-  labelEls = [];
+function removeStablePreview() {
+  document.getElementById("pc3dDomPreview")?.remove();
+  document.getElementById("pc3dStablePreviewStyles")?.remove();
 }
 
 function resize() {
@@ -364,13 +868,33 @@ function resize() {
   camera.updateProjectionMatrix();
 }
 
+function clearGroup(group) {
+  if (!group) return;
+  [...group.children].forEach((child) => {
+    group.remove(child);
+    disposeObject(child);
+  });
+}
+
+function readSavedBuild() {
+  try {
+    return JSON.parse(sessionStorage.getItem("techvoraBuildPcPreview") || "{}") || {};
+  } catch {
+    return {};
+  }
+}
+
 function supportsWebGL() {
   try {
     const canvas = document.createElement("canvas");
-    return !!(canvas.getContext("webgl2") || canvas.getContext("webgl") || canvas.getContext("experimental-webgl"));
+    return Boolean(canvas.getContext("webgl2") || canvas.getContext("webgl") || canvas.getContext("experimental-webgl"));
   } catch {
     return false;
   }
+}
+
+function setHint(text) {
+  if (hintEl) hintEl.textContent = text;
 }
 
 function hideTooltip() {
@@ -378,35 +902,39 @@ function hideTooltip() {
 }
 
 function disposeScene() {
+  window.clearTimeout(canvasCheckTimer);
+  canvasCheckTimer = 0;
+  cancelAnimationFrame(animationId);
+  animationId = 0;
   if (renderer?.domElement) {
     renderer.domElement.removeEventListener("pointermove", onPointerMove);
     renderer.domElement.removeEventListener("pointerleave", hideTooltip);
+    renderer.domElement.removeEventListener("dblclick", resetCamera);
   }
-  if (controls) controls.dispose();
+  resizeObserver?.disconnect();
+  controls?.dispose();
   if (scene) disposeObject(scene);
-  if (renderer) {
-    renderer.dispose();
-    renderer.forceContextLoss?.();
-  }
+  renderer?.dispose();
   if (viewport) viewport.innerHTML = "";
   renderer = null;
   scene = null;
   camera = null;
   controls = null;
-  caseGroup = null;
-  componentGroup = null;
+  resizeObserver = null;
   raycaster = null;
   pointer = null;
+  pcGroup = null;
+  componentGroup = null;
+  worldGuideGroup = null;
   componentMeshes = new Map();
-  animations = [];
 }
 
 function disposeObject(object) {
   object.traverse((child) => {
-    if (child.geometry) child.geometry.dispose();
+    child.geometry?.dispose?.();
     if (child.material) {
-      if (Array.isArray(child.material)) child.material.forEach((material) => material.dispose());
-      else child.material.dispose();
+      if (Array.isArray(child.material)) child.material.forEach((material) => material.dispose?.());
+      else child.material.dispose?.();
     }
   });
 }
@@ -415,21 +943,58 @@ function markInteraction() {
   lastInteraction = performance.now();
 }
 
-function lerp(from, to, t) {
-  return from + (to - from) * t;
-}
-
-function easeOutBack(t) {
-  const c1 = 1.70158;
-  const c3 = c1 + 1;
-  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-}
-
 function escapeHtml(value) {
   return String(value || "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[ch]);
 }
 
-window.addEventListener("beforeunload", close);
-window.buildpc3d = { openPage, update, close };
+window.addEventListener("beforeunload", disposeScene);
+window.buildpc3d = { openPage, update: openPage, close: disposeScene, debug: getDebugState };
 
 if (viewport) openPage(readSavedBuild());
+
+function getDebugState() {
+  const expectedBox = getExpectedComponentBox();
+  const actualBox = pcGroup ? new THREE.Box3().setFromObject(pcGroup) : null;
+  return {
+    hasRenderer: Boolean(renderer),
+    viewport: viewport ? {
+      clientWidth: viewport.clientWidth,
+      clientHeight: viewport.clientHeight,
+      rect: viewport.getBoundingClientRect().toJSON?.() || viewport.getBoundingClientRect()
+    } : null,
+    canvas: renderer?.domElement ? {
+      width: renderer.domElement.width,
+      height: renderer.domElement.height,
+      cssWidth: renderer.domElement.style.width,
+      cssHeight: renderer.domElement.style.height
+    } : null,
+    camera: camera ? {
+      position: camera.position.toArray(),
+      near: camera.near,
+      far: camera.far,
+      aspect: camera.aspect
+    } : null,
+    components: [...componentMeshes.entries()].map(([key, holder]) => ({
+      key,
+      slot: holder.userData?.slot,
+      usedFallback: holder.userData?.usedFallback,
+      children: holder.children.length,
+      position: holder.position.toArray()
+    })),
+    expectedBox: expectedBox.isEmpty() ? null : {
+      min: expectedBox.min.toArray(),
+      max: expectedBox.max.toArray(),
+      size: expectedBox.getSize(new THREE.Vector3()).toArray()
+    },
+    actualBox: actualBox?.isEmpty() ? null : {
+      min: actualBox.min.toArray(),
+      max: actualBox.max.toArray(),
+      size: actualBox.getSize(new THREE.Vector3()).toArray()
+    },
+    worldGuide: worldGuideGroup ? {
+      children: worldGuideGroup.children.length,
+      visible: worldGuideGroup.visible
+    } : null,
+    canvasStillBlank: renderer ? isCanvasStillBlank() : null
+  };
+}

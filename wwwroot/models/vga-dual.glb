@@ -1,0 +1,6 @@
+﻿namespace EcommerceApp.wwwroot.models
+{
+    public class vga_dual
+    {
+    }
+}

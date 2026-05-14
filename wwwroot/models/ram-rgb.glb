@@ -1,0 +1,6 @@
+﻿namespace EcommerceApp.wwwroot.models
+{
+    public class ram_rgb
+    {
+    }
+}

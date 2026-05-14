@@ -16,6 +16,8 @@ document.addEventListener("DOMContentLoaded", function () {
   initReviewPagination();
   initProductGallery();
   initProductTabs();
+  initProductOptions();
+  initDetailCoupon();
   initDetailAddToCart();
   initAddressDropdowns();
   initProfileAddressFill();
@@ -226,13 +228,26 @@ function initDetailAddToCart() {
   var input = document.getElementById("qtyInput");
   if (!input) return;
 
+  function setBusy(source, busy) {
+    if (!source) return;
+    source.disabled = busy || source.dataset.stockDisabled === "true";
+    if (busy) {
+      source.dataset.originalText = source.dataset.originalText || source.textContent;
+      source.textContent = "Đang xử lý...";
+    } else if (source.dataset.originalText) {
+      source.textContent = source.dataset.originalText;
+    }
+  }
+
   function addDetailProduct(redirectToCheckout) {
     var source = redirectToCheckout ? buyNow : button;
     if (!source || source.disabled) return;
     var qty = Math.max(Number(input.min || 1), Math.min(Number(input.max || 99), Number(input.value || 1)));
+    input.value = qty;
     var body = new URLSearchParams();
     body.append("productId", source.dataset.productId);
     body.append("quantity", qty);
+    setBusy(source, true);
     fetch("/Cart/Add", {
       method: "POST",
       headers: {
@@ -241,9 +256,15 @@ function initDetailAddToCart() {
       },
       body: body.toString()
     })
-      .then(function (response) { return response.json(); })
+      .then(function (response) {
+        if (!response.ok) throw new Error("Cart request failed");
+        return response.json();
+      })
       .then(function (data) {
-        if (!data.success) return;
+        if (!data.success) {
+          showToast(data.message || "Không thể thêm sản phẩm vào giỏ.", "error");
+          return;
+        }
         var cartCount = document.getElementById("cart-count");
         if (cartCount) cartCount.textContent = data.itemCount;
         document.querySelectorAll(".cart-badge").forEach(function (badge) { badge.textContent = data.itemCount; });
@@ -252,6 +273,12 @@ function initDetailAddToCart() {
           return;
         }
         showToast(data.message, "success");
+      })
+      .catch(function () {
+        showToast("Không thể thêm sản phẩm vào giỏ. Vui lòng thử lại.", "error");
+      })
+      .finally(function () {
+        setBusy(source, false);
       });
   }
 
@@ -266,6 +293,55 @@ function initDetailAddToCart() {
       addDetailProduct(true);
     });
   }
+}
+
+function initProductOptions() {
+  var selected = {};
+  document.querySelectorAll("[data-option-group]").forEach(function (group) {
+    var key = group.dataset.optionGroup;
+    var active = group.querySelector(".active");
+    selected[key] = active ? (active.dataset.optionValue || active.textContent.trim()) : "";
+    group.querySelectorAll("button[data-option-value]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        group.querySelectorAll("button").forEach(function (item) { item.classList.remove("active"); });
+        button.classList.add("active");
+        selected[key] = button.dataset.optionValue || button.textContent.trim();
+        updateSelectedVariant();
+      });
+    });
+  });
+
+  function updateSelectedVariant() {
+    var target = document.getElementById("selectedVariant");
+    if (!target) return;
+    var color = selected.color || "";
+    var storage = selected.storage || "";
+    target.textContent = [color, storage].filter(Boolean).join(" / ");
+  }
+
+  updateSelectedVariant();
+}
+
+function initDetailCoupon() {
+  var button = document.querySelector("[data-save-detail-coupon]");
+  var input = document.getElementById("pdpCouponInput");
+  var message = document.getElementById("pdpCouponMessage");
+  if (!button || !input) return;
+
+  var saved = sessionStorage.getItem("techvoraVoucherCode");
+  if (saved) input.value = saved;
+
+  button.addEventListener("click", function () {
+    var code = input.value.trim().toUpperCase();
+    if (!code) {
+      if (message) message.textContent = "Nhập mã giảm giá trước khi áp dụng.";
+      showToast("Nhập mã giảm giá trước khi áp dụng.", "error");
+      return;
+    }
+    sessionStorage.setItem("techvoraVoucherCode", code);
+    if (message) message.textContent = "Đã lưu mã " + code + ". Mã sẽ tự điền ở checkout.";
+    showToast("Đã lưu mã giảm giá cho checkout.", "success");
+  });
 }
 
 function initCartPage() {
@@ -346,13 +422,16 @@ function appendReview(review) {
   var item = document.createElement("article");
   item.className = "review-item new";
   var initial = review.user ? review.user.substring(0, 1).toUpperCase() : "K";
-  var stars = "";
-  for (var i = 1; i <= 5; i++) stars += '<i data-lucide="star" class="' + (i <= review.rating ? "filled" : "") + '" aria-hidden="true"></i>';
+  var stars = '<span class="star-meter" aria-hidden="true">';
+  for (var i = 1; i <= 5; i++) {
+    stars += '<span class="star-meter-star" style="--fill:' + (i <= review.rating ? 100 : 0) + '%"><span>★</span></span>';
+  }
+  stars += "</span>";
   item.innerHTML =
     '<div class="review-avatar">' + escapeHtml(initial) + "</div>" +
     "<div>" +
     '<div class="review-meta"><strong>' + escapeHtml(review.user) + "</strong><span>" + escapeHtml(review.date) + "</span></div>" +
-    '<div class="review-stars">' + stars + "</div>" +
+    stars +
     "<p>" + escapeHtml(review.comment) + "</p>" +
     "</div>";
   list.prepend(item);
@@ -361,6 +440,9 @@ function appendReview(review) {
 function initVoucher() {
   var button = document.getElementById("applyVoucher");
   if (!button) return;
+  var savedCode = sessionStorage.getItem("techvoraVoucherCode");
+  var savedInput = document.getElementById("voucherInput");
+  if (savedCode && savedInput && !savedInput.value) savedInput.value = savedCode;
   button.addEventListener("click", function () {
     var input = document.getElementById("voucherInput");
     var message = document.getElementById("voucherMessage");
@@ -395,6 +477,7 @@ function initVoucher() {
           requestAnimationFrame(function () { total.classList.add("bump"); });
         }
         showToast(data.message, "success");
+        sessionStorage.removeItem("techvoraVoucherCode");
       });
   });
 }
@@ -413,17 +496,50 @@ function initQuantitySteppers() {
       input.value = Math.min(Number(input.max || 99), Number(input.value || 1) + 1);
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
+    input.addEventListener("change", updateProductSubtotal);
   });
+  updateProductSubtotal();
+}
+
+function updateProductSubtotal() {
+  var card = document.querySelector("[data-product-price]");
+  var input = document.getElementById("qtyInput");
+  var subtotal = document.getElementById("pdpSubtotal");
+  if (!card || !input || !subtotal) return;
+  var price = Number(card.dataset.productPrice || 0);
+  var qty = Math.max(Number(input.min || 1), Math.min(Number(input.max || 99), Number(input.value || 1)));
+  input.value = qty;
+  subtotal.textContent = new Intl.NumberFormat("vi-VN").format(price * qty) + " ₫";
 }
 
 function initShareTools() {
   document.querySelectorAll("[data-copy-link]").forEach(function (button) {
     button.addEventListener("click", function () {
-      navigator.clipboard.writeText(window.location.href).then(function () {
-        showToast("Đã copy link sản phẩm.", "success");
-      });
+      var link = window.location.href;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(function () {
+          showToast("Đã copy link sản phẩm.", "success");
+        }).catch(function () {
+          fallbackCopy(link);
+        });
+      } else {
+        fallbackCopy(link);
+      }
     });
   });
+}
+
+function fallbackCopy(value) {
+  var textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+  showToast("Đã copy link sản phẩm.", "success");
 }
 
 function initAuthHelpers() {

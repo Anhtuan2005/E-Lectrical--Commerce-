@@ -1,4 +1,5 @@
 @model ProductDetailViewModel
+@using Microsoft.AspNetCore.Html
 @{
     ViewData["Title"] = Model.Product.Name;
     var product = Model.Product;
@@ -16,9 +17,9 @@
     {
         gallery.Add(gallery.First());
     }
-    var currentUrl = $"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.Path}";
-    var filledStars = (int)Math.Round(Model.AverageRating, MidpointRounding.AwayFromZero);
     var discountAmount = Math.Max(0, product.Price - product.SalePrice);
+    var selectedColor = "Silver";
+    var selectedStorage = "256GB";
 }
 
 <nav class="pdp-breadcrumb breadcrumb">
@@ -30,6 +31,7 @@
 </nav>
 
 <section class="pdp-layout">
+    @Html.AntiForgeryToken()
     <aside class="pdp-left">
         <div class="pdp-gallery-card">
             <img class="main-product-image" id="mainProductImage" src="@gallery.First()" alt="@product.Name" />
@@ -49,16 +51,16 @@
                 <span>i</span>
             </div>
             <div class="pdp-side-row">
-                <span>📍</span>
+                <span><i data-lucide="map-pin" aria-hidden="true"></i></span>
                 <div><strong>TP. Hồ Chí Minh, Việt Nam</strong><small>Có thể thay đổi khi thanh toán</small></div>
-                <a asp-controller="Order" asp-action="Checkout">Đổi</a>
+                <button type="button" data-pdp-note="Bạn sẽ chọn địa chỉ giao hàng ở bước checkout.">Đổi</button>
             </div>
             <div class="pdp-side-row">
-                <span>🚚</span>
+                <span><i data-lucide="truck" aria-hidden="true"></i></span>
                 <div><strong>Giao tiêu chuẩn 2-5 ngày</strong><small>Miễn phí cho đơn từ 500.000 ₫</small></div>
             </div>
             <div class="pdp-side-row">
-                <span>💳</span>
+                <span><i data-lucide="credit-card" aria-hidden="true"></i></span>
                 <div><strong>COD và VNPAY</strong><small>Thanh toán an toàn, xác nhận nhanh</small></div>
             </div>
         </div>
@@ -68,8 +70,8 @@
                 <strong>Dịch vụ</strong>
                 <span>?</span>
             </div>
-            <div class="pdp-side-row"><span>↩</span><div><strong>Đổi trả 7 ngày</strong><small>Áp dụng theo chính sách sản phẩm</small></div></div>
-            <div class="pdp-side-row"><span>🛡</span><div><strong>Bảo hành 12 tháng</strong><small>Sản phẩm chính hãng Techvora</small></div></div>
+            <div class="pdp-side-row"><span><i data-lucide="rotate-ccw" aria-hidden="true"></i></span><div><strong>Đổi trả 7 ngày</strong><small>Áp dụng theo chính sách sản phẩm</small></div></div>
+            <div class="pdp-side-row"><span><i data-lucide="shield-check" aria-hidden="true"></i></span><div><strong>Bảo hành 12 tháng</strong><small>Sản phẩm chính hãng Techvora</small></div></div>
         </div>
 
         <div class="pdp-seller-card">
@@ -90,19 +92,21 @@
                 <h1>@product.Name</h1>
             </div>
             <div class="pdp-icon-actions">
-                <button type="button" data-copy-link aria-label="Copy link">⌘</button>
-                <button class="btn-wishlist @(Model.IsWishlisted ? "active" : "")" type="button" data-product-id="@product.Id" aria-label="Yêu thích">♡</button>
+                <button type="button" data-copy-link aria-label="Copy link"><i data-lucide="copy" aria-hidden="true"></i></button>
+                @if (Model.IsAuthenticated)
+                {
+                    <button class="btn-wishlist @(Model.IsWishlisted ? "active" : "")" type="button" data-product-id="@product.Id" aria-label="Yêu thích"><i data-lucide="heart" aria-hidden="true"></i></button>
+                }
+                else
+                {
+                    <a asp-controller="Account" asp-action="Login" asp-route-returnUrl="@Context.Request.Path" aria-label="Đăng nhập để yêu thích"><i data-lucide="heart" aria-hidden="true"></i></a>
+                }
             </div>
         </div>
 
         <div class="pdp-rating-line">
-            <span class="review-stars inline">
-                @for (var star = 1; star <= 5; star++)
-                {
-                    <span class="@(star <= filledStars ? "filled" : "")">★</span>
-                }
-            </span>
-            <strong>@Model.AverageRating.ToString("0.0")</strong>
+            @RenderStars(Model.AverageRating)
+            <strong>@(Model.ReviewCount == 0 ? "Chưa có đánh giá" : $"{Model.AverageRating:0.#}/5 sao")</strong>
             <span>@Model.ReviewCount đánh giá</span>
             <span>•</span>
             <span>@stockText</span>
@@ -110,19 +114,19 @@
 
         <div class="pdp-option-group">
             <strong>Chọn màu</strong>
-            <div class="pdp-chip-row">
-                <button type="button">Graphite</button>
-                <button type="button" class="active">Silver</button>
-                <button type="button">Blue</button>
-                <button type="button">Starlight</button>
+            <div class="pdp-chip-row" data-option-group="color">
+                <button type="button" data-option-value="Graphite">Graphite</button>
+                <button type="button" class="active" data-option-value="@selectedColor">@selectedColor</button>
+                <button type="button" data-option-value="Blue">Blue</button>
+                <button type="button" data-option-value="Starlight">Starlight</button>
             </div>
         </div>
 
         <div class="pdp-option-group">
             <strong>Dung lượng</strong>
-            <div class="pdp-chip-row">
-                <button type="button" class="active">256GB</button>
-                <button type="button">512GB</button>
+            <div class="pdp-chip-row" data-option-group="storage">
+                <button type="button" class="active" data-option-value="@selectedStorage">@selectedStorage</button>
+                <button type="button" data-option-value="512GB">512GB</button>
             </div>
         </div>
 
@@ -159,7 +163,11 @@
             </div>
             <div class="tab-panel" data-tab-panel="reviews">
                 <div class="review-summary">
-                    <div class="avg-score"><strong>@Model.AverageRating.ToString("0.0") ★</strong><span>@Model.ReviewCount lượt đánh giá</span></div>
+                    <div class="avg-score">
+                        @RenderStars(Model.AverageRating)
+                        <strong>@(Model.ReviewCount == 0 ? "0/5 sao" : $"{Model.AverageRating:0.#}/5 sao")</strong>
+                        <span>@Model.ReviewCount lượt đánh giá</span>
+                    </div>
                     <div class="rating-bars">
                         @for (var star = 5; star >= 1; star--)
                         {
@@ -208,12 +216,7 @@
                             <div class="review-avatar">@((item.User?.FullName ?? "K").Substring(0, 1).ToUpper())</div>
                             <div>
                                 <div class="review-meta"><strong>@(item.User?.FullName ?? "Khách hàng")</strong><span>@item.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy")</span></div>
-                                <div class="review-stars">
-                                    @for (var star = 1; star <= 5; star++)
-                                    {
-                                        <span class="@(star <= item.Rating ? "filled" : "")">★</span>
-                                    }
-                                </div>
+                                @RenderStars(item.Rating)
                                 <p>@item.Comment</p>
                             </div>
                         </article>
@@ -227,7 +230,7 @@
         </div>
     </section>
 
-    <aside class="pdp-order-card">
+    <aside class="pdp-order-card" data-product-price="@product.SalePrice">
         @if (product.DiscountPercent > 0)
         {
             <div class="pdp-sale-ribbon">
@@ -245,6 +248,7 @@
             </div>
         </div>
         <div class="pdp-order-lines">
+            <div><span>Phiên bản</span><strong id="selectedVariant">@selectedColor / @selectedStorage</strong></div>
             <div><span>Danh mục</span><strong>@product.Category?.Name</strong></div>
             <div><span>Tình trạng</span><strong class="@stockClass">@stockText</strong></div>
             <div><span>Giá bán</span><strong>@product.SalePrice.ToString("N0") ₫</strong></div>
@@ -254,8 +258,15 @@
             }
             <div><span>Vận chuyển</span><strong>Miễn phí</strong></div>
         </div>
-        <button class="pdp-coupon" type="button">Áp dụng coupon <span>⌘</span></button>
-        <div class="pdp-subtotal"><span>Tạm tính</span><strong>@product.SalePrice.ToString("N0") ₫</strong></div>
+        <div class="pdp-coupon-box">
+            <label for="pdpCouponInput">Mã giảm giá</label>
+            <div>
+                <input id="pdpCouponInput" placeholder="WELCOME10" autocomplete="off" />
+                <button class="pdp-coupon" type="button" data-save-detail-coupon>Áp dụng</button>
+            </div>
+            <small id="pdpCouponMessage">Mã sẽ được tự điền ở bước checkout.</small>
+        </div>
+        <div class="pdp-subtotal"><span>Tạm tính</span><strong id="pdpSubtotal">@product.SalePrice.ToString("N0") ₫</strong></div>
         <button class="btn-primary pdp-buy" type="button" id="btnAddCart" data-product-id="@product.Id" @(product.Stock == 0 ? "disabled" : "")>
             @(product.Stock == 0 ? "Hết hàng" : "Thêm vào giỏ")
         </button>
@@ -277,3 +288,19 @@
         }
     </div>
 </section>
+
+@functions {
+    private IHtmlContent RenderStars(double rating)
+    {
+        var rounded = Math.Round(rating * 2, MidpointRounding.AwayFromZero) / 2;
+        var builder = new HtmlContentBuilder();
+        builder.AppendHtml("<span class=\"star-meter\" aria-hidden=\"true\">");
+        for (var star = 1; star <= 5; star++)
+        {
+            var fill = Math.Clamp((rounded - (star - 1)) * 100, 0, 100);
+            builder.AppendHtml($"<span class=\"star-meter-star\" style=\"--fill:{fill}%\"><span>★</span></span>");
+        }
+        builder.AppendHtml("</span>");
+        return builder;
+    }
+}

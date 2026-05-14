@@ -4,6 +4,7 @@ using EcommerceApp.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using System.Globalization;
@@ -112,7 +113,14 @@ try
 
     app.UseSerilogRequestLogging();
     app.UseHttpsRedirection();
-    app.UseStaticFiles();
+    var staticFileContentTypes = new FileExtensionContentTypeProvider();
+    staticFileContentTypes.Mappings[".glb"] = "model/gltf-binary";
+    staticFileContentTypes.Mappings[".gltf"] = "model/gltf+json";
+    staticFileContentTypes.Mappings[".bin"] = "application/octet-stream";
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        ContentTypeProvider = staticFileContentTypes
+    });
 
     app.UseRouting();
     app.UseRequestLocalization(new RequestLocalizationOptions

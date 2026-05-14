@@ -13,6 +13,8 @@ logs/
 # ASP.NET secrets
 appsettings.Development.json
 
+.edge-3d-test
+
 # Rider / VSCode
 .idea/
 .vscode/

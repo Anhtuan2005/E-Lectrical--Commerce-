@@ -23,27 +23,15 @@ Cấu hình nằm trong `appsettings.json`:
 
 ```json
 "Vnpay": {
-  "TmnCode": "KJJMVRRU",
-  "HashSecret": "UEA3CO3UWSC4S0A1I39S62SRZBM4G1SC",
-  "BaseUrl": "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html",
-  "ReturnUrl": "https://unperiodic-overt-mindy.ngrok-free.dev/payment/vnpay-return",
-  "IpnUrl": "https://unperiodic-overt-mindy.ngrok-free.dev/payment/vnpay-ipn"
+  "TmnCode": "",
+  "HashSecret": "",
+  "BaseUrl": "",
+  "ReturnUrl": "",
+  "IpnUrl": ""
 }
 ```
 
 Lưu ý: `ReturnUrl` và `IpnUrl` phải khớp chính xác với URL đăng ký trên portal sandbox VNPAY. Nếu ngrok đổi domain, cập nhật lại cả portal và `appsettings.json`.
-
-Thẻ test NCB:
-
-- Số thẻ: `9704198526191432198`
-- Tên: `NGUYEN VAN A`
-- Ngày: `07/15`
-- OTP: `123456`
-
-## Tài khoản mặc định
-
-- Email: `admin@shop.vn`
-- Mật khẩu: `Admin@123`
 
 ## Yêu cầu môi trường
 
@@ -57,21 +45,8 @@ Thẻ test NCB:
 cd E:\Ecommerce_PF\EcommerceApp
 dotnet restore
 dotnet ef database update
-dotnet run --urls http://localhost:5009
+dotnet run
 ```
-
-## Migration mới
-
-Migration V3 mới nhất:
-
-- `Data/Migrations/20260512130028_TechvoraV3_ProfileInventoryProductImages.cs`
-
-Migration này thêm:
-
-- `ProductImages`
-- `StockLogs`
-- `Categories.Description`
-- mở rộng `Orders.ShippingAddress` lên 500 ký tự
 
 ## Ghi chú kỹ thuật
 

@@ -130,7 +130,7 @@ function addFallbackToScene(slot, spec, product, position, key, tooltipProduct) 
   holder.position.fromArray(position || [0, 0, 0]);
   holder.rotation.set(...(spec.rotation || [0, 0, 0]));
   holder.add(object);
-  if (slot === "Case") holder.add(createVisibilityCage(spec.size));
+
   componentGroup.add(holder);
   componentMeshes.set(key, holder);
   return holder;
@@ -162,7 +162,7 @@ function replaceHolderObject(key, slot, spec, object) {
   holder.children.forEach((child) => disposeObject(child));
   holder.clear();
   holder.add(object);
-  if (slot === "Case") holder.add(createVisibilityCage(spec.size));
+
   holder.userData.usedFallback = false;
 }
 
@@ -238,6 +238,7 @@ function initScene() {
   pcGroup.add(componentGroup);
   scene.add(pcGroup);
   worldGuideGroup = createWorldGuide();
+  worldGuideGroup.visible = false;
   scene.add(worldGuideGroup);
   scene.add(createStudioFloor());
 

@@ -34,6 +34,11 @@ public class BuildPcController : Controller
         return View();
     }
 
+    public IActionResult MeasureModels()
+    {
+        return View();
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetProducts(string slot)
     {

@@ -114,7 +114,7 @@ public class AccountController : Controller
         }
 
         _ = await _userManager.FindByEmailAsync(model.Email);
-        TempData["Success"] = "Nếu email tồn tại, Voltix sẽ gửi hướng dẫn đặt lại mật khẩu.";
+        TempData["Success"] = "Nếu email tồn tại, Techvora sẽ gửi hướng dẫn đặt lại mật khẩu.";
         return RedirectToAction(nameof(Login));
     }
 

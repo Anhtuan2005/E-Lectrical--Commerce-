@@ -1,7 +1,7 @@
 @model AdminReportViewModel
 @{
     Layout = "_AdminLayout";
-    ViewData["Title"] = "Báo cáo nâng cao";
+    ViewData["Title"] = "Báo cáo";
     var dailyLabels = System.Text.Json.JsonSerializer.Serialize(Model.DailyRevenue.Select(point => point.Label));
     var dailyValues = System.Text.Json.JsonSerializer.Serialize(Model.DailyRevenue.Select(point => point.Revenue));
     var categoryLabels = System.Text.Json.JsonSerializer.Serialize(Model.RevenueByCategory.Keys);
@@ -10,32 +10,100 @@
     var productSold = System.Text.Json.JsonSerializer.Serialize(Model.TopProducts.Select(product => product.QuantitySold));
 }
 
-<section class="metric-grid">
+<section class="metric-grid" aria-label="Tổng quan báo cáo">
     <article><span>Doanh thu kỳ này</span><strong>@Model.CurrentPeriodRevenue.ToString("N0") ₫</strong></article>
     <article><span>Tăng trưởng</span><strong>@Model.GrowthPercent.ToString("0.0")%</strong></article>
     <article><span>Tổng đơn</span><strong>@Model.TotalOrders</strong></article>
     <article><span>Khách hàng</span><strong>@Model.TotalCustomers</strong></article>
 </section>
 
-<section class="admin-panel">
-    <form class="admin-filters" method="get">
-        <select name="period">
-            <option value="7" selected="@(Model.Period == "7")">7 ngày</option>
-            <option value="30" selected="@(Model.Period == "30")">30 ngày</option>
-            <option value="90" selected="@(Model.Period == "90")">3 tháng</option>
-            <option value="custom" selected="@(Model.Period == "custom")">Tùy chọn</option>
-        </select>
-        <input type="date" name="fromDate" value="@Model.FromDate?.ToString("yyyy-MM-dd")" />
-        <input type="date" name="toDate" value="@Model.ToDate?.ToString("yyyy-MM-dd")" />
-        <button class="admin-button" type="submit">Lọc</button>
-    </form>
+<section class="admin-panel report-filter-panel">
+    <div class="report-summary">
+        <div>
+            <div class="panel-head">
+                <h2>Bộ lọc báo cáo</h2>
+            </div>
+            <form class="admin-filters" method="get">
+                <select name="period" aria-label="Khoảng thời gian">
+                    <option value="7" selected="@(Model.Period == "7")">7 ngày</option>
+                    <option value="30" selected="@(Model.Period == "30")">30 ngày</option>
+                    <option value="90" selected="@(Model.Period == "90")">3 tháng</option>
+                    <option value="custom" selected="@(Model.Period == "custom")">Tùy chọn</option>
+                </select>
+                <input type="date" name="fromDate" value="@Model.FromDate?.ToString("yyyy-MM-dd")" aria-label="Từ ngày" />
+                <input type="date" name="toDate" value="@Model.ToDate?.ToString("yyyy-MM-dd")" aria-label="Đến ngày" />
+                <button class="admin-button" type="submit"><i class="bi bi-funnel"></i> Lọc</button>
+            </form>
+        </div>
+        <a class="admin-button secondary" href="/Admin/Dashboard"><i class="bi bi-speedometer2"></i> Dashboard</a>
+    </div>
 </section>
 
 <section class="chart-grid">
-    <div class="admin-panel"><div class="panel-head"><h2>Doanh thu theo ngày</h2></div><canvas id="dailyRevenueChart" height="150"></canvas></div>
-    <div class="admin-panel"><div class="panel-head"><h2>Doanh thu theo danh mục</h2></div><canvas id="categoryRevenueChart" height="150"></canvas></div>
-    <div class="admin-panel"><div class="panel-head"><h2>Top 10 bán chạy</h2></div><canvas id="topProductsChart" height="190"></canvas></div>
-    <div class="admin-panel"><div class="panel-head"><h2>So sánh kỳ</h2></div><canvas id="periodCompareChart" height="190"></canvas></div>
+    <div class="admin-panel chart-panel">
+        <div class="panel-head"><h2>Doanh thu theo ngày</h2></div>
+        <canvas id="dailyRevenueChart" height="150"></canvas>
+    </div>
+    <div class="admin-panel chart-panel">
+        <div class="panel-head"><h2>Doanh thu theo danh mục</h2></div>
+        @if (Model.RevenueByCategory.Any())
+        {
+            <canvas id="categoryRevenueChart" height="150"></canvas>
+        }
+        else
+        {
+            <div class="empty-state">Chưa có doanh thu danh mục trong kỳ này.</div>
+        }
+    </div>
+    <div class="admin-panel chart-panel">
+        <div class="panel-head"><h2>Top 10 bán chạy</h2></div>
+        @if (Model.TopProducts.Any())
+        {
+            <canvas id="topProductsChart" height="190"></canvas>
+        }
+        else
+        {
+            <div class="empty-state">Chưa có sản phẩm bán ra trong kỳ này.</div>
+        }
+    </div>
+    <div class="admin-panel chart-panel">
+        <div class="panel-head"><h2>So sánh kỳ</h2></div>
+        <canvas id="periodCompareChart" height="190"></canvas>
+    </div>
+</section>
+
+<section class="report-table-grid">
+    <div class="admin-panel">
+        <div class="panel-head"><h2>Sản phẩm dẫn đầu</h2></div>
+        <table class="admin-table">
+            <thead><tr><th>Sản phẩm</th><th>Đã bán</th><th>Doanh thu</th></tr></thead>
+            <tbody>
+                @foreach (var product in Model.TopProducts)
+                {
+                    <tr>
+                        <td><strong>@product.ProductName</strong></td>
+                        <td>@product.QuantitySold</td>
+                        <td>@product.Revenue.ToString("N0") ₫</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="admin-panel">
+        <div class="panel-head"><h2>Danh mục</h2></div>
+        <table class="admin-table">
+            <thead><tr><th>Danh mục</th><th>Doanh thu</th></tr></thead>
+            <tbody>
+                @foreach (var category in Model.RevenueByCategory.OrderByDescending(row => row.Value))
+                {
+                    <tr>
+                        <td><strong>@category.Key</strong></td>
+                        <td>@category.Value.ToString("N0") ₫</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 </section>
 
 @section Scripts {

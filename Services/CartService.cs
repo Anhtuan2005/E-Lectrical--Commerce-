@@ -37,7 +37,7 @@ public class CartService : ICartService
 
     public async Task AddAsync(int productId, int quantity, string? userId, string sessionId)
     {
-        var product = await _db.Products.FindAsync(productId);
+        var product = await _db.Products.FirstOrDefaultAsync(row => row.Id == productId);
         if (product is null || product.Stock <= 0)
         {
             return;

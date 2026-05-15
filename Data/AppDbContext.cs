@@ -20,6 +20,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<WishlistItem> WishlistItems => Set<WishlistItem>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<Voucher> Vouchers => Set<Voucher>();
+    public DbSet<VoucherUsage> VoucherUsages => Set<VoucherUsage>();
     public DbSet<Banner> Banners => Set<Banner>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
     public DbSet<StockLog> StockLogs => Set<StockLog>();
@@ -27,6 +28,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        builder.Entity<Product>()
+            .HasQueryFilter(product => !product.IsDeleted);
 
         builder.Entity<Product>()
             .Property(product => product.Price)
@@ -55,6 +59,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
         builder.Entity<Order>()
             .Property(order => order.TotalAmount)
+            .HasColumnType("decimal(18,2)");
+
+        builder.Entity<Order>()
+            .Property(order => order.DiscountAmount)
             .HasColumnType("decimal(18,2)");
 
         builder.Entity<OrderItem>()
@@ -124,5 +132,27 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<Voucher>()
             .HasIndex(voucher => voucher.Code)
             .IsUnique();
+
+        builder.Entity<VoucherUsage>()
+            .HasIndex(usage => new { usage.VoucherId, usage.UserId })
+            .IsUnique();
+
+        builder.Entity<VoucherUsage>()
+            .HasOne(usage => usage.Voucher)
+            .WithMany(voucher => voucher.Usages)
+            .HasForeignKey(usage => usage.VoucherId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<VoucherUsage>()
+            .HasOne(usage => usage.User)
+            .WithMany()
+            .HasForeignKey(usage => usage.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<VoucherUsage>()
+            .HasOne(usage => usage.Order)
+            .WithMany()
+            .HasForeignKey(usage => usage.OrderId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

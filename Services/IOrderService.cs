@@ -7,7 +7,7 @@ public interface IOrderService
 {
     Task<Order> CreateOrderAsync(string userId, CheckoutViewModel model, string sessionId);
     Task<IEnumerable<Order>> GetUserOrdersAsync(string userId);
-    Task<UserOrdersViewModel> GetUserOrderHistoryAsync(string userId, string? status);
+    Task<UserOrdersViewModel> GetUserOrderHistoryAsync(string userId, string? status, int page, int pageSize);
     Task<Order?> GetUserOrderAsync(int id, string userId);
     Task<OrderListViewModel> GetOrdersAsync(string? status, string? customer, DateTime? fromDate, DateTime? toDate);
     Task<Order?> GetOrderAsync(int id);

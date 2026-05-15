@@ -141,7 +141,7 @@ public class ProductService : IProductService
 
     public async Task UpdateProductAsync(ProductFormViewModel model, string? imageUrl)
     {
-        var product = await _db.Products.FindAsync(model.Id);
+        var product = await _db.Products.FirstOrDefaultAsync(row => row.Id == model.Id);
         if (product is null)
         {
             return;
@@ -174,13 +174,13 @@ public class ProductService : IProductService
 
     public async Task DeleteProductAsync(int id)
     {
-        var product = await _db.Products.FindAsync(id);
+        var product = await _db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(row => row.Id == id);
         if (product is null)
         {
             return;
         }
 
-        _db.Products.Remove(product);
+        product.IsDeleted = true;
         await _db.SaveChangesAsync();
     }
 }

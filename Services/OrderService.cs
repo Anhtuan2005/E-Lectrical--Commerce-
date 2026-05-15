@@ -1,6 +1,7 @@
 using EcommerceApp.Data;
 using EcommerceApp.Models;
 using EcommerceApp.Models.ViewModels;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace EcommerceApp.Services;
@@ -55,24 +56,66 @@ public class OrderService : IOrderService
         };
 
         var subtotal = order.Items.Sum(item => item.Quantity * item.UnitPrice);
-        if (!string.IsNullOrWhiteSpace(model.VoucherCode))
+        var normalizedVoucherCode = NormalizeVoucherCode(model.VoucherCode);
+        int? appliedVoucherId = null;
+        if (normalizedVoucherCode is not null)
         {
-            var code = model.VoucherCode.Trim().ToUpperInvariant();
-            var voucher = await _db.Vouchers.FirstOrDefaultAsync(row => row.Code == code);
-            if (voucher is not null && voucher.IsActive && voucher.StartDate <= DateTime.UtcNow && voucher.EndDate >= DateTime.UtcNow && voucher.UsedCount < voucher.UsageLimit && subtotal >= voucher.MinOrderAmount)
+            var now = DateTime.UtcNow;
+            var voucher = await _db.Vouchers.AsNoTracking().FirstOrDefaultAsync(row => row.Code == normalizedVoucherCode);
+            if (voucher is null || !voucher.IsActive)
             {
-                model.DiscountAmount = CalculateDiscount(voucher, subtotal);
-                voucher.UsedCount += 1;
+                throw new InvalidOperationException("Mã giảm giá không hợp lệ.");
             }
+
+            if (voucher.StartDate > now || voucher.EndDate < now)
+            {
+                throw new InvalidOperationException("Mã giảm giá đã hết hạn hoặc chưa bắt đầu.");
+            }
+
+            if (voucher.UsedCount >= voucher.UsageLimit)
+            {
+                throw new InvalidOperationException("Mã giảm giá đã hết lượt sử dụng.");
+            }
+
+            if (subtotal < voucher.MinOrderAmount)
+            {
+                throw new InvalidOperationException($"Đơn hàng cần tối thiểu {voucher.MinOrderAmount:N0} ₫ để dùng mã này.");
+            }
+
+            if (await _db.VoucherUsages.AnyAsync(usage => usage.VoucherId == voucher.Id && usage.UserId == userId))
+            {
+                throw new InvalidOperationException("Bạn đã sử dụng mã giảm giá này.");
+            }
+
+            var affected = await _db.Database.ExecuteSqlRawAsync(
+                "UPDATE Vouchers SET UsedCount = UsedCount + 1 WHERE Id = {0} AND UsedCount < UsageLimit",
+                voucher.Id);
+            if (affected == 0)
+            {
+                throw new InvalidOperationException("Mã giảm giá vừa hết lượt sử dụng. Vui lòng chọn mã khác.");
+            }
+
+            order.VoucherCode = voucher.Code;
+            order.DiscountAmount = CalculateDiscount(voucher, subtotal);
+            appliedVoucherId = voucher.Id;
         }
-        order.TotalAmount = Math.Max(0, subtotal - model.DiscountAmount);
+        order.TotalAmount = Math.Max(0, subtotal - order.DiscountAmount);
 
         _db.Orders.Add(order);
+        if (appliedVoucherId.HasValue)
+        {
+            _db.VoucherUsages.Add(new VoucherUsage
+            {
+                VoucherId = appliedVoucherId.Value,
+                UserId = userId,
+                Order = order
+            });
+        }
 
         foreach (var item in cart.Items)
         {
             var affected = await _db.Database.ExecuteSqlRawAsync(
-                "UPDATE Products SET Stock = Stock - {0} WHERE Id = {1} AND Stock >= {0}",
+                "UPDATE Products SET Stock = Stock - {0} WHERE Id = {1} AND Stock >= {0} AND IsDeleted = 0",
                 item.Quantity,
                 item.ProductId);
             if (affected == 0)
@@ -81,7 +124,15 @@ public class OrderService : IOrderService
             }
         }
 
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (normalizedVoucherCode is not null && IsVoucherUsageUniqueViolation(ex))
+        {
+            throw new InvalidOperationException("Bạn đã sử dụng mã giảm giá này.");
+        }
+
         await _cartService.ClearAsync(userId, sessionId);
         await transaction.CommitAsync();
         _logger.LogInformation("Order {OrderId} created for user {UserId} with payment {PaymentMethod} and total {TotalAmount}", order.Id, userId, order.PaymentMethod, order.TotalAmount);
@@ -91,6 +142,7 @@ public class OrderService : IOrderService
     public async Task<IEnumerable<Order>> GetUserOrdersAsync(string userId)
     {
         return await _db.Orders
+            .IgnoreQueryFilters()
             .Include(order => order.Items).ThenInclude(item => item.Product)
             .Include(order => order.ShippingInfo)
             .Where(order => order.UserId == userId)
@@ -98,13 +150,14 @@ public class OrderService : IOrderService
             .ToListAsync();
     }
 
-    public async Task<UserOrdersViewModel> GetUserOrderHistoryAsync(string userId, string? status)
+    public async Task<UserOrdersViewModel> GetUserOrderHistoryAsync(string userId, string? status, int page, int pageSize)
     {
+        page = Math.Max(1, page);
+        pageSize = Math.Max(1, pageSize);
         var activeStatus = OrderStatusFilters.Normalize(status);
         var targetStatus = OrderStatusFilters.ToOrderStatus(activeStatus);
         var query = _db.Orders
-            .Include(order => order.Items).ThenInclude(item => item.Product)
-            .Include(order => order.ShippingInfo)
+            .IgnoreQueryFilters()
             .Where(order => order.UserId == userId);
 
         var counts = await _db.Orders
@@ -119,23 +172,38 @@ public class OrderService : IOrderService
             query = query.Where(order => order.Status == targetStatus);
         }
 
+        var totalItems = await query.CountAsync();
+        var totalPages = Math.Max(1, (int)Math.Ceiling(totalItems / (double)pageSize));
+        page = Math.Min(page, totalPages);
+
         return new UserOrdersViewModel
         {
             ActiveStatus = activeStatus,
-            Orders = await query.OrderByDescending(order => order.CreatedAt).ToListAsync(),
+            Orders = await query
+                .OrderByDescending(order => order.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Include(order => order.Items).ThenInclude(item => item.Product)
+                .Include(order => order.ShippingInfo)
+                .ToListAsync(),
             Tabs = OrderStatusFilters.Tabs.Select(tab => new OrderStatusTabViewModel
             {
                 Key = tab.Key,
                 Label = tab.Label,
                 Count = tab.Status is null ? total : counts.GetValueOrDefault(tab.Status),
                 IsActive = tab.Key == activeStatus
-            }).ToList()
+            }).ToList(),
+            CurrentPage = page,
+            TotalPages = totalPages,
+            PageSize = pageSize,
+            TotalItems = totalItems
         };
     }
 
     public async Task<Order?> GetUserOrderAsync(int id, string userId)
     {
         return await _db.Orders
+            .IgnoreQueryFilters()
             .Include(order => order.User)
             .Include(order => order.Items).ThenInclude(item => item.Product)
             .Include(order => order.ShippingInfo)
@@ -183,6 +251,7 @@ public class OrderService : IOrderService
     public async Task<Order?> GetOrderAsync(int id)
     {
         return await _db.Orders
+            .IgnoreQueryFilters()
             .Include(order => order.User)
             .Include(order => order.Items).ThenInclude(item => item.Product)
             .Include(order => order.ShippingInfo)
@@ -283,10 +352,12 @@ public class OrderService : IOrderService
         var startOfDay = now.Date;
         var startOfWeek = startOfDay.AddDays(-(int)startOfDay.DayOfWeek);
         var startOfMonth = new DateTime(now.Year, now.Month, 1);
-        var paidOrders = _db.Orders.Where(order => order.IsPaid || order.Status == OrderStatuses.Delivered);
+        var revenueOrders = _db.Orders.Where(order => order.IsPaid || order.Status == OrderStatuses.Delivered);
 
         var topProducts = await _db.OrderItems
+            .IgnoreQueryFilters()
             .Include(item => item.Product)
+            .Where(item => item.Order != null && (item.Order.IsPaid || item.Order.Status == OrderStatuses.Delivered))
             .GroupBy(item => item.Product!.Name)
             .Select(group => new TopProductViewModel
             {
@@ -298,7 +369,7 @@ public class OrderService : IOrderService
             .Take(5)
             .ToListAsync();
 
-        var revenuePoints = await paidOrders
+        var revenuePoints = await revenueOrders
             .Where(order => order.CreatedAt >= startOfDay.AddDays(-6))
             .GroupBy(order => order.CreatedAt.Date)
             .Select(group => new RevenuePointViewModel
@@ -310,9 +381,9 @@ public class OrderService : IOrderService
 
         return new AdminDashboardViewModel
         {
-            TodayRevenue = await paidOrders.Where(order => order.CreatedAt >= startOfDay).SumAsync(order => order.TotalAmount),
-            WeekRevenue = await paidOrders.Where(order => order.CreatedAt >= startOfWeek).SumAsync(order => order.TotalAmount),
-            MonthRevenue = await paidOrders.Where(order => order.CreatedAt >= startOfMonth).SumAsync(order => order.TotalAmount),
+            TodayRevenue = await revenueOrders.Where(order => order.CreatedAt >= startOfDay).SumAsync(order => order.TotalAmount),
+            WeekRevenue = await revenueOrders.Where(order => order.CreatedAt >= startOfWeek).SumAsync(order => order.TotalAmount),
+            MonthRevenue = await revenueOrders.Where(order => order.CreatedAt >= startOfMonth).SumAsync(order => order.TotalAmount),
             TotalOrders = await _db.Orders.CountAsync(),
             OrdersByStatus = await _db.Orders.GroupBy(order => order.Status).ToDictionaryAsync(group => group.Key, group => group.Count()),
             TopProducts = topProducts,
@@ -336,5 +407,17 @@ public class OrderService : IOrderService
 
         var discount = subtotal * voucher.Value / 100m;
         return voucher.MaxDiscount > 0 ? Math.Min(discount, voucher.MaxDiscount) : discount;
+    }
+
+    private static string? NormalizeVoucherCode(string? code)
+    {
+        return string.IsNullOrWhiteSpace(code) ? null : code.Trim().ToUpperInvariant();
+    }
+
+    private static bool IsVoucherUsageUniqueViolation(DbUpdateException exception)
+    {
+        return exception.InnerException is SqlException sqlException
+            && sqlException.Errors.Cast<SqlError>().Any(error => error.Number is 2601 or 2627
+                && error.Message.Contains("IX_VoucherUsages_VoucherId_UserId", StringComparison.OrdinalIgnoreCase));
     }
 }

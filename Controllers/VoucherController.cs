@@ -33,9 +33,11 @@ public class VoucherController : Controller
     [EnableRateLimiting("voucher")]
     public async Task<IActionResult> Validate(string code)
     {
-        var cart = await _cartService.GetCartAsync(User.FindFirstValue(ClaimTypes.NameIdentifier), HttpContext.Session.Id);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var cart = await _cartService.GetCartAsync(userId, HttpContext.Session.Id);
         var subtotal = cart.Total;
-        var voucher = await _db.Vouchers.FirstOrDefaultAsync(row => row.Code == (code ?? string.Empty).Trim().ToUpper());
+        var normalizedCode = (code ?? string.Empty).Trim().ToUpperInvariant();
+        var voucher = await _db.Vouchers.AsNoTracking().FirstOrDefaultAsync(row => row.Code == normalizedCode);
 
         if (voucher is null || !voucher.IsActive)
         {
@@ -50,6 +52,11 @@ public class VoucherController : Controller
         if (voucher.UsedCount >= voucher.UsageLimit)
         {
             return Json(new { valid = false, discountAmount = 0, discountLabel = "", newTotal = subtotal, message = "Mã giảm giá đã hết lượt sử dụng." });
+        }
+
+        if (!string.IsNullOrWhiteSpace(userId) && await _db.VoucherUsages.AnyAsync(usage => usage.VoucherId == voucher.Id && usage.UserId == userId))
+        {
+            return Json(new { valid = false, discountAmount = 0, discountLabel = "", newTotal = subtotal, message = "Bạn đã sử dụng mã giảm giá này." });
         }
 
         if (subtotal < voucher.MinOrderAmount)

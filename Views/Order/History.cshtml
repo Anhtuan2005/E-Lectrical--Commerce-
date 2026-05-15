@@ -109,6 +109,16 @@
                 </article>
             }
         </div>
+
+        @if (Model.TotalPages > 1)
+        {
+            <nav class="pagination" aria-label="Phân trang đơn hàng">
+                @for (var i = 1; i <= Model.TotalPages; i++)
+                {
+                    <a class="@(i == Model.CurrentPage ? "active" : "")" asp-action="History" asp-route-status="@Model.ActiveStatus" asp-route-page="@i">@i</a>
+                }
+            </nav>
+        }
     }
 </section>
 

@@ -59,6 +59,10 @@ public class UserOrdersViewModel
     public IReadOnlyList<Order> Orders { get; set; } = Array.Empty<Order>();
     public IReadOnlyList<OrderStatusTabViewModel> Tabs { get; set; } = Array.Empty<OrderStatusTabViewModel>();
     public string ActiveStatus { get; set; } = OrderStatusFilters.All;
+    public int CurrentPage { get; set; } = 1;
+    public int TotalPages { get; set; } = 1;
+    public int PageSize { get; set; } = 10;
+    public int TotalItems { get; set; }
 }
 
 public class OrderStatusTabViewModel

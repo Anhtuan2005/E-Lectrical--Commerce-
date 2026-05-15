@@ -25,6 +25,7 @@ public class Product
     public Category? Category { get; set; }
 
     public bool IsFeatured { get; set; }
+    public bool IsDeleted { get; set; }
 
     [Range(0, 100)]
     public int DiscountPercent { get; set; }

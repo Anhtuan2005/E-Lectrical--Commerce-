@@ -16,6 +16,12 @@ public class Order
     [Range(0, double.MaxValue)]
     public decimal TotalAmount { get; set; }
 
+    [StringLength(30)]
+    public string? VoucherCode { get; set; }
+
+    [Range(0, double.MaxValue)]
+    public decimal DiscountAmount { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

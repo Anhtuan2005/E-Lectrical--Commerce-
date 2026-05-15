@@ -27,7 +27,12 @@ function initAdminNav() {
 
 function initDashboardChart() {
   var chartElement = document.getElementById("revenueChart");
-  if (!chartElement || !window.Chart || !window.adminRevenueLabels || !window.adminRevenueValues) return;
+  if (!chartElement || !window.adminRevenueLabels || !window.adminRevenueValues) return;
+  if (!window.Chart) {
+    showChartFallback(chartElement);
+    return;
+  }
+  var colors = adminChartColors();
   new Chart(chartElement, {
     type: "line",
     data: {
@@ -35,39 +40,44 @@ function initDashboardChart() {
       datasets: [{
         label: "Doanh thu",
         data: window.adminRevenueValues,
-        borderColor: "#0071e3",
-        backgroundColor: "rgba(0, 113, 227, 0.12)",
+        borderColor: colors.accent,
+        backgroundColor: colors.accentFill,
         tension: 0.32,
         fill: true
       }]
     },
-    options: adminChartOptions(false)
+    options: adminChartOptions({ currency: true })
   });
 }
 
 function initReportCharts() {
-  if (!window.Chart || !window.reportData) return;
+  if (!window.reportData) return;
+  if (!window.Chart) {
+    document.querySelectorAll("#dailyRevenueChart,#categoryRevenueChart,#topProductsChart,#periodCompareChart").forEach(showChartFallback);
+    return;
+  }
+  var colors = adminChartColors();
   var money = function (value) { return Number(value).toLocaleString("vi-VN") + " ₫"; };
 
   createChart("dailyRevenueChart", {
     type: "line",
-    data: { labels: window.reportData.dailyLabels, datasets: [{ label: "Doanh thu", data: window.reportData.dailyValues, borderColor: "#0071e3", backgroundColor: "rgba(0,113,227,.12)", fill: true, tension: 0.35 }] },
-    options: adminChartOptions(false)
+    data: { labels: window.reportData.dailyLabels, datasets: [{ label: "Doanh thu", data: window.reportData.dailyValues, borderColor: colors.accent, backgroundColor: colors.accentFill, fill: true, tension: 0.35 }] },
+    options: adminChartOptions({ currency: true })
   });
   createChart("categoryRevenueChart", {
     type: "doughnut",
-    data: { labels: window.reportData.categoryLabels, datasets: [{ data: window.reportData.categoryValues, backgroundColor: ["#0071e3", "#34c759", "#ff9f0a", "#ff3b30", "#5856d6"] }] },
-    options: { responsive: true, plugins: { tooltip: { callbacks: { label: function (ctx) { return ctx.label + ": " + money(ctx.raw); } } } } }
+    data: { labels: window.reportData.categoryLabels, datasets: [{ data: window.reportData.categoryValues, backgroundColor: colors.palette }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } }, tooltip: { callbacks: { label: function (ctx) { return ctx.label + ": " + money(ctx.raw); } } } } }
   });
   createChart("topProductsChart", {
     type: "bar",
-    data: { labels: window.reportData.productLabels, datasets: [{ label: "Đã bán", data: window.reportData.productSold, backgroundColor: "#0071e3" }] },
-    options: adminChartOptions(true)
+    data: { labels: window.reportData.productLabels, datasets: [{ label: "Đã bán", data: window.reportData.productSold, backgroundColor: colors.accent }] },
+    options: adminChartOptions({ horizontal: true, currency: false })
   });
   createChart("periodCompareChart", {
     type: "bar",
-    data: { labels: ["Kỳ trước", "Kỳ này"], datasets: [{ label: "Doanh thu", data: [window.reportData.previousRevenue, window.reportData.currentRevenue], backgroundColor: ["#a1a1a6", "#34c759"] }] },
-    options: adminChartOptions(false)
+    data: { labels: ["Kỳ trước", "Kỳ này"], datasets: [{ label: "Doanh thu", data: [window.reportData.previousRevenue, window.reportData.currentRevenue], backgroundColor: [colors.neutral, colors.success] }] },
+    options: adminChartOptions({ currency: true })
   });
 }
 
@@ -76,21 +86,54 @@ function createChart(id, config) {
   if (el) new Chart(el, config);
 }
 
-function adminChartOptions(horizontal) {
+function adminChartOptions(config) {
+  config = config || {};
+  var horizontal = Boolean(config.horizontal);
+  var currency = config.currency !== false;
+  var numericAxis = horizontal ? "x" : "y";
+  var scales = {
+    x: { grid: { color: "oklch(0.89 0.012 248 / 0.72)" }, ticks: { color: "oklch(0.52 0.025 255)" } },
+    y: { grid: { color: "oklch(0.89 0.012 248 / 0.72)" }, ticks: { color: "oklch(0.52 0.025 255)" } }
+  };
+  scales[numericAxis].ticks.callback = function (value) {
+    var formatted = Number(value).toLocaleString("vi-VN");
+    return currency ? formatted + " ₫" : formatted;
+  };
+
   return {
     indexAxis: horizontal ? "y" : "x",
     responsive: true,
-    plugins: { legend: { display: false } },
-    scales: {
-      y: {
-        ticks: {
-          callback: function (value) {
-            return Number(value).toLocaleString("vi-VN") + " ₫";
-          }
-        }
-      }
-    }
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: "oklch(0.215 0.027 260)", padding: 10 } },
+    scales: scales
   };
+}
+
+function adminChartColors() {
+  return {
+    accent: "oklch(0.58 0.19 252)",
+    accentFill: "oklch(0.58 0.19 252 / 0.14)",
+    success: "oklch(0.63 0.16 150)",
+    neutral: "oklch(0.67 0.018 255)",
+    palette: [
+      "oklch(0.58 0.19 252)",
+      "oklch(0.68 0.15 195)",
+      "oklch(0.63 0.16 150)",
+      "oklch(0.73 0.15 72)",
+      "oklch(0.62 0.2 27)",
+      "oklch(0.58 0.16 305)"
+    ]
+  };
+}
+
+function showChartFallback(canvas) {
+  if (!canvas || canvas.dataset.fallbackShown === "true") return;
+  canvas.dataset.fallbackShown = "true";
+  canvas.style.display = "none";
+  var fallback = document.createElement("div");
+  fallback.className = "empty-state";
+  fallback.textContent = "Không tải được biểu đồ. Bảng số liệu vẫn hiển thị bên dưới.";
+  canvas.insertAdjacentElement("afterend", fallback);
 }
 
 function initBannerSort() {

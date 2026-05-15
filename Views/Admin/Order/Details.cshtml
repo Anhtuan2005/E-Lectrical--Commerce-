@@ -15,6 +15,10 @@
             <dt>Người nhận</dt><dd>@Model.RecipientName - @Model.RecipientPhone</dd>
             <dt>Địa chỉ</dt><dd>@Model.ShippingAddress</dd>
             <dt>Thanh toán</dt><dd>@Model.PaymentMethod</dd>
+            @if (!string.IsNullOrWhiteSpace(Model.VoucherCode) || Model.DiscountAmount > 0)
+            {
+                <dt>Mã giảm giá</dt><dd>@(string.IsNullOrWhiteSpace(Model.VoucherCode) ? "Không có" : Model.VoucherCode) (-@Model.DiscountAmount.ToString("N0") ₫)</dd>
+            }
             <dt>Tổng tiền</dt><dd>@Model.TotalAmount.ToString("N0") ₫</dd>
         </dl>
         <form asp-action="UpdateStatus" method="post" class="inline-form">

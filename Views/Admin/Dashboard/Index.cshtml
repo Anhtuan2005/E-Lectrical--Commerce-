@@ -6,7 +6,7 @@
     var values = System.Text.Json.JsonSerializer.Serialize(Model.RevenuePoints.Select(point => point.Revenue));
 }
 
-<section class="metric-grid">
+<section class="metric-grid" aria-label="Chỉ số vận hành">
     <article><span>Doanh thu hôm nay</span><strong>@Model.TodayRevenue.ToString("N0") ₫</strong></article>
     <article><span>Doanh thu tuần</span><strong>@Model.WeekRevenue.ToString("N0") ₫</strong></article>
     <article><span>Doanh thu tháng</span><strong>@Model.MonthRevenue.ToString("N0") ₫</strong></article>
@@ -14,8 +14,11 @@
 </section>
 
 <section class="admin-grid">
-    <div class="admin-panel">
-        <div class="panel-head"><h2>Doanh thu 7 ngày</h2></div>
+    <div class="admin-panel chart-panel">
+        <div class="panel-head">
+            <h2>Doanh thu 7 ngày</h2>
+            <a class="admin-button secondary" href="/Admin/Report"><i class="bi bi-graph-up-arrow"></i> Báo cáo</a>
+        </div>
         <canvas id="revenueChart" height="130"></canvas>
     </div>
     <div class="admin-panel">
@@ -38,10 +41,10 @@
                 @foreach (var product in Model.LowStockProducts)
                 {
                     <tr>
-                        <td>@product.Name</td>
+                        <td><strong>@product.Name</strong></td>
                         <td>@product.Category?.Name</td>
-                        <td><strong>@product.Stock</strong></td>
-                        <td><a class="adm-ghost" href="/Admin/Product/Edit/@product.Id">Cập nhật</a></td>
+                        <td><span class="adm-pill warning">@product.Stock</span></td>
+                        <td class="actions-cell"><a class="adm-ghost" href="/Admin/Product/Edit/@product.Id"><i class="bi bi-pencil-square"></i> Cập nhật</a></td>
                     </tr>
                 }
             </tbody>
@@ -55,7 +58,7 @@
                 @foreach (var product in Model.TopProducts)
                 {
                     <tr>
-                        <td>@product.ProductName</td>
+                        <td><strong>@product.ProductName</strong></td>
                         <td>@product.QuantitySold</td>
                         <td>@product.Revenue.ToString("N0") ₫</td>
                     </tr>

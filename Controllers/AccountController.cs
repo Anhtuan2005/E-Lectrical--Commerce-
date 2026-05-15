@@ -38,10 +38,15 @@ public class AccountController : Controller
             return View(model);
         }
 
-        var result = await _signInManager.PasswordSignInAsync(model.Email, model.Password, model.RememberMe, lockoutOnFailure: false);
+        var user = await _userManager.FindByEmailAsync(model.Email);
+        if (user is not null && !await _userManager.GetLockoutEnabledAsync(user))
+        {
+            await _userManager.SetLockoutEnabledAsync(user, true);
+        }
+
+        var result = await _signInManager.PasswordSignInAsync(model.Email, model.Password, model.RememberMe, lockoutOnFailure: true);
         if (result.Succeeded)
         {
-            var user = await _userManager.FindByEmailAsync(model.Email);
             if (user is not null)
             {
                 await _cartService.MergeGuestCartAsync(user.Id, HttpContext.Session.Id);
@@ -52,6 +57,12 @@ public class AccountController : Controller
             }
 
             return LocalRedirect(returnUrl ?? Url.Action("Index", "Home")!);
+        }
+
+        if (result.IsLockedOut)
+        {
+            ModelState.AddModelError(string.Empty, "Tài khoản tạm thời bị khóa trong 15 phút vì đăng nhập sai quá 5 lần. Vui lòng thử lại sau.");
+            return View(model);
         }
 
         ModelState.AddModelError(string.Empty, "Email hoặc mật khẩu không đúng.");

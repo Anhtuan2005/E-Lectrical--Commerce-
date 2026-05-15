@@ -3,7 +3,7 @@
     ViewData["Title"] = $"Đơn hàng #DH{Model.Id:D4}";
     var subtotal = Model.Items.Sum(item => item.Quantity * item.UnitPrice);
     var shippingFee = 0m;
-    var discount = Math.Max(0, subtotal + shippingFee - Model.TotalAmount);
+    var discount = Model.DiscountAmount;
     var currentStep = OrderStatusFilters.StepIndex(Model.Status);
 }
 
@@ -98,6 +98,10 @@
                 <dl class="order-info-list">
                     <div><dt>Phương thức</dt><dd>@Model.PaymentMethod</dd></div>
                     <div><dt>Trạng thái</dt><dd>@(Model.IsPaid ? "Đã thanh toán" : "Chưa thanh toán")</dd></div>
+                    @if (!string.IsNullOrWhiteSpace(Model.VoucherCode))
+                    {
+                        <div><dt>Mã giảm giá</dt><dd>@Model.VoucherCode</dd></div>
+                    }
                     @if (!string.IsNullOrWhiteSpace(Model.VnpayTransactionId))
                     {
                         <div><dt>Mã giao dịch VNPAY</dt><dd>@Model.VnpayTransactionId</dd></div>
@@ -120,7 +124,7 @@
                     <div><dt>Phí vận chuyển</dt><dd>@shippingFee.ToString("N0") đ</dd></div>
                     @if (discount > 0)
                     {
-                        <div><dt>Giảm giá</dt><dd>-@discount.ToString("N0") đ</dd></div>
+                        <div><dt>Giảm giá@(string.IsNullOrWhiteSpace(Model.VoucherCode) ? "" : $" ({Model.VoucherCode})")</dt><dd>-@discount.ToString("N0") đ</dd></div>
                     }
                     <div class="grand-total"><dt>Tổng tiền</dt><dd>@Model.TotalAmount.ToString("N0") đ</dd></div>
                 </dl>

@@ -31,9 +31,9 @@ public class AdminReportController : Controller
         };
         var previousStart = start.AddDays(-(end - start).TotalDays);
 
-        var delivered = _db.Orders.Where(order => order.Status == OrderStatuses.Delivered);
-        var currentOrders = delivered.Where(order => order.CreatedAt >= start && order.CreatedAt < end);
-        var previousOrders = delivered.Where(order => order.CreatedAt >= previousStart && order.CreatedAt < start);
+        var revenueOrders = _db.Orders.Where(order => order.IsPaid || order.Status == OrderStatuses.Delivered);
+        var currentOrders = revenueOrders.Where(order => order.CreatedAt >= start && order.CreatedAt < end);
+        var previousOrders = revenueOrders.Where(order => order.CreatedAt >= previousStart && order.CreatedAt < start);
         var currentRevenue = await currentOrders.SumAsync(order => order.TotalAmount);
         var previousRevenue = await previousOrders.SumAsync(order => order.TotalAmount);
 
@@ -53,13 +53,15 @@ public class AdminReportController : Controller
                 .OrderBy(point => point.Label)
                 .ToListAsync(),
             RevenueByCategory = await _db.OrderItems
+                .IgnoreQueryFilters()
                 .Include(item => item.Product).ThenInclude(product => product!.Category)
-                .Where(item => item.Order != null && item.Order.Status == OrderStatuses.Delivered && item.Order.CreatedAt >= start && item.Order.CreatedAt < end)
+                .Where(item => item.Order != null && (item.Order.IsPaid || item.Order.Status == OrderStatuses.Delivered) && item.Order.CreatedAt >= start && item.Order.CreatedAt < end)
                 .GroupBy(item => item.Product!.Category!.Name)
                 .ToDictionaryAsync(group => group.Key, group => group.Sum(item => item.Quantity * item.UnitPrice)),
             TopProducts = await _db.OrderItems
+                .IgnoreQueryFilters()
                 .Include(item => item.Product)
-                .Where(item => item.Order != null && item.Order.Status == OrderStatuses.Delivered && item.Order.CreatedAt >= start && item.Order.CreatedAt < end)
+                .Where(item => item.Order != null && (item.Order.IsPaid || item.Order.Status == OrderStatuses.Delivered) && item.Order.CreatedAt >= start && item.Order.CreatedAt < end)
                 .GroupBy(item => item.Product!.Name)
                 .Select(group => new TopProductViewModel { ProductName = group.Key, QuantitySold = group.Sum(item => item.Quantity), Revenue = group.Sum(item => item.Quantity * item.UnitPrice) })
                 .OrderByDescending(item => item.QuantitySold)

@@ -85,10 +85,10 @@ public class OrderController : Controller
             : View(order);
     }
 
-    public async Task<IActionResult> History(string? status)
+    public async Task<IActionResult> History(string? status, int page = 1)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        return View(await _orderService.GetUserOrderHistoryAsync(userId, status));
+        return View(await _orderService.GetUserOrderHistoryAsync(userId, status, page, 10));
     }
 
     public async Task<IActionResult> Detail(int id)

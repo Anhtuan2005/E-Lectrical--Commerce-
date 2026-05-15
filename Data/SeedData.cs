@@ -84,6 +84,11 @@ END");
             await userManager.AddToRoleAsync(user, role);
         }
 
+        if (!await userManager.GetLockoutEnabledAsync(user))
+        {
+            await userManager.SetLockoutEnabledAsync(user, true);
+        }
+
         return user;
     }
 
@@ -120,7 +125,7 @@ END");
 
     private static async Task EnsureProductsAsync(AppDbContext db, List<Category> categories)
     {
-        if (await db.Products.CountAsync() >= 30)
+        if (await db.Products.IgnoreQueryFilters().CountAsync() >= 30)
         {
             await EnsureDiscountsAsync(db);
             return;
@@ -172,7 +177,7 @@ END");
 
         foreach (var product in products)
         {
-            if (!await db.Products.AnyAsync(row => row.Name == product.Name))
+            if (!await db.Products.IgnoreQueryFilters().AnyAsync(row => row.Name == product.Name))
             {
                 db.Products.Add(product);
             }
@@ -195,7 +200,7 @@ END");
 
         foreach (var item in discountMap)
         {
-            var product = await db.Products.FirstOrDefaultAsync(row => row.Name == item.Key);
+            var product = await db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(row => row.Name == item.Key);
             if (product is not null && product.DiscountPercent == 0)
             {
                 product.DiscountPercent = item.Value;
@@ -261,7 +266,7 @@ END");
 
         foreach (var product in products)
         {
-            if (!await db.Products.AnyAsync(row => row.Name == product.Name))
+            if (!await db.Products.IgnoreQueryFilters().AnyAsync(row => row.Name == product.Name))
             {
                 db.Products.Add(product);
             }

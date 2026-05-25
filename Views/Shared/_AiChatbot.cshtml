@@ -1,0 +1,37 @@
+<div class="ai-chatbot" data-ai-chatbot>
+    <button class="ai-chatbot-toggle" type="button" aria-label="Mở Techvora AI" aria-expanded="false" data-ai-chat-toggle>
+        <i data-lucide="sparkles" aria-hidden="true"></i>
+        <span class="ai-chatbot-pulse" aria-hidden="true"></span>
+    </button>
+
+    <section class="ai-chatbot-panel" aria-label="Techvora AI" data-ai-chat-panel hidden>
+        <header class="ai-chatbot-head">
+            <div>
+                <strong>Techvora AI</strong>
+                <span>Tư vấn sản phẩm</span>
+            </div>
+            <button class="ai-chatbot-close" type="button" aria-label="Đóng Techvora AI" data-ai-chat-close>
+                <i data-lucide="x" aria-hidden="true"></i>
+            </button>
+        </header>
+
+        <div class="ai-chatbot-messages" data-ai-chat-messages aria-live="polite">
+            <div class="ai-message ai-message-bot">
+                <p>Chào bạn, mình có thể tư vấn sản phẩm theo nhu cầu và ngân sách.</p>
+            </div>
+        </div>
+
+        <div class="ai-chatbot-quick" aria-label="Gợi ý nhanh">
+            <button type="button" data-ai-prompt="Tư vấn cho tôi một laptop học tập khoảng 15 triệu">Laptop học tập</button>
+            <button type="button" data-ai-prompt="Gợi ý cấu hình PC gaming khoảng 20 triệu">PC gaming</button>
+            <button type="button" data-ai-prompt="Tôi cần phụ kiện phù hợp để làm việc tại nhà">Phụ kiện</button>
+        </div>
+
+        <form class="ai-chatbot-form" data-ai-chat-form>
+            <textarea data-ai-chat-input rows="1" maxlength="1200" placeholder="Nhập nhu cầu của bạn" aria-label="Nhập nội dung tư vấn"></textarea>
+            <button type="submit" aria-label="Gửi câu hỏi" data-ai-chat-send>
+                <i data-lucide="send-horizontal" aria-hidden="true"></i>
+            </button>
+        </form>
+    </section>
+</div>

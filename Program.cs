@@ -93,6 +93,16 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0
         }));
+
+    options.AddPolicy("ai-chat", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.User.Identity?.Name ?? httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 18,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 2,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+        }));
 });
 
 builder.Services.AddHttpContextAccessor();
@@ -101,6 +111,10 @@ builder.Services.AddScoped<ICartService, CartService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IShippingService, ShippingService>();
 builder.Services.AddScoped<IVnpayService, VnpayService>();
+builder.Services.AddHttpClient<IAiChatService, GeminiChatService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(35);
+});
 
 builder.Services.AddControllersWithViews();
 

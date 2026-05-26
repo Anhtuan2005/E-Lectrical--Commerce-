@@ -28,6 +28,13 @@ public class HomeController : Controller
             Banners = await _db.Banners.Where(banner => banner.IsActive).OrderBy(banner => banner.SortOrder).Take(3).ToListAsync(),
             Categories = await _productService.GetCategoriesAsync(),
             FeaturedProducts = await _productService.GetFeaturedProductsAsync(8),
+            FlashSaleProducts = await _db.Products
+                .Include(product => product.Category)
+                .Where(product => product.DiscountPercent > 0 && product.Stock > 0)
+                .OrderByDescending(product => product.DiscountPercent)
+                .ThenBy(product => product.Price)
+                .Take(6)
+                .ToListAsync(),
             LatestProducts = await _productService.GetLatestProductsAsync(10)
         };
 

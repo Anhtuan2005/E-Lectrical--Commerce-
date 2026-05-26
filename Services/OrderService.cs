@@ -287,6 +287,29 @@ public class OrderService : IOrderService
         _logger.LogInformation("Admin updated order {OrderId} status to {Status}", id, status);
     }
 
+    public async Task<int> ConfirmPendingOrdersAsync(IEnumerable<int> ids)
+    {
+        var orderIds = ids.Distinct().ToList();
+        if (!orderIds.Any())
+        {
+            return 0;
+        }
+
+        var orders = await _db.Orders
+            .Where(order => orderIds.Contains(order.Id) && order.Status == OrderStatuses.Pending)
+            .ToListAsync();
+
+        foreach (var order in orders)
+        {
+            order.Status = OrderStatuses.Confirmed;
+            order.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("Admin bulk-confirmed {OrderCount} pending orders", orders.Count);
+        return orders.Count;
+    }
+
     public async Task<bool> CancelUserOrderAsync(int id, string userId, string? reason)
     {
         var order = await _db.Orders

@@ -22,6 +22,7 @@ public class AdminReviewController : Controller
         var reviews = await _db.Reviews
             .Include(review => review.Product)
             .Include(review => review.User)
+            .Include(review => review.Images.OrderBy(image => image.SortOrder))
             .OrderByDescending(review => review.CreatedAt)
             .ToListAsync();
         return View("~/Views/Admin/Review/Index.cshtml", reviews);

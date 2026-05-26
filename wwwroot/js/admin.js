@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", function () {
   initAdminConfirm();
   initAdminNav();
+  initAdminBulkOrders();
   initDashboardChart();
   initReportCharts();
   initBannerSort();
@@ -15,6 +16,46 @@ function initAdminConfirm() {
       }
     });
   });
+}
+
+function initAdminBulkOrders() {
+  var form = document.querySelector("[data-bulk-orders]");
+  if (!form) return;
+
+  var all = form.querySelector("[data-bulk-check-all]");
+  var checks = [].slice.call(form.querySelectorAll("[data-bulk-check]"));
+  var submit = form.querySelector("[data-bulk-submit]");
+  var selected = form.querySelector("[data-bulk-selected]");
+
+  function sync() {
+    var enabled = checks.filter(function (check) { return !check.disabled; });
+    var checked = enabled.filter(function (check) { return check.checked; });
+    if (selected) selected.textContent = String(checked.length);
+    if (submit) submit.disabled = checked.length === 0;
+    if (all) {
+      all.checked = enabled.length > 0 && checked.length === enabled.length;
+      all.indeterminate = checked.length > 0 && checked.length < enabled.length;
+    }
+    checks.forEach(function (check) {
+      var row = check.closest("tr");
+      if (row) row.classList.toggle("is-selected", check.checked);
+    });
+  }
+
+  if (all) {
+    all.addEventListener("change", function () {
+      checks.forEach(function (check) {
+        if (!check.disabled) check.checked = all.checked;
+      });
+      sync();
+    });
+  }
+
+  checks.forEach(function (check) {
+    check.addEventListener("change", sync);
+  });
+
+  sync();
 }
 
 function initAdminNav() {

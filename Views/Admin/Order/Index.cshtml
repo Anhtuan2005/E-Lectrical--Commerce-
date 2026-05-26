@@ -2,6 +2,8 @@
 @{
     Layout = "_AdminLayout";
     ViewData["Title"] = "Quản lý đơn hàng";
+    var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
+    var pendingCount = Model.Orders.Count(order => order.Status == OrderStatuses.Pending);
 }
 
 <section class="admin-panel">
@@ -25,23 +27,45 @@
 </section>
 
 <section class="admin-panel">
-    <table class="admin-table">
-        <thead>
-            <tr><th>Mã</th><th>Khách hàng</th><th>Ngày đặt</th><th>Trạng thái</th><th>Vận chuyển</th><th>Tổng tiền</th><th></th></tr>
-        </thead>
-        <tbody>
-            @foreach (var order in Model.Orders)
-            {
+    <form action="/Admin/Order/BulkConfirm" method="post" data-bulk-orders data-confirm="Xác nhận tất cả đơn đã chọn?">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="returnUrl" value="@returnUrl" />
+        <div class="bulk-action-bar">
+            <div>
+                <strong>Xác nhận hàng loạt</strong>
+                <span><b data-bulk-selected>0</b> đơn đã chọn · @pendingCount đơn đang chờ</span>
+            </div>
+            <button class="admin-button" type="submit" data-bulk-submit disabled>
+                <i class="bi bi-check2-circle"></i>
+                Xác nhận tất cả
+            </button>
+        </div>
+
+        <table class="admin-table admin-order-table">
+            <thead>
                 <tr>
-                    <td>#@order.Id</td>
-                    <td>@order.User?.FullName<br /><small>@order.User?.Email</small></td>
-                    <td>@order.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
-                    <td><span class="admin-pill">@order.Status</span></td>
-                    <td>@(order.ShippingInfo?.Carrier ?? "Chưa gán")<br /><small>@(order.ShippingInfo?.TrackingCode ?? "")</small></td>
-                    <td>@order.TotalAmount.ToString("N0") ₫</td>
-                    <td><a class="admin-link" href="/Admin/Order/@order.Id">Chi tiết</a></td>
+                    <th class="select-col"><input type="checkbox" data-bulk-check-all aria-label="Chọn tất cả đơn chờ xác nhận" @(pendingCount == 0 ? "disabled" : "") /></th>
+                    <th>Mã</th><th>Khách hàng</th><th>Ngày đặt</th><th>Trạng thái</th><th>Vận chuyển</th><th>Tổng tiền</th><th></th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var order in Model.Orders)
+                {
+                    var canBulkConfirm = order.Status == OrderStatuses.Pending;
+                    <tr class="@(canBulkConfirm ? "bulk-selectable-row" : "")">
+                        <td class="select-col">
+                            <input type="checkbox" name="selectedOrderIds" value="@order.Id" data-bulk-check aria-label="Chọn đơn #@order.Id" @(canBulkConfirm ? "" : "disabled") />
+                        </td>
+                        <td>#@order.Id</td>
+                        <td>@order.User?.FullName<br /><small>@order.User?.Email</small></td>
+                        <td>@order.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                        <td><span class="admin-pill @(canBulkConfirm ? "warning" : "")">@order.Status</span></td>
+                        <td>@(order.ShippingInfo?.Carrier ?? "Chưa gán")<br /><small>@(order.ShippingInfo?.TrackingCode ?? "")</small></td>
+                        <td>@order.TotalAmount.ToString("N0") ₫</td>
+                        <td><a class="admin-link" href="/Admin/Order/@order.Id">Chi tiết</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </form>
 </section>

@@ -31,11 +31,11 @@ public class VoucherController : Controller
     [HttpPost]
     [ValidateAntiForgeryToken]
     [EnableRateLimiting("voucher")]
-    public async Task<IActionResult> Validate(string code)
+    public async Task<IActionResult> Validate(string code, decimal? subtotalOverride = null)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var cart = await _cartService.GetCartAsync(userId, HttpContext.Session.Id);
-        var subtotal = cart.Total;
+        var subtotal = subtotalOverride is > 0 ? subtotalOverride.Value : cart.Total;
         var normalizedCode = (code ?? string.Empty).Trim().ToUpperInvariant();
         var voucher = await _db.Vouchers.AsNoTracking().FirstOrDefaultAsync(row => row.Code == normalizedCode);
 

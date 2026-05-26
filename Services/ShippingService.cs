@@ -34,6 +34,33 @@ public class ShippingService : IShippingService
         await _db.SaveChangesAsync();
     }
 
+    public async Task<bool> UpdateTrackingAsync(int orderId, string? carrier, string trackingCode)
+    {
+        if (string.IsNullOrWhiteSpace(trackingCode))
+        {
+            return false;
+        }
+
+        var order = await _db.Orders.Include(row => row.ShippingInfo).FirstOrDefaultAsync(row => row.Id == orderId);
+        if (order is null)
+        {
+            return false;
+        }
+
+        order.ShippingInfo ??= new ShippingInfo { OrderId = orderId };
+        order.ShippingInfo.Carrier = string.IsNullOrWhiteSpace(carrier)
+            ? string.IsNullOrWhiteSpace(order.ShippingInfo.Carrier) ? "Techvora Express" : order.ShippingInfo.Carrier
+            : carrier.Trim();
+        order.ShippingInfo.TrackingCode = trackingCode.Trim();
+        order.ShippingInfo.ShippedAt ??= DateTime.UtcNow;
+        order.ShippingInfo.Status = ShippingStatuses.InTransit;
+        order.Status = OrderStatuses.Shipping;
+        order.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
     public async Task UpdateStatusAsync(int orderId, string status)
     {
         if (!ShippingStatuses.All.Contains(status))

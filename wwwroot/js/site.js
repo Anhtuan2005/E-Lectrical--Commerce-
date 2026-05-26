@@ -1,5 +1,6 @@
 document.addEventListener("DOMContentLoaded", function () {
   initNavbar();
+  initCatalogFilters();
   initHeroSlider();
   initCountdown();
   initReveal();
@@ -7,17 +8,20 @@ document.addEventListener("DOMContentLoaded", function () {
   initCartButtons();
   initCartPage();
   initReviewForm();
+  initReviewImagePreview();
   initVoucher();
   initQuantitySteppers();
   initShareTools();
   initAuthHelpers();
   initPaymentChoice();
   initSearchAutocomplete();
+  initReviewFilters();
   initReviewPagination();
   initProductGallery();
   initProductTabs();
-  initProductOptions();
+  initProductSpecModal();
   initDetailCoupon();
+  initPdpNotes();
   initDetailAddToCart();
   initAddressDropdowns();
   initProfileAddressFill();
@@ -303,6 +307,39 @@ function closeDrawer() {
   document.body.style.overflow = "";
 }
 
+function initCatalogFilters() {
+  var root = document.querySelector("[data-catalog-filters]");
+  if (!root) return;
+
+  var toggle = root.querySelector("[data-catalog-filter-toggle]");
+  var panel = root.querySelector(".catalog-sidebar");
+  if (!toggle || !panel) return;
+
+  var mobile = window.matchMedia("(max-width: 760px)");
+
+  function setOpen(open) {
+    root.classList.toggle("filter-open", open);
+    toggle.setAttribute("aria-expanded", String(open));
+    panel.hidden = mobile.matches && !open;
+  }
+
+  function syncForViewport() {
+    setOpen(!mobile.matches);
+  }
+
+  toggle.addEventListener("click", function () {
+    setOpen(!root.classList.contains("filter-open"));
+  });
+
+  if (typeof mobile.addEventListener === "function") {
+    mobile.addEventListener("change", syncForViewport);
+  } else if (typeof mobile.addListener === "function") {
+    mobile.addListener(syncForViewport);
+  }
+
+  syncForViewport();
+}
+
 function initHeroSlider() {
   var slider = document.querySelector(".hero-slider");
   var track = document.querySelector(".slider-track");
@@ -338,31 +375,42 @@ function initHeroSlider() {
 }
 
 function initCountdown() {
-  var el = document.getElementById("countdown");
-  if (!el) return;
-  var midnight = new Date();
-  midnight.setHours(24, 0, 0, 0);
-  var endTime = midnight.getTime();
-  function tick() {
-    var diff = endTime - Date.now();
-    if (diff <= 0) {
-      midnight = new Date();
-      midnight.setHours(24, 0, 0, 0);
-      endTime = midnight.getTime();
-      diff = endTime - Date.now();
-    }
-    if (diff <= 0) {
-      el.textContent = "Đã kết thúc";
-      return;
-    }
-    var h = Math.floor(diff / 3600000);
-    var m = Math.floor((diff % 3600000) / 60000);
-    var s = Math.floor((diff % 60000) / 1000);
-    el.textContent = pad(h) + ":" + pad(m) + ":" + pad(s);
-  }
+  var elements = [];
+  var legacy = document.getElementById("countdown");
+  if (legacy) elements.push(legacy);
+  document.querySelectorAll("[data-countdown]").forEach(function (el) {
+    if (el !== legacy) elements.push(el);
+  });
+  if (!elements.length) return;
+
   function pad(n) { return String(n).padStart(2, "0"); }
-  tick();
-  setInterval(tick, 1000);
+
+  elements.forEach(function (el) {
+    var midnight = new Date();
+    midnight.setHours(24, 0, 0, 0);
+    var endTime = midnight.getTime();
+
+    function tick() {
+      var diff = endTime - Date.now();
+      if (diff <= 0) {
+        midnight = new Date();
+        midnight.setHours(24, 0, 0, 0);
+        endTime = midnight.getTime();
+        diff = endTime - Date.now();
+      }
+      if (diff <= 0) {
+        el.textContent = "Đã kết thúc";
+        return;
+      }
+      var h = Math.floor(diff / 3600000);
+      var m = Math.floor((diff % 3600000) / 60000);
+      var s = Math.floor((diff % 60000) / 1000);
+      el.textContent = pad(h) + ":" + pad(m) + ":" + pad(s);
+    }
+
+    tick();
+    setInterval(tick, 1000);
+  });
 }
 
 function initReveal() {
@@ -435,27 +483,26 @@ function initCartButtons() {
 }
 
 function initDetailAddToCart() {
-  var button = document.getElementById("btnAddCart");
-  var buyNow = document.getElementById("btnBuyNow");
+  var addButtons = document.querySelectorAll("[data-detail-add-cart]");
+  var buyButtons = document.querySelectorAll("[data-detail-buy-now]");
   var input = document.getElementById("qtyInput");
-  if (!input) return;
+  if (!input || (!addButtons.length && !buyButtons.length)) return;
 
   function setBusy(source, busy) {
     if (!source) return;
     source.disabled = busy || source.dataset.stockDisabled === "true";
     if (busy) {
-      source.dataset.originalText = source.dataset.originalText || source.textContent;
-      source.textContent = "Đang xử lý...";
-    } else if (source.dataset.originalText) {
-      source.textContent = source.dataset.originalText;
+      source.dataset.originalHtml = source.dataset.originalHtml || source.innerHTML;
+      source.innerHTML = "Đang xử lý...";
+    } else if (source.dataset.originalHtml) {
+      source.innerHTML = source.dataset.originalHtml;
+      refreshIcons();
     }
   }
 
-  function addDetailProduct(redirectToCheckout) {
-    var source = redirectToCheckout ? buyNow : button;
+  function addDetailProduct(redirectToCheckout, source) {
     if (!source || source.disabled) return;
-    var qty = Math.max(Number(input.min || 1), Math.min(Number(input.max || 99), Number(input.value || 1)));
-    input.value = qty;
+    var qty = clampQuantity(input);
     var body = new URLSearchParams();
     body.append("productId", source.dataset.productId);
     body.append("quantity", qty);
@@ -494,44 +541,66 @@ function initDetailAddToCart() {
       });
   }
 
-  if (button) {
+  addButtons.forEach(function (button) {
     button.addEventListener("click", function () {
-      addDetailProduct(false);
-    });
-  }
-
-  if (buyNow) {
-    buyNow.addEventListener("click", function () {
-      addDetailProduct(true);
-    });
-  }
-}
-
-function initProductOptions() {
-  var selected = {};
-  document.querySelectorAll("[data-option-group]").forEach(function (group) {
-    var key = group.dataset.optionGroup;
-    var active = group.querySelector(".active");
-    selected[key] = active ? (active.dataset.optionValue || active.textContent.trim()) : "";
-    group.querySelectorAll("button[data-option-value]").forEach(function (button) {
-      button.addEventListener("click", function () {
-        group.querySelectorAll("button").forEach(function (item) { item.classList.remove("active"); });
-        button.classList.add("active");
-        selected[key] = button.dataset.optionValue || button.textContent.trim();
-        updateSelectedVariant();
-      });
+      addDetailProduct(false, button);
     });
   });
 
-  function updateSelectedVariant() {
-    var target = document.getElementById("selectedVariant");
-    if (!target) return;
-    var color = selected.color || "";
-    var storage = selected.storage || "";
-    target.textContent = [color, storage].filter(Boolean).join(" / ");
+  buyButtons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      addDetailProduct(true, button);
+    });
+  });
+}
+
+function parseLocalizedNumber(value, fallback) {
+  fallback = typeof fallback === "number" && Number.isFinite(fallback) ? fallback : 0;
+  if (typeof value === "number") return Number.isFinite(value) ? value : fallback;
+
+  var text = String(value === null || value === undefined ? "" : value).trim();
+  if (!text) return fallback;
+
+  text = text.replace(/[^\d,.-]/g, "");
+  if (!text) return fallback;
+
+  var lastComma = text.lastIndexOf(",");
+  var lastDot = text.lastIndexOf(".");
+  if (lastComma >= 0 && lastDot >= 0) {
+    var decimalSeparator = lastComma > lastDot ? "," : ".";
+    var thousandsSeparator = decimalSeparator === "," ? "." : ",";
+    text = text.replace(new RegExp("\\" + thousandsSeparator, "g"), "").replace(decimalSeparator, ".");
+  } else if (lastComma >= 0) {
+    text = text.length - lastComma - 1 <= 2 ? text.replace(/\./g, "").replace(",", ".") : text.replace(/,/g, "");
+  } else if (lastDot >= 0 && text.length - lastDot - 1 > 2) {
+    text = text.replace(/\./g, "");
   }
 
-  updateSelectedVariant();
+  var parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function clampQuantity(input) {
+  if (!input) return 1;
+  var min = Math.max(1, Math.floor(parseLocalizedNumber(input.min, 1)));
+  var max = Math.floor(parseLocalizedNumber(input.max, 99));
+  if (max < min) max = min;
+  var qty = Math.floor(parseLocalizedNumber(input.value, min));
+  qty = Math.max(min, Math.min(max, qty));
+  input.value = String(qty);
+  return qty;
+}
+
+function formatVnd(value) {
+  return new Intl.NumberFormat("vi-VN").format(parseLocalizedNumber(value, 0)) + " ₫";
+}
+
+function initPdpNotes() {
+  document.querySelectorAll("[data-pdp-note]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      showToast(button.dataset.pdpNote || "Thông tin này sẽ được chọn ở bước checkout.", "success");
+    });
+  });
 }
 
 function initDetailCoupon() {
@@ -543,16 +612,74 @@ function initDetailCoupon() {
   var saved = sessionStorage.getItem("techvoraVoucherCode");
   if (saved) input.value = saved;
 
+  function setMessage(text, type) {
+    if (!message) return;
+    message.textContent = text;
+    message.className = type ? "pdp-coupon-message " + type : "pdp-coupon-message";
+  }
+
+  function currentSubtotal() {
+    var card = document.querySelector("[data-product-price]");
+    var qtyInput = document.getElementById("qtyInput");
+    var price = card ? parseLocalizedNumber(card.dataset.productPrice, 0) : 0;
+    var qty = qtyInput ? clampQuantity(qtyInput) : 1;
+    return price * qty;
+  }
+
+  function setBusy(busy) {
+    button.disabled = busy;
+    button.textContent = busy ? "Đang kiểm tra..." : "Áp dụng";
+  }
+
   button.addEventListener("click", function () {
     var code = input.value.trim().toUpperCase();
     if (!code) {
-      if (message) message.textContent = "Nhập mã giảm giá trước khi áp dụng.";
+      setMessage("Nhập mã giảm giá trước khi áp dụng.", "error");
       showToast("Nhập mã giảm giá trước khi áp dụng.", "error");
       return;
     }
-    sessionStorage.setItem("techvoraVoucherCode", code);
-    if (message) message.textContent = "Đã lưu mã " + code + ". Mã sẽ tự điền ở checkout.";
-    showToast("Đã lưu mã giảm giá cho checkout.", "success");
+
+    var body = new URLSearchParams();
+    body.append("code", code);
+    body.append("subtotalOverride", String(currentSubtotal()));
+    setBusy(true);
+
+    fetch("/Voucher/Validate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "RequestVerificationToken": antiForgeryToken()
+      },
+      body: body.toString()
+    })
+      .then(function (response) {
+        if (response.redirected || response.status === 401) throw new Error("login-required");
+        if (!response.ok) throw new Error("Voucher request failed");
+        return response.json();
+      })
+      .then(function (data) {
+        if (!data.valid) {
+          sessionStorage.removeItem("techvoraVoucherCode");
+          setMessage(data.message || "Mã giảm giá không hợp lệ.", "error");
+          showToast(data.message || "Mã giảm giá không hợp lệ.", "error");
+          return;
+        }
+
+        var savedCode = data.code || code;
+        var discountText = data.formattedDiscount || data.discountLabel || "";
+        sessionStorage.setItem("techvoraVoucherCode", savedCode);
+        setMessage("Mã " + savedCode + " hợp lệ. " + discountText + " sẽ được áp dụng ở checkout.", "success");
+        showToast(data.message || "Đã lưu mã giảm giá cho checkout.", "success");
+      })
+      .catch(function (error) {
+        var loginRequired = error && error.message === "login-required";
+        var text = loginRequired ? "Đăng nhập để dùng mã giảm giá." : "Chưa thể kiểm tra mã giảm giá. Vui lòng thử lại.";
+        setMessage(text, "error");
+        showToast(text, "error");
+      })
+      .finally(function () {
+        setBusy(false);
+      });
   });
 }
 
@@ -605,14 +732,13 @@ function initReviewForm() {
   if (!form) return;
   form.addEventListener("submit", function (event) {
     event.preventDefault();
-    var body = new URLSearchParams(new FormData(form));
+    var body = new FormData(form);
     fetch("/Review/Submit", {
       method: "POST",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
         "RequestVerificationToken": antiForgeryToken()
       },
-      body: body.toString()
+      body: body
     })
       .then(function (response) { return response.json(); })
       .then(function (data) {
@@ -623,16 +749,48 @@ function initReviewForm() {
         appendReview(data.review);
         form.remove();
         refreshIcons();
+        applyReviewFilter();
         showToast(data.message, "success");
       });
+  });
+}
+
+function initReviewImagePreview() {
+  var input = document.querySelector("[data-review-images]");
+  var preview = document.querySelector("[data-review-preview]");
+  if (!input || !preview) return;
+
+  input.addEventListener("change", function () {
+    preview.innerHTML = "";
+    var files = Array.prototype.slice.call(input.files || []);
+    if (files.length > 4) {
+      showToast("Bạn chỉ có thể tải tối đa 4 ảnh cho mỗi đánh giá.", "error");
+      input.value = "";
+      return;
+    }
+
+    files.forEach(function (file) {
+      var item = document.createElement("span");
+      var image = document.createElement("img");
+      var url = URL.createObjectURL(file);
+      image.src = url;
+      image.alt = file.name;
+      image.onload = function () { URL.revokeObjectURL(url); };
+      item.appendChild(image);
+      preview.appendChild(item);
+    });
   });
 }
 
 function appendReview(review) {
   var list = document.getElementById("reviewList");
   if (!list) return;
+  var empty = document.querySelector("[data-review-empty]");
+  if (empty) empty.remove();
   var item = document.createElement("article");
   item.className = "review-item new";
+  item.dataset.reviewItem = "";
+  item.dataset.rating = String(review.rating);
   var initial = review.user ? review.user.substring(0, 1).toUpperCase() : "K";
   var stars = '<span class="star-meter" aria-hidden="true">';
   for (var i = 1; i <= 5; i++) {
@@ -641,12 +799,32 @@ function appendReview(review) {
   stars += "</span>";
   item.innerHTML =
     '<div class="review-avatar">' + escapeHtml(initial) + "</div>" +
-    "<div>" +
+    '<div class="review-copy">' +
     '<div class="review-meta"><strong>' + escapeHtml(review.user) + "</strong><span>" + escapeHtml(review.date) + "</span></div>" +
     stars +
     "<p>" + escapeHtml(review.comment) + "</p>" +
+    renderReviewImages(review.images) +
     "</div>";
   list.prepend(item);
+  incrementReviewFilterCount("all");
+  incrementReviewFilterCount(String(review.rating));
+}
+
+function renderReviewImages(images) {
+  if (!images || !images.length) return "";
+  var html = '<div class="review-photo-grid">';
+  images.forEach(function (url) {
+    html += '<a class="review-photo-thumb" href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' +
+      '<img src="' + escapeHtml(url) + '" alt="Ảnh đánh giá" loading="lazy" />' +
+      "</a>";
+  });
+  return html + "</div>";
+}
+
+function incrementReviewFilterCount(filter) {
+  var count = document.querySelector('[data-review-filter="' + filter + '"] span');
+  if (!count) return;
+  count.textContent = String(parseLocalizedNumber(count.textContent, 0) + 1);
 }
 
 function initVoucher() {
@@ -692,6 +870,11 @@ function initVoucher() {
         sessionStorage.removeItem("techvoraVoucherCode");
       });
   });
+  if (savedCode && savedInput) {
+    setTimeout(function () {
+      button.click();
+    }, 0);
+  }
 }
 
 function initQuantitySteppers() {
@@ -701,11 +884,13 @@ function initQuantitySteppers() {
     var plus = stepper.querySelector("[data-qty-plus]");
     if (!input) return;
     if (minus) minus.addEventListener("click", function () {
-      input.value = Math.max(Number(input.min || 1), Number(input.value || 1) - 1);
+      input.value = parseLocalizedNumber(input.value, parseLocalizedNumber(input.min, 1)) - 1;
+      clampQuantity(input);
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
     if (plus) plus.addEventListener("click", function () {
-      input.value = Math.min(Number(input.max || 99), Number(input.value || 1) + 1);
+      input.value = parseLocalizedNumber(input.value, parseLocalizedNumber(input.min, 1)) + 1;
+      clampQuantity(input);
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
     input.addEventListener("change", updateProductSubtotal);
@@ -718,10 +903,9 @@ function updateProductSubtotal() {
   var input = document.getElementById("qtyInput");
   var subtotal = document.getElementById("pdpSubtotal");
   if (!card || !input || !subtotal) return;
-  var price = Number(card.dataset.productPrice || 0);
-  var qty = Math.max(Number(input.min || 1), Math.min(Number(input.max || 99), Number(input.value || 1)));
-  input.value = qty;
-  subtotal.textContent = new Intl.NumberFormat("vi-VN").format(price * qty) + " ₫";
+  var price = parseLocalizedNumber(card.dataset.productPrice, 0);
+  var qty = clampQuantity(input);
+  subtotal.textContent = formatVnd(price * qty);
 }
 
 function initShareTools() {
@@ -824,14 +1008,65 @@ function initSearchAutocomplete() {
   });
 }
 
+function initReviewFilters() {
+  var filters = document.querySelectorAll("[data-review-filter]");
+  var list = document.getElementById("reviewList");
+  if (!list) return;
+  list.dataset.visibleLimit = list.dataset.visibleLimit || "5";
+
+  filters.forEach(function (button) {
+    button.addEventListener("click", function () {
+      filters.forEach(function (item) {
+        var active = item === button;
+        item.classList.toggle("active", active);
+        item.setAttribute("aria-pressed", String(active));
+      });
+      list.dataset.visibleLimit = "5";
+      applyReviewFilter();
+    });
+  });
+
+  applyReviewFilter();
+}
+
+function applyReviewFilter() {
+  var list = document.getElementById("reviewList");
+  if (!list) return;
+  var active = document.querySelector("[data-review-filter].active");
+  var filter = active ? active.dataset.reviewFilter : "all";
+  var loadMore = document.querySelector("[data-load-reviews]");
+  var limit = loadMore ? Math.max(5, Math.floor(parseLocalizedNumber(list.dataset.visibleLimit, 5))) : Number.MAX_SAFE_INTEGER;
+  var shown = 0;
+  var matched = 0;
+
+  document.querySelectorAll("[data-review-item]").forEach(function (item) {
+    var matches = filter === "all" || item.dataset.rating === filter;
+    if (!matches) {
+      item.classList.add("is-hidden");
+      return;
+    }
+
+    matched++;
+    shown++;
+    item.classList.toggle("is-hidden", shown > limit);
+  });
+
+  var empty = document.querySelector("[data-review-empty]");
+  if (empty) empty.hidden = matched > 0;
+
+  if (loadMore) {
+    loadMore.hidden = matched <= limit;
+  }
+}
+
 function initReviewPagination() {
   var button = document.querySelector("[data-load-reviews]");
   if (!button) return;
   button.addEventListener("click", function () {
-    document.querySelectorAll(".review-item.is-hidden").forEach(function (item, index) {
-      if (index < 5) item.classList.remove("is-hidden");
-    });
-    if (!document.querySelector(".review-item.is-hidden")) button.remove();
+    var list = document.getElementById("reviewList");
+    if (!list) return;
+    list.dataset.visibleLimit = String(parseLocalizedNumber(list.dataset.visibleLimit, 5) + 5);
+    applyReviewFilter();
   });
 }
 
@@ -854,6 +1089,49 @@ function initProductTabs() {
       document.querySelectorAll(".tab-btn[data-tab]").forEach(function (item) { item.classList.toggle("active", item.dataset.tab === tab); });
       document.querySelectorAll(".tab-panel[data-tab-panel]").forEach(function (panel) { panel.classList.toggle("active", panel.dataset.tabPanel === tab); });
     });
+  });
+}
+
+function initProductSpecModal() {
+  var modal = document.querySelector("[data-spec-modal]");
+  var open = document.querySelector("[data-spec-modal-open]");
+  if (!modal || !open) return;
+
+  var closeButtons = modal.querySelectorAll("[data-spec-modal-close]");
+  var lastFocus = null;
+
+  function setOpen(isOpen) {
+    if (isOpen) {
+      lastFocus = document.activeElement;
+      modal.hidden = false;
+      document.body.classList.add("spec-modal-lock");
+      var close = modal.querySelector("[data-spec-modal-close]");
+      if (close) close.focus();
+      refreshIcons();
+      return;
+    }
+
+    modal.hidden = true;
+    document.body.classList.remove("spec-modal-lock");
+    if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
+  }
+
+  open.addEventListener("click", function () {
+    setOpen(true);
+  });
+
+  closeButtons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      setOpen(false);
+    });
+  });
+
+  modal.addEventListener("click", function (event) {
+    if (event.target === modal) setOpen(false);
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (!modal.hidden && event.key === "Escape") setOpen(false);
   });
 }
 

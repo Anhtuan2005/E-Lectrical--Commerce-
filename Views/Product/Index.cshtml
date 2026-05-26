@@ -25,8 +25,12 @@
     </form>
 </section>
 
-<section class="product-catalog">
-    <aside class="catalog-sidebar">
+<section class="product-catalog" data-catalog-filters>
+    <button class="catalog-mobile-filter-toggle" type="button" data-catalog-filter-toggle aria-expanded="false" aria-controls="catalogFilterPanel">
+        <i data-lucide="sliders-horizontal" aria-hidden="true"></i>
+        <span>Bộ lọc</span>
+    </button>
+    <aside class="catalog-sidebar" id="catalogFilterPanel">
         <form method="get" class="catalog-filter">
             <input type="hidden" name="search" value="@Model.Search" />
             <input type="hidden" name="sortBy" value="@Model.SortBy" />

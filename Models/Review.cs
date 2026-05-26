@@ -13,4 +13,5 @@ public class Review
     [Required, MinLength(10), MaxLength(1000)] public string Comment { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public bool IsApproved { get; set; } = true;
+    public ICollection<ReviewImage> Images { get; set; } = new List<ReviewImage>();
 }

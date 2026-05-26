@@ -19,6 +19,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ShippingInfo> ShippingInfos => Set<ShippingInfo>();
     public DbSet<WishlistItem> WishlistItems => Set<WishlistItem>();
     public DbSet<Review> Reviews => Set<Review>();
+    public DbSet<ReviewImage> ReviewImages => Set<ReviewImage>();
     public DbSet<Voucher> Vouchers => Set<Voucher>();
     public DbSet<VoucherUsage> VoucherUsages => Set<VoucherUsage>();
     public DbSet<Banner> Banners => Set<Banner>();
@@ -127,6 +128,12 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasOne(review => review.Product)
             .WithMany()
             .HasForeignKey(review => review.ProductId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<ReviewImage>()
+            .HasOne(image => image.Review)
+            .WithMany(review => review.Images)
+            .HasForeignKey(image => image.ReviewId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<Voucher>()

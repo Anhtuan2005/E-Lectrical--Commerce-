@@ -89,6 +89,10 @@
                     <button class="avatar-btn" type="button" aria-label="Tài khoản"><i data-lucide="user-circle" aria-hidden="true"></i></button>
                     <div class="avatar-dropdown">
                         <span>@User.Identity.Name</span>
+                        @if (User.IsInRole("Admin"))
+                        {
+                            <a class="avatar-admin-link" href="/Admin/Dashboard"><i data-lucide="layout-dashboard" aria-hidden="true"></i> Trang quản trị</a>
+                        }
                         <a asp-controller="Account" asp-action="Profile">Hồ sơ cá nhân</a>
                         <a asp-controller="Order" asp-action="History">Đơn hàng của tôi</a>
                         <a asp-controller="Wishlist" asp-action="Index">Danh sách yêu thích</a>
@@ -135,6 +139,10 @@
     <a asp-controller="Cart" asp-action="Index">Giỏ hàng</a>
     @if (User.Identity?.IsAuthenticated == true)
     {
+        @if (User.IsInRole("Admin"))
+        {
+            <a href="/Admin/Dashboard"><i data-lucide="layout-dashboard" aria-hidden="true"></i> Trang quản trị</a>
+        }
         <a asp-controller="Account" asp-action="Profile">Hồ sơ cá nhân</a>
         <a asp-controller="Order" asp-action="History">Đơn hàng</a>
         <form asp-controller="Account" asp-action="Logout" method="post">

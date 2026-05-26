@@ -37,7 +37,9 @@ else
                         <button type="button" data-qty-plus>+</button>
                     </div>
                     <strong class="line-total">@(((item.Product?.SalePrice ?? item.Product?.Price ?? 0) * item.Quantity).ToString("N0")) ₫</strong>
-                    <button class="icon-button cart-remove" type="button" aria-label="Xoá">×</button>
+                    <button class="icon-button cart-remove" type="button" aria-label="Xoá">
+                        <i data-lucide="x" aria-hidden="true"></i>
+                    </button>
                 </article>
             }
         </div>

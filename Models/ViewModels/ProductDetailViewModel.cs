@@ -5,6 +5,7 @@ public class ProductDetailViewModel
     public Product Product { get; set; } = new();
     public IEnumerable<Product> RelatedProducts { get; set; } = Enumerable.Empty<Product>();
     public IEnumerable<Review> Reviews { get; set; } = Enumerable.Empty<Review>();
+    public IReadOnlyList<ProductSpecViewModel> TechnicalSpecs { get; set; } = Array.Empty<ProductSpecViewModel>();
     public double AverageRating { get; set; }
     public int ReviewCount { get; set; }
     public Dictionary<int, int> RatingDistribution { get; set; } = new();
@@ -13,4 +14,10 @@ public class ProductDetailViewModel
     public bool HasPurchased { get; set; }
     public bool HasReviewed { get; set; }
     public bool IsAuthenticated { get; set; }
+}
+
+public class ProductSpecViewModel
+{
+    public string Label { get; set; } = string.Empty;
+    public string Value { get; set; } = string.Empty;
 }

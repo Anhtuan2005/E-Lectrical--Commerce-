@@ -47,6 +47,23 @@ public class AdminOrderController : Controller
         return RedirectToAction(nameof(Details), new { id });
     }
 
+    [HttpPost("BulkConfirm")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BulkConfirm(int[] selectedOrderIds, string? returnUrl)
+    {
+        var confirmed = await _orderService.ConfirmPendingOrdersAsync(selectedOrderIds);
+        TempData[confirmed > 0 ? "Success" : "Error"] = confirmed > 0
+            ? $"Đã xác nhận {confirmed} đơn hàng."
+            : "Chọn ít nhất một đơn đang chờ xác nhận.";
+
+        if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+        {
+            return LocalRedirect(returnUrl);
+        }
+
+        return RedirectToAction(nameof(Index));
+    }
+
     [HttpPost("AssignShipping")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AssignShipping(int id, string carrier, string trackingCode, DateTime? estimatedDelivery)

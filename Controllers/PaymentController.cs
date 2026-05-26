@@ -34,6 +34,24 @@ public class PaymentController : Controller
             return NotFound();
         }
 
+        if (!string.Equals(order.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase))
+        {
+            TempData["Error"] = "Đơn hàng này không dùng phương thức VNPAY.";
+            return RedirectToAction("Detail", "Order", new { id = order.Id });
+        }
+
+        if (order.IsPaid)
+        {
+            TempData["Success"] = "Đơn hàng này đã thanh toán.";
+            return RedirectToAction("Confirmation", "Order", new { id = order.Id });
+        }
+
+        if (order.Status != OrderStatuses.Pending)
+        {
+            TempData["Error"] = "Chỉ có thể thanh toán lại đơn VNPAY đang chờ thanh toán.";
+            return RedirectToAction("Detail", "Order", new { id = order.Id });
+        }
+
         return Redirect(_vnpayService.CreatePaymentUrl(order, HttpContext));
     }
 
@@ -44,13 +62,20 @@ public class PaymentController : Controller
         var response = _vnpayService.ProcessCallback(Request.Query);
         _logger.LogInformation("VNPAY return received for order {OrderId}. Success={Success}, SignatureValid={SignatureValid}, ResponseCode={ResponseCode}, TransactionStatus={TransactionStatus}", response.OrderId, response.IsSuccess, response.IsSignatureValid, response.ResponseCode, response.TransactionStatus);
         var order = await UpdateOrderPaymentAsync(response);
-        TempData["PaymentResult"] = response.IsSuccess
-            ? "Thanh toán VNPAY thành công."
-            : "Thanh toán VNPAY chưa hoàn tất hoặc chữ ký không hợp lệ.";
+        if (order is null)
+        {
+            TempData["Error"] = "Không thể xác thực kết quả thanh toán VNPAY.";
+            return RedirectToAction("Index", "Home");
+        }
 
-        return order is null
-            ? RedirectToAction("Index", "Home")
-            : RedirectToAction("Confirmation", "Order", new { id = order.Id });
+        if (response.IsSuccess)
+        {
+            TempData["Success"] = "Thanh toán VNPAY thành công.";
+            return RedirectToAction("Confirmation", "Order", new { id = order.Id });
+        }
+
+        TempData["Error"] = "Thanh toán VNPAY chưa hoàn tất. Đơn hàng chưa được xác nhận.";
+        return RedirectToAction("Detail", "Order", new { id = order.Id });
     }
 
     [AllowAnonymous]

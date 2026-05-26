@@ -135,6 +135,14 @@
                         <input type="hidden" name="id" value="@Model.Id" />
                         <button class="btn-primary" type="submit">Mua lại</button>
                     </form>
+                    @if (string.Equals(Model.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase) && !Model.IsPaid && Model.Status == OrderStatuses.Pending)
+                    {
+                        <form asp-controller="Payment" asp-action="VnpayCreate" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="orderId" value="@Model.Id" />
+                            <button class="btn-primary" type="submit">Thanh toán lại VNPAY</button>
+                        </form>
+                    }
                     @if (Model.Status == OrderStatuses.Pending)
                     {
                         <form asp-action="Cancel" method="post">

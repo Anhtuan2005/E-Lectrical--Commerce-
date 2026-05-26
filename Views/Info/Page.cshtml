@@ -1,0 +1,28 @@
+@model FooterPageViewModel
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<section class="info-page">
+    <div class="info-hero">
+        <span class="eyebrow">@Model.Eyebrow</span>
+        <h1>@Model.Title</h1>
+        <p>@Model.Intro</p>
+        <a class="btn-primary" href="@Model.ActionUrl">@Model.ActionLabel</a>
+    </div>
+
+    <div class="info-content">
+        @foreach (var infoSection in Model.Sections)
+        {
+            <section class="info-section">
+                <h2>@infoSection.Title</h2>
+                <ul>
+                    @foreach (var item in infoSection.Items)
+                    {
+                        <li>@item</li>
+                    }
+                </ul>
+            </section>
+        }
+    </div>
+</section>

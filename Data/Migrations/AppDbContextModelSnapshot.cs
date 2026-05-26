@@ -438,6 +438,32 @@ namespace EcommerceApp.Data.Migrations
                     b.ToTable("Reviews");
                 });
 
+            modelBuilder.Entity("EcommerceApp.Models.ReviewImage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ImageUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("ReviewId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReviewId");
+
+                    b.ToTable("ReviewImages");
+                });
+
             modelBuilder.Entity("EcommerceApp.Models.ShippingInfo", b =>
                 {
                     b.Property<int>("Id")
@@ -853,6 +879,17 @@ namespace EcommerceApp.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("EcommerceApp.Models.ReviewImage", b =>
+                {
+                    b.HasOne("EcommerceApp.Models.Review", "Review")
+                        .WithMany("Images")
+                        .HasForeignKey("ReviewId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Review");
+                });
+
             modelBuilder.Entity("EcommerceApp.Models.ShippingInfo", b =>
                 {
                     b.HasOne("EcommerceApp.Models.Order", "Order")
@@ -997,6 +1034,11 @@ namespace EcommerceApp.Data.Migrations
                 });
 
             modelBuilder.Entity("EcommerceApp.Models.Product", b =>
+                {
+                    b.Navigation("Images");
+                });
+
+            modelBuilder.Entity("EcommerceApp.Models.Review", b =>
                 {
                     b.Navigation("Images");
                 });

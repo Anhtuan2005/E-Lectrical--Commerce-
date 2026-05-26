@@ -16,8 +16,8 @@
 
 <section class="admin-panel">
     <div class="panel-head"><h2>Đơn cần xử lý</h2></div>
-    <table class="admin-table">
-        <thead><tr><th>Mã</th><th>Khách hàng</th><th>Trạng thái đơn</th><th>Vận chuyển</th><th>Cập nhật</th></tr></thead>
+    <table class="admin-table admin-shipping-table">
+        <thead><tr><th>Mã</th><th>Khách hàng</th><th>Trạng thái đơn</th><th>Vận chuyển</th><th>Mã vận đơn</th><th>Trạng thái giao</th></tr></thead>
         <tbody>
             @foreach (var order in Model.ActionNeededOrders)
             {
@@ -25,7 +25,19 @@
                     <td>#@order.Id</td>
                     <td>@order.User?.FullName</td>
                     <td>@order.Status</td>
-                    <td>@(order.ShippingInfo?.Carrier ?? "Chưa gán")<br /><small>@(order.ShippingInfo?.TrackingCode ?? "Chưa có mã")</small></td>
+                    <td>
+                        <strong>@(string.IsNullOrWhiteSpace(order.ShippingInfo?.Carrier) ? "Chưa gán" : order.ShippingInfo.Carrier)</strong><br />
+                        <small>@(string.IsNullOrWhiteSpace(order.ShippingInfo?.TrackingCode) ? "Chưa có mã" : order.ShippingInfo.TrackingCode)</small>
+                    </td>
+                    <td>
+                        <form action="/Admin/Shipping/UpdateTracking" method="post" class="inline-tracking-form">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="orderId" value="@order.Id" />
+                            <input name="carrier" value="@order.ShippingInfo?.Carrier" placeholder="Đơn vị vận chuyển" aria-label="Đơn vị vận chuyển cho đơn #@order.Id" />
+                            <input name="trackingCode" value="@order.ShippingInfo?.TrackingCode" placeholder="Nhập mã rồi Enter" aria-label="Mã vận đơn cho đơn #@order.Id" autocomplete="off" />
+                            <button class="admin-button" type="submit">Lưu</button>
+                        </form>
+                    </td>
                     <td>
                         @if (order.ShippingInfo is not null)
                         {
@@ -43,7 +55,7 @@
                         }
                         else
                         {
-                            <a class="admin-link" href="/Admin/Order/@order.Id">Gán vận chuyển</a>
+                            <span class="admin-pill off">Chưa gán</span>
                         }
                     </td>
                 </tr>

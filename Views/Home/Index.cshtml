@@ -9,6 +9,13 @@
             new Banner { Title = "Laptop hiệu năng.\nSẵn sàng làm việc.", Subtitle = "MacBook, Dell, ASUS và Lenovo chính hãng, giá rõ ràng, bảo hành minh bạch.", LinkUrl = "/Product", ButtonText = "Xem laptop", ImageUrl = "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1400&q=85" },
             new Banner { Title = "Linh kiện nâng cấp.\nNhanh hơn mỗi ngày.", Subtitle = "CPU, VGA, RAM, SSD và phụ kiện setup góc làm việc gọn, mạnh, bền.", LinkUrl = "/Product", ButtonText = "Mua linh kiện", ImageUrl = "https://images.unsplash.com/photo-1591488320449-011701bb6704?auto=format&fit=crop&w=1400&q=85" }
         };
+    var flashProducts = Model.FlashSaleProducts.ToList();
+    if (!flashProducts.Any())
+    {
+        flashProducts = Model.FeaturedProducts.Where(product => product.DiscountPercent > 0).Take(5).ToList();
+    }
+    var mainDeal = flashProducts.FirstOrDefault();
+    var miniDeals = flashProducts.Skip(1).Take(4).ToList();
 }
 
 @functions {
@@ -112,18 +119,88 @@
         </div>
     </section>
 
-    <section class="flash-sale flash-premium reveal">
-        <div class="sale-badge"><i data-lucide="zap" aria-hidden="true"></i><span>SALE</span></div>
-        <div>
-            <span class="eyebrow">Flash Sale</span>
-            <h2>Deal linh kiện kết thúc trước nửa đêm.</h2>
-            <p>Chọn sản phẩm hot, áp mã SALE20 để nhận ưu đãi tối đa 200.000 ₫ cho setup mới.</p>
-            <a class="btn-primary" asp-controller="Product" asp-action="Index" asp-route-sortBy="discount_desc">Săn deal ngay</a>
+    <section class="flash-sale flash-premium flash-market reveal">
+        <div class="flash-market-copy">
+            <div class="flash-kicker">
+                <span class="flash-kicker-badge"><i data-lucide="zap" aria-hidden="true"></i> SALE</span>
+                <span>Flash Sale</span>
+            </div>
+            <h2>Deal đáng săn, nhìn là muốn chốt.</h2>
+            <p>Sản phẩm giảm giá sâu được kéo ra ngay tại trang chủ. Áp mã SALE20 để giảm thêm tối đa 200.000 ₫ cho setup mới.</p>
+            <div class="flash-code-row">
+                <div class="countdown-box flash-countdown">
+                    <span>Kết thúc sau</span>
+                    <strong id="countdown">00:00:00</strong>
+                </div>
+                <div class="flash-code">
+                    <small>Mã hôm nay</small>
+                    <strong>SALE20</strong>
+                    <span>Giảm thêm tối đa 200.000 ₫</span>
+                </div>
+            </div>
+            <a class="btn-primary flash-shop-link" asp-controller="Product" asp-action="Index" asp-route-sortBy="discount_desc">
+                <i data-lucide="flame" aria-hidden="true"></i>
+                Xem tất cả deal
+            </a>
         </div>
-        <div class="countdown-box">
-            <span>Kết thúc sau</span>
-            <strong id="countdown">00:00:00</strong>
-        </div>
+
+        @if (mainDeal is not null)
+        {
+            var mainSaved = mainDeal.Price - mainDeal.SalePrice;
+            <div class="flash-market-products">
+                <article class="flash-main-deal">
+                    <a class="flash-main-media" asp-controller="Product" asp-action="Detail" asp-route-id="@mainDeal.Id">
+                        <img src="@mainDeal.ImageUrl" alt="@mainDeal.Name" loading="lazy" />
+                        <span>-@mainDeal.DiscountPercent%</span>
+                    </a>
+                    <div class="flash-main-info">
+                        <span class="flash-category">@mainDeal.Category?.Name</span>
+                        <h3>@mainDeal.Name</h3>
+                        <div class="flash-price-row">
+                            <strong>@mainDeal.SalePrice.ToString("N0") ₫</strong>
+                            <span>@mainDeal.Price.ToString("N0") ₫</span>
+                        </div>
+                        <small>Tiết kiệm @mainSaved.ToString("N0") ₫, còn @mainDeal.Stock sản phẩm</small>
+                        <div class="flash-deal-actions">
+                            <a class="btn-ghost flash-detail-link" asp-controller="Product" asp-action="Detail" asp-route-id="@mainDeal.Id">
+                                <i data-lucide="eye" aria-hidden="true"></i>
+                                Chi tiết
+                            </a>
+                            <button class="btn-primary flash-cart-btn" type="button" data-cart-product="@mainDeal.Id">
+                                <i data-lucide="shopping-cart" aria-hidden="true"></i>
+                                Thêm giỏ
+                            </button>
+                        </div>
+                    </div>
+                </article>
+
+                <div class="flash-mini-grid">
+                    @foreach (var product in miniDeals)
+                    {
+                        var itemSaved = product.Price - product.SalePrice;
+                        <article class="flash-mini-deal">
+                            <a asp-controller="Product" asp-action="Detail" asp-route-id="@product.Id">
+                                <img src="@product.ImageUrl" alt="@product.Name" loading="lazy" />
+                            </a>
+                            <div>
+                                <span>-@product.DiscountPercent%</span>
+                                <a asp-controller="Product" asp-action="Detail" asp-route-id="@product.Id">@product.Name</a>
+                                <strong>@product.SalePrice.ToString("N0") ₫</strong>
+                                <small>Rẻ hơn @itemSaved.ToString("N0") ₫</small>
+                            </div>
+                        </article>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="flash-empty-deals">
+                <i data-lucide="tag" aria-hidden="true"></i>
+                <strong>Deal mới đang được cập nhật</strong>
+                <span>Quay lại danh mục sản phẩm để xem các ưu đãi hiện có.</span>
+            </div>
+        }
     </section>
 
     <section class="section reveal">

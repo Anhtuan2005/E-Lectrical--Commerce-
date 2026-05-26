@@ -79,10 +79,20 @@ public class OrderController : Controller
 
     public async Task<IActionResult> Confirmation(int id)
     {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var order = await _orderService.GetOrderAsync(id);
-        return order is null || order.UserId != User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ? NotFound()
-            : View(order);
+        if (order is null || order.UserId != userId)
+        {
+            return NotFound();
+        }
+
+        if (IsUnpaidVnpayOrder(order))
+        {
+            TempData["Error"] = "Đơn VNPAY chưa thanh toán thành công nên chưa được xác nhận.";
+            return RedirectToAction(nameof(Detail), new { id = order.Id });
+        }
+
+        return View(order);
     }
 
     public async Task<IActionResult> History(string? status, int page = 1)
@@ -128,5 +138,11 @@ public class OrderController : Controller
 
         TempData["Success"] = "Đã thêm sản phẩm còn hàng vào giỏ.";
         return RedirectToAction("Index", "Cart");
+    }
+
+    private static bool IsUnpaidVnpayOrder(Order order)
+    {
+        return string.Equals(order.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase)
+            && !order.IsPaid;
     }
 }

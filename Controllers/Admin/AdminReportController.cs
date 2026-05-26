@@ -36,6 +36,11 @@ public class AdminReportController : Controller
         var previousOrders = revenueOrders.Where(order => order.CreatedAt >= previousStart && order.CreatedAt < start);
         var currentRevenue = await currentOrders.SumAsync(order => order.TotalAmount);
         var previousRevenue = await previousOrders.SumAsync(order => order.TotalAmount);
+        var dailyRevenue = await currentOrders
+            .GroupBy(order => order.CreatedAt.Date)
+            .Select(group => new { Date = group.Key, Revenue = group.Sum(order => order.TotalAmount) })
+            .OrderBy(point => point.Date)
+            .ToListAsync();
 
         var model = new AdminReportViewModel
         {
@@ -47,11 +52,9 @@ public class AdminReportController : Controller
             GrowthPercent = previousRevenue == 0 ? (currentRevenue > 0 ? 100 : 0) : (currentRevenue - previousRevenue) / previousRevenue * 100,
             TotalOrders = await currentOrders.CountAsync(),
             TotalCustomers = await _db.Users.CountAsync(),
-            DailyRevenue = await currentOrders
-                .GroupBy(order => order.CreatedAt.Date)
-                .Select(group => new RevenuePointViewModel { Label = group.Key.ToString("dd/MM"), Revenue = group.Sum(order => order.TotalAmount) })
-                .OrderBy(point => point.Label)
-                .ToListAsync(),
+            DailyRevenue = dailyRevenue
+                .Select(point => new RevenuePointViewModel { Label = point.Date.ToString("dd/MM"), Revenue = point.Revenue })
+                .ToList(),
             RevenueByCategory = await _db.OrderItems
                 .IgnoreQueryFilters()
                 .Include(item => item.Product).ThenInclude(product => product!.Category)

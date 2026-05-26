@@ -31,4 +31,16 @@ public class AdminShippingController : Controller
         TempData["Success"] = "Đã cập nhật trạng thái vận chuyển.";
         return RedirectToAction(nameof(Index));
     }
+
+    [HttpPost("UpdateTracking")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateTracking(int orderId, string? carrier, string trackingCode)
+    {
+        var updated = await _shippingService.UpdateTrackingAsync(orderId, carrier, trackingCode);
+        TempData[updated ? "Success" : "Error"] = updated
+            ? $"Đã cập nhật mã vận đơn cho đơn #{orderId}."
+            : "Vui lòng nhập mã vận đơn hợp lệ.";
+
+        return RedirectToAction(nameof(Index));
+    }
 }

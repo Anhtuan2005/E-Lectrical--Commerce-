@@ -14,6 +14,14 @@
         <textarea asp-for="Subtitle" rows="3"></textarea>
         <label>URL ảnh hiện có</label>
         <input asp-for="ImageUrl" />
+        @if (!string.IsNullOrWhiteSpace(Model.ImageUrl))
+        {
+            <img class="admin-image-preview wide"
+                 src="@Model.ImageUrl"
+                 alt="Ảnh banner @Model.Title"
+                 loading="lazy"
+                 decoding="async" />
+        }
         <label>Tải ảnh mới</label>
         <input type="file" name="imageFile" accept="image/*" />
         <label>Link đích</label>

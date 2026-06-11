@@ -116,6 +116,8 @@ public class ProductController : Controller
             }));
     }
 
+    [HttpGet("/Product/Detail/{id:int}")]
+    [HttpGet("/Detail/{id:int}")]
     public async Task<IActionResult> Detail(int id)
     {
         var product = await _productService.GetProductAsync(id);

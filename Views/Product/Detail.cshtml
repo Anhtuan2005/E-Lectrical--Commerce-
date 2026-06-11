@@ -4,17 +4,22 @@
 @{
     ViewData["Title"] = Model.Product.Name;
     var product = Model.Product;
-    var cleanDescription = string.Join(" ", product.Description
-        .Split(new[] { '\r', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries))
-        .Trim();
-    ViewData["MetaDescription"] = cleanDescription.Length > 160
-        ? $"{cleanDescription[..157]}..."
-        : cleanDescription;
-    ViewData["CanonicalPath"] = Url.Action("Detail", "Product", new { id = product.Id });
-    ViewData["OgType"] = "product";
-    ViewData["OgImage"] = product.PrimaryImageUrl;
     var stockClass = product.Stock == 0 ? "out" : product.Stock <= 5 ? "low" : "ok";
     var stockText = product.Stock == 0 ? "Hết hàng" : $"Còn {product.Stock} sản phẩm";
+    var formattedSalePrice = product.SalePrice.ToString("N0");
+    var socialDescription = $"Giá: {formattedSalePrice}đ";
+    var seoDescription = $"{product.Name}. {socialDescription}. {stockText}. Mua hàng chính hãng tại Techvora.";
+    ViewData["MetaDescription"] = seoDescription.Length > 160
+        ? $"{seoDescription[..157]}..."
+        : seoDescription;
+    ViewData["CanonicalPath"] = $"/Product/Detail/{product.Id}";
+    ViewData["OgType"] = "product";
+    ViewData["OgTitle"] = product.Name;
+    ViewData["OgDescription"] = socialDescription;
+    ViewData["OgImage"] = product.PrimaryImageUrl;
+    ViewData["OgImageAlt"] = $"Ảnh {product.Name}";
+    ViewData["ProductPriceAmount"] = product.SalePrice.ToString("0.##", CultureInfo.InvariantCulture);
+    ViewData["ProductPriceCurrency"] = "VND";
     var rawGallery = product.Images.Any()
         ? product.Images.OrderBy(image => image.SortOrder).Select(image => image.ImageUrl).ToList()
         : new List<string> { product.PrimaryImageUrl };

@@ -772,6 +772,31 @@ input[type="checkbox"] {
   background: var(--adm-bg-2);
 }
 
+.admin-product-thumb {
+  width: 72px;
+  height: 54px;
+  display: block;
+  object-fit: cover;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--adm-radius-sm);
+  background: var(--adm-bg-2);
+}
+
+.admin-image-preview {
+  width: min(100%, 280px);
+  aspect-ratio: 4 / 3;
+  display: block;
+  object-fit: cover;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--adm-radius);
+  background: var(--adm-bg-2);
+}
+
+.admin-image-preview.wide {
+  width: min(100%, 520px);
+  aspect-ratio: 16 / 7;
+}
+
 .drag-row { cursor: grab; }
 .drag-row.dragging { opacity: 0.55; }
 

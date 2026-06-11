@@ -21,11 +21,18 @@
         <button class="admin-button" type="submit">Lọc</button>
     </form>
     <table class="admin-table">
-        <thead><tr><th>Sản phẩm</th><th>Danh mục</th><th>Giá</th><th>Tồn kho</th><th></th></tr></thead>
+        <thead><tr><th>Ảnh</th><th>Sản phẩm</th><th>Danh mục</th><th>Giá</th><th>Tồn kho</th><th></th></tr></thead>
         <tbody>
             @foreach (var product in Model.Products)
             {
                 <tr>
+                    <td>
+                        <img class="admin-product-thumb"
+                             src="@product.PrimaryImageUrl"
+                             alt="@product.Name"
+                             loading="lazy"
+                             decoding="async" />
+                    </td>
                     <td>@product.Name</td>
                     <td>@product.Category?.Name</td>
                     <td>@product.Price.ToString("N0") ₫</td>

@@ -13,12 +13,14 @@ public class AccountController : Controller
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly ICartService _cartService;
+    private readonly IAbandonedCartRecoveryService _abandonedCartRecoveryService;
 
-    public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, ICartService cartService)
+    public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, ICartService cartService, IAbandonedCartRecoveryService abandonedCartRecoveryService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _cartService = cartService;
+        _abandonedCartRecoveryService = abandonedCartRecoveryService;
     }
 
     public IActionResult Login(string? returnUrl = null)
@@ -50,7 +52,17 @@ public class AccountController : Controller
             if (user is not null)
             {
                 await _cartService.MergeGuestCartAsync(user.Id, HttpContext.Session.Id);
-                if (await _userManager.IsInRoleAsync(user, "Admin") && string.IsNullOrWhiteSpace(returnUrl))
+                var isAdmin = await _userManager.IsInRoleAsync(user, "Admin");
+                if (!isAdmin)
+                {
+                    var reminder = await _abandonedCartRecoveryService.GetLoginReminderAsync(user.Id);
+                    if (reminder is not null)
+                    {
+                        TempData["Success"] = $"Giỏ hàng của bạn đang chờ này! Dùng mã {reminder.RecoveryCode} để miễn phí vận chuyển trước {reminder.ExpiresAt.ToLocalTime():dd/MM HH:mm}.";
+                    }
+                }
+
+                if (isAdmin && string.IsNullOrWhiteSpace(returnUrl))
                 {
                     return Redirect("/Admin/Dashboard");
                 }

@@ -17,11 +17,16 @@ public class ProductService : IProductService
     public async Task<ProductViewModel> GetPagedProductsAsync(string? search, int? categoryId, decimal? minPrice, decimal? maxPrice, string? sortBy, int page, int pageSize)
     {
         page = Math.Max(page, 1);
-        var query = _db.Products.Include(product => product.Category).AsQueryable();
+        var query = _db.Products
+            .Include(product => product.Category)
+            .Include(product => product.Images)
+            .AsQueryable();
 
-        if (!string.IsNullOrWhiteSpace(search))
+        var searchTerms = ProductSearchIndex.QueryTerms(search);
+        foreach (var term in searchTerms)
         {
-            query = query.Where(product => product.Name.Contains(search) || product.Description.Contains(search));
+            var token = term;
+            query = query.Where(product => product.SearchTerms.Any(searchTerm => searchTerm.Term.StartsWith(token)));
         }
 
         if (categoryId.HasValue)
@@ -39,13 +44,45 @@ public class ProductService : IProductService
             query = query.Where(product => product.Price <= maxPrice.Value);
         }
 
-        query = sortBy switch
+        var normalizedSortBy = sortBy switch
         {
-            "price_asc" => query.OrderBy(product => product.Price),
-            "price_desc" => query.OrderByDescending(product => product.Price),
-            "discount_desc" => query.OrderByDescending(product => product.DiscountPercent).ThenBy(product => product.Price),
-            "name_asc" => query.OrderBy(product => product.Name),
-            _ => query.OrderByDescending(product => product.CreatedAt)
+            "best_selling" or "discount_desc" or "newest" or "price_asc" or "price_desc" => sortBy,
+            _ => "featured"
+        };
+
+        var completedOrderItems = _db.OrderItems
+            .Where(item => item.Order != null
+                && (item.Order.Status == OrderStatuses.Delivered
+                    || (item.Order.IsPaid && item.Order.Status != OrderStatuses.Cancelled)));
+
+        query = normalizedSortBy switch
+        {
+            "best_selling" => query
+                .OrderByDescending(product => completedOrderItems
+                    .Where(item => item.ProductId == product.Id)
+                    .Sum(item => (int?)item.Quantity) ?? 0)
+                .ThenByDescending(product => product.IsFeatured)
+                .ThenByDescending(product => product.CreatedAt),
+            "discount_desc" => query
+                .OrderByDescending(product => product.DiscountPercent)
+                .ThenByDescending(product => product.CreatedAt),
+            "newest" => query.OrderByDescending(product => product.CreatedAt),
+            "price_asc" => query
+                .OrderBy(product => product.DiscountPercent > 0
+                    ? product.Price * (100 - product.DiscountPercent) / 100
+                    : product.Price)
+                .ThenByDescending(product => product.CreatedAt),
+            "price_desc" => query
+                .OrderByDescending(product => product.DiscountPercent > 0
+                    ? product.Price * (100 - product.DiscountPercent) / 100
+                    : product.Price)
+                .ThenByDescending(product => product.CreatedAt),
+            _ => query
+                .OrderByDescending(product => product.IsFeatured)
+                .ThenByDescending(product => completedOrderItems
+                    .Where(item => item.ProductId == product.Id)
+                    .Sum(item => (int?)item.Quantity) ?? 0)
+                .ThenByDescending(product => product.CreatedAt)
         };
 
         var totalItems = await query.CountAsync();
@@ -63,7 +100,7 @@ public class ProductService : IProductService
             CategoryId = categoryId,
             MinPrice = minPrice,
             MaxPrice = maxPrice,
-            SortBy = sortBy,
+            SortBy = normalizedSortBy,
             CurrentPage = page,
             TotalPages = totalPages,
             TotalItems = totalItems,
@@ -86,6 +123,7 @@ public class ProductService : IProductService
     {
         return await _db.Products
             .Include(product => product.Category)
+            .Include(product => product.Images)
             .OrderByDescending(product => product.CreatedAt)
             .Take(count)
             .ToListAsync();
@@ -95,6 +133,7 @@ public class ProductService : IProductService
     {
         return await _db.Products
             .Include(product => product.Category)
+            .Include(product => product.Images.OrderBy(image => image.SortOrder))
             .Where(product => product.CategoryId == categoryId && product.Id != productId)
             .OrderByDescending(product => product.IsFeatured)
             .ThenByDescending(product => product.CreatedAt)
@@ -125,23 +164,26 @@ public class ProductService : IProductService
             Stock = model.Stock,
             DiscountPercent = model.DiscountPercent,
             CategoryId = model.CategoryId,
-            ImageUrl = string.IsNullOrWhiteSpace(imageUrl) ? model.ImageUrl : imageUrl,
             IsFeatured = model.IsFeatured
         };
+        var primaryImageUrl = NormalizeImageUrl(imageUrl) ?? NormalizeImageUrl(model.ImageUrl);
+        if (primaryImageUrl is not null)
+        {
+            product.Images.Add(new ProductImage { ImageUrl = primaryImageUrl, SortOrder = 0 });
+        }
 
         _db.Products.Add(product);
         await _db.SaveChangesAsync();
-        if (!string.IsNullOrWhiteSpace(product.ImageUrl))
-        {
-            _db.ProductImages.Add(new ProductImage { ProductId = product.Id, ImageUrl = product.ImageUrl, SortOrder = 0 });
-            await _db.SaveChangesAsync();
-        }
+
+        await ProductSearchIndex.ReplaceTermsAsync(_db, product.Id);
         return product;
     }
 
     public async Task UpdateProductAsync(ProductFormViewModel model, string? imageUrl)
     {
-        var product = await _db.Products.FirstOrDefaultAsync(row => row.Id == model.Id);
+        var product = await _db.Products
+            .Include(row => row.Images)
+            .FirstOrDefaultAsync(row => row.Id == model.Id);
         if (product is null)
         {
             return;
@@ -154,22 +196,26 @@ public class ProductService : IProductService
         product.DiscountPercent = model.DiscountPercent;
         product.CategoryId = model.CategoryId;
         product.IsFeatured = model.IsFeatured;
-        if (!string.IsNullOrWhiteSpace(imageUrl))
+        var primaryImageUrl = NormalizeImageUrl(imageUrl) ?? NormalizeImageUrl(model.ImageUrl);
+        if (primaryImageUrl is not null)
         {
-            product.ImageUrl = imageUrl;
-        }
-        else if (!string.IsNullOrWhiteSpace(model.ImageUrl))
-        {
-            product.ImageUrl = model.ImageUrl;
+            var primaryImage = product.Images
+                .OrderBy(row => row.SortOrder)
+                .ThenBy(row => row.Id)
+                .FirstOrDefault();
+            if (primaryImage is null)
+            {
+                product.Images.Add(new ProductImage { ImageUrl = primaryImageUrl, SortOrder = 0 });
+            }
+            else
+            {
+                primaryImage.ImageUrl = primaryImageUrl;
+                primaryImage.SortOrder = 0;
+            }
         }
 
         await _db.SaveChangesAsync();
-        if (!string.IsNullOrWhiteSpace(product.ImageUrl)
-            && !await _db.ProductImages.AnyAsync(image => image.ProductId == product.Id && image.ImageUrl == product.ImageUrl))
-        {
-            _db.ProductImages.Add(new ProductImage { ProductId = product.Id, ImageUrl = product.ImageUrl, SortOrder = 0 });
-            await _db.SaveChangesAsync();
-        }
+        await ProductSearchIndex.ReplaceTermsAsync(_db, product.Id);
     }
 
     public async Task DeleteProductAsync(int id)
@@ -182,5 +228,10 @@ public class ProductService : IProductService
 
         product.IsDeleted = true;
         await _db.SaveChangesAsync();
+    }
+
+    private static string? NormalizeImageUrl(string? imageUrl)
+    {
+        return string.IsNullOrWhiteSpace(imageUrl) ? null : imageUrl.Trim();
     }
 }

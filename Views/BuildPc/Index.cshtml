@@ -1,55 +1,9 @@
 @model EcommerceApp.Models.ViewModels.BuildPcViewModel
 @using System.Text.Json
 @{
-    ViewData["Title"] = "Build PC";
-    var presets = new[]
-    {
-        new
-        {
-            name = "Gaming Cơ Bản",
-            budget = "~10 triệu",
-            description = "Chơi game esport mượt mà, phù hợp sinh viên.",
-            icon = "gamepad-2",
-            slots = new Dictionary<string, string>
-            {
-                ["CPU"] = "Ryzen 5",
-                ["VGA"] = "RX 6600",
-                ["RAM"] = "DDR4 16GB",
-                ["SSD"] = "NVMe 256GB",
-                ["PSU"] = "550W"
-            }
-        },
-        new
-        {
-            name = "Gaming Chiến Mọi Game",
-            budget = "~25 triệu",
-            description = "AAA games ở thiết lập cao, đủ sức livestream.",
-            icon = "flame",
-            slots = new Dictionary<string, string>
-            {
-                ["CPU"] = "Core i7",
-                ["VGA"] = "RTX 4070",
-                ["RAM"] = "DDR5 32GB",
-                ["SSD"] = "NVMe 1TB",
-                ["PSU"] = "750W"
-            }
-        },
-        new
-        {
-            name = "Workstation Đồ Họa",
-            budget = "~35 triệu",
-            description = "Dành cho render, 3D và dựng video chuyên nghiệp.",
-            icon = "pen-tool",
-            slots = new Dictionary<string, string>
-            {
-                ["CPU"] = "Ryzen 9",
-                ["VGA"] = "RTX 4080",
-                ["RAM"] = "DDR5 64GB",
-                ["SSD"] = "NVMe 2TB",
-                ["PSU"] = "850W"
-            }
-        }
-    };
+    ViewData["Title"] = "Smart PC Builder";
+    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    var isAdminViewer = User.IsInRole("Admin");
 }
 
 @functions {
@@ -80,42 +34,122 @@
     };
 }
 
-<section class="buildpc-hero section">
-    <div class="buildpc-hero-inner">
-        <span class="eyebrow">Cấu hình theo ý bạn</span>
-        <h1>Build PC <span>Techvora</span></h1>
-        <p>Chọn linh kiện, kiểm tra tương thích, xem tổng tiền realtime và thêm toàn bộ build vào giỏ chỉ trong một bước.</p>
+<section class="buildpc-hero smartpc-hero section">
+    <div class="buildpc-hero-inner smartpc-hero-inner">
+        <div class="smartpc-hero-copy">
+            <span class="eyebrow">Smart PC Builder</span>
+            <h1>AI Advisor dựng cấu hình PC theo ngân sách</h1>
+            <p>Chọn mục tiêu, nhập ngân sách và để Techvora gợi ý bộ linh kiện cân bằng từ sản phẩm còn hàng.</p>
+        </div>
+
+        <form class="smart-builder-panel" id="smartBuildForm">
+            <div class="smart-goal-grid" role="group" aria-label="Mục tiêu build PC">
+                @foreach (var item in Model.Goals.Select((goal, index) => new { Goal = goal, Index = index }))
+                {
+                    <button class="smart-goal @(item.Index == 0 ? "is-active" : "")"
+                            type="button"
+                            data-smart-goal="@item.Goal.Key"
+                            data-budget="@item.Goal.SuggestedBudget"
+                            aria-pressed="@(item.Index == 0 ? "true" : "false")">
+                        <i data-lucide="@item.Goal.Icon" aria-hidden="true"></i>
+                        <span>@item.Goal.Label</span>
+                        <small>@item.Goal.Description</small>
+                    </button>
+                }
+            </div>
+
+            <div class="smart-field-grid">
+                <label class="smart-field">
+                    <span>Ngân sách</span>
+                    <input id="smartBudget" type="number" min="12000000" max="120000000" step="500000" value="28000000" inputmode="numeric" />
+                </label>
+                <label class="smart-field">
+                    <span>Yêu cầu thêm</span>
+                    <input id="smartNote" type="text" maxlength="180" placeholder="VD: case nhỏ, máy êm, ưu tiên RTX" autocomplete="off" />
+                </label>
+            </div>
+
+            <button class="btn-primary smart-generate-btn" id="smartGenerate" type="submit">
+                <i data-lucide="sparkles" aria-hidden="true"></i>
+                Tạo cấu hình thông minh
+            </button>
+        </form>
     </div>
 </section>
 
-<section class="presets-section section reveal">
-    <div class="section-heading">
+<section class="smart-result-section section reveal" id="smartResult" hidden>
+    <div class="smart-result-head">
         <div>
-            <span class="eyebrow">Preset nhanh</span>
-            <h2>Cấu hình gợi ý</h2>
+            <span class="eyebrow">AI Advisor</span>
+            <h2 id="smartResultTitle">Cấu hình gợi ý</h2>
+        </div>
+        <div class="smart-result-total">
+            <span>Tổng cấu hình</span>
+            <strong id="smartResultTotal">0 ₫</strong>
+            <small id="smartResultDelta">Đang chờ dữ liệu</small>
         </div>
     </div>
-    <div class="preset-cards">
-        @foreach (var preset in presets)
-        {
-            <article class="preset-card">
-                <div class="preset-icon"><i data-lucide="@preset.icon" aria-hidden="true"></i></div>
-                <h3>@preset.name</h3>
-                <strong class="preset-budget">@preset.budget</strong>
-                <p>@preset.description</p>
-                <button class="btn-ghost" type="button" data-preset='@Html.Raw(JsonSerializer.Serialize(preset))'>Dùng cấu hình này</button>
-            </article>
-        }
+
+    <div class="smart-variant-tabs" id="smartVariantTabs" role="tablist" aria-label="So sánh cấu hình"></div>
+
+    <div class="smart-score-grid" aria-label="Điểm tư vấn">
+        <div class="smart-score">
+            <span>Hiệu năng</span>
+            <strong id="smartPerformanceScore">0</strong>
+            <em><b id="smartPerformanceBar"></b></em>
+        </div>
+        <div class="smart-score">
+            <span>Cân bằng</span>
+            <strong id="smartBalanceScore">0</strong>
+            <em><b id="smartBalanceBar"></b></em>
+        </div>
+        <div class="smart-score">
+            <span>Nâng cấp</span>
+            <strong id="smartUpgradeScore">0</strong>
+            <em><b id="smartUpgradeBar"></b></em>
+        </div>
+        <div class="smart-score">
+            <span>Giá trị</span>
+            <strong id="smartValueScore">0</strong>
+            <em><b id="smartValueBar"></b></em>
+        </div>
+    </div>
+
+    <div class="smart-result-layout">
+        <div class="smart-slot-grid" id="smartResultSlots"></div>
+
+        <aside class="ai-advisor-panel">
+            <div class="ai-advisor-head">
+                <i data-lucide="bot" aria-hidden="true"></i>
+                <div>
+                    <span>Advisor notes</span>
+                    <strong>Nhận định nhanh</strong>
+                </div>
+            </div>
+            <ul class="ai-advisor-list" id="smartInsights"></ul>
+            <div class="compat-check-panel">
+                <div class="compat-check-title">
+                    <i data-lucide="shield-check" aria-hidden="true"></i>
+                    <strong>Kiểm tra tương thích</strong>
+                </div>
+                <div class="compat-check-list" id="smartCompatibility"></div>
+            </div>
+            <div class="ai-warning-list" id="smartWarnings"></div>
+            <button class="btn-ghost smart-apply-btn" id="smartApplyBuild" type="button">
+                <i data-lucide="list-checks" aria-hidden="true"></i>
+                Áp dụng lại cấu hình này
+            </button>
+        </aside>
     </div>
 </section>
 
 <section class="builder-section section reveal">
     <div class="builder-head">
         <div>
-            <span class="eyebrow">PC Builder</span>
-            <h2>Lắp cấu hình</h2>
+            <span class="eyebrow">Tinh chỉnh</span>
+            <h2>Cấu hình đang chọn</h2>
         </div>
-        <p>Chọn từng slot theo nhu cầu. Techvora sẽ cảnh báo nhanh nếu thiếu mainboard hoặc nguồn có thể chưa đủ công suất.</p>
+        <p>Thay linh kiện theo ý bạn, AI Advisor vẫn giữ cảnh báo ngân sách, công suất và tương thích cơ bản.</p>
     </div>
 
     <div class="builder-wrap">
@@ -128,15 +162,17 @@
                         <span class="slot-name">@GetSlotLabel(slot)</span>
                         <span class="slot-selected-name">Chưa chọn</span>
                     </div>
-                    <div class="slot-price-display">—</div>
+                    <div class="slot-price-display">-</div>
                     <button class="btn-ghost slot-choose-btn" type="button" data-choose="@slot">Chọn</button>
-                    <button class="btn-icon slot-clear-btn" type="button" data-clear="@slot" aria-label="Xóa @GetSlotLabel(slot)" hidden>×</button>
+                    <button class="btn-icon slot-clear-btn" type="button" data-clear="@slot" aria-label="Xóa @GetSlotLabel(slot)" hidden>
+                        <i data-lucide="x" aria-hidden="true"></i>
+                    </button>
                 </div>
             }
         </div>
 
         <aside class="build-summary" id="buildSummary">
-            <h3>Tổng build</h3>
+            <h3>Cấu hình</h3>
             <ul class="summary-list" id="summaryList">
                 <li class="summary-empty">Chưa chọn linh kiện nào</li>
             </ul>
@@ -146,14 +182,30 @@
             </div>
             <div class="compat-warnings" id="compatWarnings"></div>
             <div class="wattage-info" id="wattageInfo" hidden>
-                <span>Ước tính công suất: <strong id="wattageVal">—</strong> W</span>
+                <span>Công suất ước tính: <strong id="wattageVal">-</strong> W</span>
             </div>
-            <button class="btn-ghost btn-preview-3d" id="btnPreview3d" type="button" disabled>
-                <i data-lucide="box" aria-hidden="true"></i>
-                Xem 3D Preview
+            <div class="summary-advisor">
+                <div>
+                    <i data-lucide="bot" aria-hidden="true"></i>
+                    <strong>AI Advisor</strong>
+                </div>
+                <p id="summaryAdvisorText">Tạo cấu hình thông minh để nhận đánh giá nhanh.</p>
+            </div>
+            @if (isAdminViewer)
+            {
+                <div class="admin-view-note">
+                    <strong>Chế độ xem admin</strong>
+                    <span>Có thể kiểm tra cấu hình, nhưng không thêm vào giỏ.</span>
+                </div>
+            }
+            else
+            {
+                <button class="btn-primary btn-add-all" id="btnAddAll" type="button" disabled>Thêm tất cả vào giỏ</button>
+            }
+            <button class="btn-ghost btn-reset-build" id="btnReset" type="button">
+                <i data-lucide="rotate-ccw" aria-hidden="true"></i>
+                Đặt lại
             </button>
-            <button class="btn-primary btn-add-all" id="btnAddAll" type="button" disabled>Thêm tất cả vào giỏ</button>
-            <button class="btn-ghost btn-reset-build" id="btnReset" type="button">Đặt lại</button>
         </aside>
     </div>
 </section>
@@ -162,7 +214,9 @@
     <div class="modal-panel">
         <div class="modal-head">
             <h3 id="modalTitle">Chọn linh kiện</h3>
-            <button class="modal-close" type="button" id="modalClose" aria-label="Đóng">×</button>
+            <button class="modal-close" type="button" id="modalClose" aria-label="Đóng">
+                <i data-lucide="x" aria-hidden="true"></i>
+            </button>
         </div>
         <div class="modal-search">
             <input type="text" id="modalSearch" placeholder="Tìm kiếm trong slot này..." autocomplete="off" />
@@ -173,6 +227,7 @@
 
 @section Scripts {
     <script>
+        window.SMART_GOALS = @Html.Raw(JsonSerializer.Serialize(Model.Goals, jsonOptions));
         window.SLOT_PRODUCTS = @Html.Raw(JsonSerializer.Serialize(
             Model.SlotProducts.ToDictionary(
                 slot => slot.Key,
@@ -181,10 +236,13 @@
                     name = product.Name,
                     priceRaw = (long)product.SalePrice,
                     price = product.SalePrice.ToString("N0") + " ₫",
-                    imageUrl = product.ImageUrl,
-                    stock = product.Stock
+                    imageUrl = product.PrimaryImageUrl,
+                    category = product.Category?.Name,
+                    stock = product.Stock,
+                    url = Url.Action("Detail", "Product", new { id = product.Id })
                 })
-            )
+            ),
+            jsonOptions
         ));
     </script>
     <script src="~/js/buildpc.js" asp-append-version="true"></script>

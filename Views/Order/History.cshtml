@@ -1,6 +1,7 @@
 @model UserOrdersViewModel
 @{
     ViewData["Title"] = "Đơn hàng của tôi";
+    var isAdminViewer = User.IsInRole("Admin");
 }
 
 <section class="orders-page">
@@ -8,12 +9,15 @@
         <div>
             <span class="eyebrow">Tài khoản</span>
             <h1>Đơn hàng của tôi</h1>
-            <p>Theo dõi và quản lý đơn hàng của bạn</p>
+            <p>Theo dõi đơn hàng, mua lại nhanh và gửi yêu cầu hỗ trợ sau khi nhận hàng.</p>
         </div>
-        <a class="btn-ghost" asp-controller="Product" asp-action="Index">
-            <i data-lucide="shopping-bag" aria-hidden="true"></i>
-            Tiếp tục mua sắm
-        </a>
+        @if (!isAdminViewer)
+        {
+            <a class="btn-ghost" asp-controller="Product" asp-action="Index">
+                <i data-lucide="shopping-bag" aria-hidden="true"></i>
+                Tiếp tục mua sắm
+            </a>
+        }
     </header>
 
     <nav class="order-tabs" aria-label="Lọc đơn hàng theo trạng thái">
@@ -32,7 +36,10 @@
             <div class="orders-empty-icon"><i data-lucide="package-open" aria-hidden="true"></i></div>
             <h2>Bạn chưa có đơn hàng nào</h2>
             <p>Những đơn linh kiện PC của bạn sẽ xuất hiện tại đây sau khi checkout.</p>
-            <a class="btn-primary" asp-controller="Product" asp-action="Index">Mua sắm ngay</a>
+            @if (!isAdminViewer)
+            {
+                <a class="btn-primary" asp-controller="Product" asp-action="Index">Mua sắm ngay</a>
+            }
         </div>
     }
     else
@@ -42,6 +49,7 @@
             {
                 var previewItems = order.Items.Take(2).ToList();
                 var extraCount = Math.Max(0, order.Items.Count - previewItems.Count);
+                var latestRequest = order.ReturnWarrantyRequests.OrderByDescending(request => request.CreatedAt).FirstOrDefault();
                 <article class="order-card order-card-modern">
                     <div class="order-card-top">
                         <div>
@@ -56,9 +64,9 @@
                             @foreach (var item in previewItems)
                             {
                                 <div class="order-product-line">
-                                    @if (!string.IsNullOrWhiteSpace(item.Product?.ImageUrl))
+                                    @if (!string.IsNullOrWhiteSpace(item.Product?.PrimaryImageUrl))
                                     {
-                                        <img src="@item.Product.ImageUrl" alt="@item.Product.Name" />
+                                        <img src="@item.Product.PrimaryImageUrl" alt="@item.Product.Name" />
                                     }
                                     else
                                     {
@@ -80,6 +88,10 @@
                             <span>Ngày mua <strong>@order.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy")</strong></span>
                             <span>Thanh toán <strong>@order.PaymentMethod</strong></span>
                             <span>Trạng thái tiền <strong>@(order.IsPaid ? "Đã thanh toán" : "Chưa thanh toán")</strong></span>
+                            @if (latestRequest is not null)
+                            {
+                                <span>Hỗ trợ <strong>@latestRequest.Type: @latestRequest.Status</strong></span>
+                            }
                         </div>
                     </div>
 
@@ -90,18 +102,25 @@
                         </div>
                         <div class="order-actions">
                             <a class="btn-ghost" asp-action="Detail" asp-route-id="@order.Id">Xem chi tiết</a>
-                            <form asp-action="Reorder" method="post">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="id" value="@order.Id" />
-                                <button class="btn-primary" type="submit">Mua lại</button>
-                            </form>
+                            @if (!isAdminViewer)
+                            {
+                                <form asp-action="Reorder" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@order.Id" />
+                                    <button class="btn-primary" type="submit">Mua lại</button>
+                                </form>
+                            }
+                            @if (!isAdminViewer && order.Status == OrderStatuses.Delivered && latestRequest is null)
+                            {
+                                <a class="btn-ghost" asp-controller="ReturnWarranty" asp-action="Create" asp-route-orderId="@order.Id">Yêu cầu hỗ trợ</a>
+                            }
                             @if (order.Status == OrderStatuses.Pending)
                             {
                                 <form asp-action="Cancel" method="post">
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="id" value="@order.Id" />
                                     <input type="hidden" name="returnStatus" value="@Model.ActiveStatus" />
-                                    <button class="btn-ghost danger" type="submit" onclick="return confirm('Hủy đơn hàng #DH@(order.Id.ToString("D4"))?')">Hủy đơn</button>
+                                    <button class="btn-ghost danger" type="submit" onclick="return confirm('Huỷ đơn hàng #DH@(order.Id.ToString("D4"))?')">Huỷ đơn</button>
                                 </form>
                             }
                         </div>
@@ -132,5 +151,4 @@
         if (status == OrderStatuses.Cancelled) return "cancelled";
         return "pending";
     }
-
 }

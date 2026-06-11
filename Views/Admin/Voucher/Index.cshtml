@@ -17,7 +17,7 @@
         <a class="admin-button secondary" href="/Admin/Voucher?filter=used">Hết lượt</a>
     </div>
     <table class="admin-table">
-        <thead><tr><th>Code</th><th>Loại</th><th>Giá trị</th><th>Đã dùng</th><th>Ngày hết hạn</th><th>Trạng thái</th><th></th></tr></thead>
+        <thead><tr><th>Code</th><th>Loại</th><th>Giá trị</th><th>Đã dùng</th><th>Nhóm áp dụng</th><th>Ngày hết hạn</th><th>Trạng thái</th><th></th></tr></thead>
         <tbody>
             @foreach (var voucher in Model)
             {
@@ -26,6 +26,17 @@
                     <td>@(voucher.Type == VoucherType.Percent ? "Phần trăm" : "Tiền mặt")</td>
                     <td>@(voucher.Type == VoucherType.Percent ? $"{voucher.Value:N0}%" : $"{voucher.Value:N0} ₫")</td>
                     <td>@voucher.UsedCount/@voucher.UsageLimit</td>
+                    <td>
+                        @if (!string.IsNullOrWhiteSpace(voucher.TargetUserId))
+                        {
+                            <span>Cá nhân</span><br />
+                            <small>@(voucher.TargetUser?.Email ?? voucher.TargetUserId)</small>
+                        }
+                        else
+                        {
+                            <span>@(voucher.CustomerSegment?.Name ?? "Tất cả")</span>
+                        }
+                    </td>
                     <td>@voucher.EndDate.ToLocalTime().ToString("dd/MM/yyyy")</td>
                     <td><span class="adm-pill @(voucher.IsActive ? "" : "off")">@(voucher.IsActive ? "Đang bật" : "Đã tắt")</span></td>
                     <td class="actions-cell">

@@ -38,6 +38,7 @@ public class CheckoutViewModel
 
     public string? VoucherCode { get; set; }
     public decimal DiscountAmount { get; set; }
+    public decimal ShippingFee { get; set; }
 
     public CartViewModel Cart { get; set; } = new();
 
@@ -89,7 +90,7 @@ public static class OrderStatusFilters
         (Processing, "Đang xử lý", OrderStatuses.Confirmed),
         (Shipping, "Đang giao", OrderStatuses.Shipping),
         (Completed, "Hoàn thành", OrderStatuses.Delivered),
-        (Cancelled, "Đã hủy", OrderStatuses.Cancelled)
+        (Cancelled, "Đã huỷ", OrderStatuses.Cancelled)
     };
 
     public static string Normalize(string? key)
@@ -123,7 +124,7 @@ public static class OrderStatusFilters
 
         if (status == OrderStatuses.Cancelled)
         {
-            return "Đã hủy";
+            return "Đã huỷ";
         }
 
         return status;

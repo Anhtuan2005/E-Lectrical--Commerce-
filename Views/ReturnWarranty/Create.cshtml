@@ -1,0 +1,138 @@
+@model ReturnWarrantyRequestCreateViewModel
+@{
+    ViewData["Title"] = "Gửi yêu cầu hỗ trợ";
+    var order = Model.Order!;
+}
+
+<section class="support-page">
+    <header class="support-hero support-hero-compact">
+        <div>
+            <a class="orders-back" asp-controller="Order" asp-action="Detail" asp-route-id="@Model.OrderId">
+                <i data-lucide="arrow-left" aria-hidden="true"></i>
+                Quay lại đơn #DH@(Model.OrderId.ToString("D4"))
+            </a>
+            <h1>Gửi yêu cầu đổi trả / bảo hành</h1>
+            <p>Chọn sản phẩm cần hỗ trợ và mô tả tình trạng thực tế để Techvora xử lý nhanh hơn.</p>
+        </div>
+    </header>
+
+    <form asp-action="Create" method="post" enctype="multipart/form-data" class="support-form">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="OrderId" />
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+        <section class="order-panel">
+            <div class="panel-title">
+                <h2>Loại yêu cầu</h2>
+                <span>Đơn #DH@(Model.OrderId.ToString("D4")) đã giao</span>
+            </div>
+            <div class="support-type-grid">
+                @foreach (var type in ReturnWarrantyRequestTypes.All)
+                {
+                    <label class="support-type-option">
+                        <input type="radio" asp-for="Type" value="@type" />
+                        <span>@type</span>
+                        <small>@(type == ReturnWarrantyRequestTypes.Return ? "Sản phẩm lỗi, giao sai hoặc không đúng mô tả." : "Sản phẩm cần kiểm tra, sửa chữa hoặc gửi hãng.")</small>
+                    </label>
+                }
+            </div>
+            <span asp-validation-for="Type" class="text-danger"></span>
+        </section>
+
+        <section class="order-panel">
+            <div class="panel-title">
+                <h2>Sản phẩm cần hỗ trợ</h2>
+                <span>Chọn một hoặc nhiều sản phẩm</span>
+            </div>
+            <div class="support-item-list">
+                @for (var i = 0; i < Model.Items.Count; i++)
+                {
+                    var input = Model.Items[i];
+                    var item = order.Items.First(orderItem => orderItem.Id == input.OrderItemId);
+                    <article class="support-item-row">
+                        <input type="hidden" asp-for="Items[i].OrderItemId" />
+                        <label class="support-item-check">
+                            <input asp-for="Items[i].Selected" />
+                            <span></span>
+                        </label>
+                        @if (!string.IsNullOrWhiteSpace(item.Product?.PrimaryImageUrl))
+                        {
+                            <img src="@item.Product.PrimaryImageUrl" alt="@item.Product.Name" />
+                        }
+                        else
+                        {
+                            <div class="order-item-fallback"><i data-lucide="cpu" aria-hidden="true"></i></div>
+                        }
+                        <div>
+                            <strong>@(item.Product?.Name ?? "Sản phẩm đã ngừng bán")</strong>
+                            <small>Đã mua @item.Quantity · @item.UnitPrice.ToString("N0") đ</small>
+                        </div>
+                        <label>
+                            <span>Số lượng</span>
+                            <input asp-for="Items[i].Quantity" type="number" min="1" max="@item.Quantity" />
+                        </label>
+                    </article>
+                }
+            </div>
+        </section>
+
+        <section class="order-panel">
+            <div class="panel-title">
+                <h2>Thông tin xử lý</h2>
+                <span>Techvora sẽ liên hệ theo thông tin này</span>
+            </div>
+            <div class="support-form-grid">
+                <label>
+                    <span>Người liên hệ</span>
+                    <input asp-for="ContactName" />
+                    <small asp-validation-for="ContactName" class="text-danger"></small>
+                </label>
+                <label>
+                    <span>Số điện thoại</span>
+                    <input asp-for="ContactPhone" />
+                    <small asp-validation-for="ContactPhone" class="text-danger"></small>
+                </label>
+                <label>
+                    <span>Lý do</span>
+                    <select asp-for="Reason">
+                        <option value="">Chọn lý do</option>
+                        <option>Sản phẩm lỗi khi nhận hàng</option>
+                        <option>Giao sai sản phẩm hoặc thiếu phụ kiện</option>
+                        <option>Sản phẩm không đúng mô tả</option>
+                        <option>Cần kiểm tra bảo hành</option>
+                        <option>Lỗi phát sinh trong quá trình sử dụng</option>
+                    </select>
+                    <small asp-validation-for="Reason" class="text-danger"></small>
+                </label>
+                <label>
+                    <span>Phương án mong muốn</span>
+                    <select asp-for="PreferredResolution">
+                        <option>Liên hệ tư vấn phương án phù hợp</option>
+                        <option>Đổi sản phẩm tương đương</option>
+                        <option>Hoàn tiền theo chính sách</option>
+                        <option>Gửi trung tâm bảo hành</option>
+                    </select>
+                </label>
+            </div>
+            <label class="support-description">
+                <span>Mô tả tình trạng</span>
+                <textarea asp-for="Description" rows="5" placeholder="Mô tả lỗi, thời điểm phát hiện, phụ kiện kèm theo, tình trạng hộp/sản phẩm..."></textarea>
+                <small asp-validation-for="Description" class="text-danger"></small>
+            </label>
+            <label class="support-description">
+                <span>Ảnh minh chứng</span>
+                <input asp-for="Images" type="file" multiple accept="image/png,image/jpeg,image/webp" />
+                <small>Tối đa 5 ảnh, mỗi ảnh dưới 5MB.</small>
+            </label>
+        </section>
+
+        <div class="support-submit-bar">
+            <a class="btn-ghost" asp-controller="Order" asp-action="Detail" asp-route-id="@Model.OrderId">Huỷ</a>
+            <button class="btn-primary" type="submit">Gửi yêu cầu</button>
+        </div>
+    </form>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

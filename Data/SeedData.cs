@@ -1,4 +1,5 @@
 using EcommerceApp.Models;
+using EcommerceApp.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +13,7 @@ public static class SeedData
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var customerSegmentService = scope.ServiceProvider.GetRequiredService<ICustomerSegmentService>();
 
         await MarkInitialMigrationForLegacyDatabaseAsync(db);
         await db.Database.MigrateAsync();
@@ -34,9 +36,13 @@ public static class SeedData
         var categories = await EnsureCategoriesAsync(db);
         await EnsureProductsAsync(db, categories);
         await EnsurePcBuildProductsAsync(db);
+        await EnsureCrossSellOffersAsync(db);
+        await ProductSearchIndex.RebuildAsync(db);
         await EnsureBannersAsync(db);
         await EnsureVouchersAsync(db);
         await RemoveIneligibleReviewsAsync(db);
+        await customerSegmentService.RefreshAsync();
+        await EnsureSegmentVouchersAsync(db);
     }
 
     private static async Task MarkInitialMigrationForLegacyDatabaseAsync(AppDbContext db)
@@ -218,10 +224,13 @@ END");
             Description = description,
             Price = price,
             Stock = stock,
-            ImageUrl = imageUrl,
             CategoryId = categoryId,
             IsFeatured = featured,
-            CreatedAt = DateTime.UtcNow.AddDays(-daysAgo)
+            CreatedAt = DateTime.UtcNow.AddDays(-daysAgo),
+            Images = new List<ProductImage>
+            {
+                new() { ImageUrl = imageUrl, SortOrder = 0 }
+            }
         };
     }
 
@@ -329,6 +338,100 @@ END");
         }
 
         await db.SaveChangesAsync();
+    }
+
+    private static async Task EnsureCrossSellOffersAsync(AppDbContext db)
+    {
+        var offers = new[]
+        {
+            ("iPhone 15 Pro", "AirPods Pro 2", 10),
+            ("Samsung Galaxy S24", "Samsung Galaxy Watch 6", 12),
+            ("MacBook Air M3", "Hub USB-C Anker 7-in-1", 15),
+            ("Dell XPS 13", "LG UltraFine 27 inch", 8),
+            ("ASUS Vivobook 15", "Hub USB-C Anker 7-in-1", 12),
+            ("Intel Core i5-13400F CPU", "MSI PRO B760M-A WiFi Mainboard DDR5", 10),
+            ("Intel Core i5-13400F CPU", "Corsair Vengeance RAM DDR5 32GB 5600MHz", 12),
+            ("Intel Core i5-13400F CPU", "Samsung 980 PRO SSD NVMe M.2 1TB", 8),
+            ("Intel Core i5-13400F CPU", "DeepCool AK400 CPU Cooler", 10),
+            ("AMD Ryzen 5 5600 CPU", "ASUS TUF Gaming B550M-PLUS Mainboard", 10),
+            ("AMD Ryzen 5 5600 CPU", "Kingston Fury Beast RAM DDR4 16GB 3200MHz", 12),
+            ("AMD Ryzen 7 7800X3D CPU", "Gigabyte B650 AORUS Elite AX Mainboard", 8),
+            ("AMD Ryzen 7 7800X3D CPU", "Corsair Vengeance RAM DDR5 32GB 5600MHz", 10),
+            ("AMD Ryzen 7 7800X3D CPU", "Noctua NH-D15 CPU Cooler", 10),
+            ("ASUS Dual GeForce RTX 4060 OC VGA 8GB", "Corsair CX550 550W PSU 80 Plus Bronze", 8),
+            ("MSI GeForce RTX 4070 SUPER Ventus VGA 12GB", "Cooler Master MWE Gold 750W PSU", 8),
+            ("Sapphire Pulse Radeon RX 7800 XT VGA 16GB", "Cooler Master MWE Gold 750W PSU", 8),
+            ("MSI PRO B760M-A WiFi Mainboard DDR5", "Corsair Vengeance RAM DDR5 32GB 5600MHz", 10),
+            ("ASUS TUF Gaming B550M-PLUS Mainboard", "Kingston Fury Beast RAM DDR4 16GB 3200MHz", 10)
+        };
+
+        foreach (var (anchorName, addOnName, discountPercent) in offers)
+        {
+            var anchor = await db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(product => product.Name == anchorName);
+            var addOn = await db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(product => product.Name == addOnName);
+            if (anchor is null || addOn is null)
+            {
+                continue;
+            }
+
+            var existing = await db.CrossSellOffers.FirstOrDefaultAsync(offer =>
+                offer.AnchorProductId == anchor.Id && offer.AddOnProductId == addOn.Id);
+            if (existing is null)
+            {
+                db.CrossSellOffers.Add(new CrossSellOffer
+                {
+                    AnchorProductId = anchor.Id,
+                    AddOnProductId = addOn.Id,
+                    DiscountPercent = discountPercent,
+                    IsActive = true
+                });
+            }
+            else
+            {
+                existing.DiscountPercent = discountPercent;
+                existing.IsActive = true;
+            }
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task EnsureSegmentVouchersAsync(AppDbContext db)
+    {
+        var now = DateTime.UtcNow;
+        var segmentIds = await db.CustomerSegments
+            .ToDictionaryAsync(segment => segment.Code, segment => segment.Id);
+
+        await EnsureSegmentVoucherAsync(
+            db,
+            segmentIds,
+            CustomerSegmentCodes.NewCustomer,
+            new Voucher { Code = "NEWBIE10", Type = VoucherType.Percent, Value = 10, MinOrderAmount = 500000, MaxDiscount = 150000, UsageLimit = 200, StartDate = now.AddDays(-7), EndDate = now.AddMonths(3), IsActive = true });
+
+        await EnsureSegmentVoucherAsync(
+            db,
+            segmentIds,
+            CustomerSegmentCodes.Vip,
+            new Voucher { Code = "VIP15", Type = VoucherType.Percent, Value = 15, MinOrderAmount = 1000000, MaxDiscount = 300000, UsageLimit = 100, StartDate = now.AddDays(-7), EndDate = now.AddMonths(2), IsActive = true });
+
+        await EnsureSegmentVoucherAsync(
+            db,
+            segmentIds,
+            CustomerSegmentCodes.Inactive,
+            new Voucher { Code = "COMEBACK15", Type = VoucherType.Percent, Value = 15, MinOrderAmount = 500000, MaxDiscount = 200000, UsageLimit = 150, StartDate = now.AddDays(-7), EndDate = now.AddMonths(2), IsActive = true });
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task EnsureSegmentVoucherAsync(AppDbContext db, IReadOnlyDictionary<string, int> segmentIds, string segmentCode, Voucher voucher)
+    {
+        if (!segmentIds.TryGetValue(segmentCode, out var segmentId) || await db.Vouchers.AnyAsync(row => row.Code == voucher.Code))
+        {
+            return;
+        }
+
+        voucher.CustomerSegmentId = segmentId;
+        db.Vouchers.Add(voucher);
     }
 
 }

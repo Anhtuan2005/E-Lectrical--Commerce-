@@ -8,17 +8,28 @@ namespace EcommerceApp.Services;
 public class CartService : ICartService
 {
     private readonly AppDbContext _db;
+    private readonly ICrossSellService _crossSellService;
 
-    public CartService(AppDbContext db)
+    public CartService(AppDbContext db, ICrossSellService crossSellService)
     {
         _db = db;
+        _crossSellService = crossSellService;
     }
 
     public async Task<CartViewModel> GetCartAsync(string? userId, string sessionId)
     {
         var cart = await GetOrCreateCartAsync(userId, sessionId);
-        await _db.Entry(cart).Collection(c => c.Items).Query().Include(item => item.Product).LoadAsync();
-        return new CartViewModel { Items = cart.Items.OrderBy(item => item.Product?.Name).ToList() };
+        await _db.Entry(cart).Collection(c => c.Items).Query()
+            .Include(item => item.Product)
+            .ThenInclude(product => product!.Images)
+            .LoadAsync();
+        var items = cart.Items.OrderBy(item => item.Product?.Name).ToList();
+        return new CartViewModel
+        {
+            Items = items,
+            CrossSellUnitPrices = await _crossSellService.GetEligibleUnitPricesAsync(items),
+            CrossSellSuggestions = await _crossSellService.GetSuggestionsAsync(items)
+        };
     }
 
     public async Task<Cart?> GetCartEntityAsync(string? userId, string sessionId)
@@ -26,6 +37,7 @@ public class CartService : ICartService
         return await FindCartQuery(userId, sessionId)
             .Include(cart => cart.Items)
             .ThenInclude(item => item.Product)
+            .ThenInclude(product => product!.Images)
             .FirstOrDefaultAsync();
     }
 
@@ -40,22 +52,28 @@ public class CartService : ICartService
         var product = await _db.Products.FirstOrDefaultAsync(row => row.Id == productId);
         if (product is null || product.Stock <= 0)
         {
-            return;
+            throw new InvalidOperationException("Sản phẩm hiện không còn hàng.");
         }
 
         quantity = Math.Max(1, quantity);
         var cart = await GetOrCreateCartAsync(userId, sessionId);
         var item = await _db.CartItems.FirstOrDefaultAsync(row => row.CartId == cart.Id && row.ProductId == productId);
+        var currentQuantity = item?.Quantity ?? 0;
+        if (currentQuantity + quantity > product.Stock)
+        {
+            throw new InvalidOperationException($"Sản phẩm chỉ còn {product.Stock:N0} sản phẩm trong kho.");
+        }
 
         if (item is null)
         {
-            _db.CartItems.Add(new CartItem { CartId = cart.Id, ProductId = productId, Quantity = Math.Min(quantity, product.Stock) });
+            _db.CartItems.Add(new CartItem { CartId = cart.Id, ProductId = productId, Quantity = quantity });
         }
         else
         {
-            item.Quantity = Math.Min(item.Quantity + quantity, product.Stock);
+            item.Quantity += quantity;
         }
 
+        Touch(cart);
         await _db.SaveChangesAsync();
     }
 
@@ -77,6 +95,7 @@ public class CartService : ICartService
             item.Quantity = Math.Min(quantity, item.Product?.Stock ?? quantity);
         }
 
+        Touch(cart);
         await _db.SaveChangesAsync();
     }
 
@@ -87,6 +106,7 @@ public class CartService : ICartService
         if (item is not null)
         {
             _db.CartItems.Remove(item);
+            Touch(cart);
             await _db.SaveChangesAsync();
         }
     }
@@ -100,6 +120,7 @@ public class CartService : ICartService
         }
 
         _db.CartItems.RemoveRange(cart.Items);
+        Touch(cart);
         await _db.SaveChangesAsync();
     }
 
@@ -121,6 +142,7 @@ public class CartService : ICartService
                 {
                     sessionCart.UserId = userId;
                     sessionCart.SessionId = null;
+                    Touch(sessionCart);
                     await _db.SaveChangesAsync();
                     return sessionCart;
                 }
@@ -139,6 +161,7 @@ public class CartService : ICartService
                 }
 
                 _db.Carts.Remove(sessionCart);
+                Touch(userCart);
                 await _db.SaveChangesAsync();
                 return userCart;
             }
@@ -161,5 +184,10 @@ public class CartService : ICartService
         return string.IsNullOrWhiteSpace(userId)
             ? _db.Carts.Where(cart => cart.SessionId == sessionId)
             : _db.Carts.Where(cart => cart.UserId == userId);
+    }
+
+    private static void Touch(Cart cart)
+    {
+        cart.UpdatedAt = DateTime.UtcNow;
     }
 }

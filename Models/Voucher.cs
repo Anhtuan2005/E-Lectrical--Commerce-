@@ -16,6 +16,12 @@ public class Voucher
     public DateTime EndDate { get; set; }
     public bool IsActive { get; set; } = true;
 
+    public int? CustomerSegmentId { get; set; }
+    public CustomerSegment? CustomerSegment { get; set; }
+
+    public string? TargetUserId { get; set; }
+    public ApplicationUser? TargetUser { get; set; }
+
     public ICollection<VoucherUsage> Usages { get; set; } = new List<VoucherUsage>();
 }
 

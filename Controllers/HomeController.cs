@@ -30,6 +30,7 @@ public class HomeController : Controller
             FeaturedProducts = await _productService.GetFeaturedProductsAsync(8),
             FlashSaleProducts = await _db.Products
                 .Include(product => product.Category)
+                .Include(product => product.Images)
                 .Where(product => product.DiscountPercent > 0 && product.Stock > 0)
                 .OrderByDescending(product => product.DiscountPercent)
                 .ThenBy(product => product.Price)
@@ -50,5 +51,17 @@ public class HomeController : Controller
     public IActionResult Error()
     {
         return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+    }
+
+    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+    public IActionResult Status(int code)
+    {
+        Response.StatusCode = code;
+        ViewData["StatusCode"] = code;
+        ViewData["StatusTitle"] = code == 404 ? "Không tìm thấy trang" : "Có lỗi xảy ra";
+        ViewData["StatusMessage"] = code == 404
+            ? "Trang bạn đang mở có thể đã được di chuyển hoặc không còn tồn tại."
+            : "Techvora chưa thể xử lý yêu cầu này. Bạn quay lại trang chủ hoặc thử lại sau một chút.";
+        return View("Status");
     }
 }

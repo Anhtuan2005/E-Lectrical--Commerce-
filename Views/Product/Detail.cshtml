@@ -8,7 +8,7 @@
     var stockText = product.Stock == 0 ? "Hết hàng" : $"Còn {product.Stock} sản phẩm";
     var rawGallery = product.Images.Any()
         ? product.Images.OrderBy(image => image.SortOrder).Select(image => image.ImageUrl).ToList()
-        : new List<string> { product.ImageUrl };
+        : new List<string> { product.PrimaryImageUrl };
     var gallery = rawGallery.Where(url => !string.IsNullOrWhiteSpace(url)).ToList();
     if (!gallery.Any())
     {
@@ -24,6 +24,7 @@
     var isFlashSale = product.DiscountPercent > 0 && product.Stock > 0;
     var reviewPhotoCount = Model.Reviews.Sum(review => review.Images.Count);
     var stockDisabled = product.Stock == 0 ? "true" : "false";
+    var isAdminViewer = User.IsInRole("Admin");
     var brandSpec = Model.TechnicalSpecs.FirstOrDefault(spec => spec.Label == "Hãng sản xuất")?.Value ?? "Techvora Select";
     var warrantySpec = Model.TechnicalSpecs.FirstOrDefault(spec => spec.Label == "Bảo hành")?.Value ?? "12 tháng";
 }
@@ -216,6 +217,10 @@
                         <button class="btn-primary" type="submit">Gửi đánh giá</button>
                     </form>
                 }
+                else if (isAdminViewer)
+                {
+                    <p class="review-note">Tài khoản admin chỉ xem và kiểm duyệt, không gửi đánh giá sản phẩm.</p>
+                }
                 else if (!Model.IsAuthenticated)
                 {
                     <p class="review-note"><a asp-controller="Account" asp-action="Login">Đăng nhập</a> để đánh giá sau khi mua sản phẩm.</p>
@@ -281,14 +286,17 @@
             </div>
         }
         <h2>Chi tiết đơn hàng</h2>
-        <div class="pdp-order-qty">
-            <strong>Số lượng</strong>
-            <div class="qty-selector quantity-stepper">
-                <button type="button" id="qtyMinus" data-qty-minus>−</button>
-                <input id="qtyInput" type="number" value="1" min="1" max="@Math.Max(product.Stock, 1)" />
-                <button type="button" id="qtyPlus" data-qty-plus>+</button>
+        @if (!isAdminViewer)
+        {
+            <div class="pdp-order-qty">
+                <strong>Số lượng</strong>
+                <div class="qty-selector quantity-stepper">
+                    <button type="button" id="qtyMinus" data-qty-minus>−</button>
+                    <input id="qtyInput" type="number" value="1" min="1" max="@Math.Max(product.Stock, 1)" />
+                    <button type="button" id="qtyPlus" data-qty-plus>+</button>
+                </div>
             </div>
-        </div>
+        }
         <div class="pdp-order-lines">
             <div><span>Mã sản phẩm</span><strong>@productCode</strong></div>
             <div><span>Danh mục</span><strong>@product.Category?.Name</strong></div>
@@ -300,7 +308,14 @@
             }
             <div><span>Vận chuyển</span><strong>Miễn phí</strong></div>
         </div>
-        @if (Model.IsAuthenticated)
+        @if (isAdminViewer)
+        {
+            <div class="pdp-admin-note">
+                <strong>Chế độ xem admin</strong>
+                <span>Admin chỉ kiểm tra thông tin sản phẩm, không thêm giỏ, không mua hàng và không đánh giá.</span>
+            </div>
+        }
+        else if (Model.IsAuthenticated)
         {
             <div class="pdp-coupon-box">
                 <label for="pdpCouponInput">Mã giảm giá</label>
@@ -319,11 +334,14 @@
                 <small>Mã giảm giá được kiểm tra và áp dụng khi checkout.</small>
             </div>
         }
-        <div class="pdp-subtotal"><span>Tạm tính</span><strong id="pdpSubtotal">@product.SalePrice.ToString("N0") ₫</strong></div>
-        <button class="btn-primary pdp-buy" type="button" id="btnAddCart" data-detail-add-cart data-product-id="@product.Id" data-stock-disabled="@stockDisabled" @(product.Stock == 0 ? "disabled" : "")>
-            @(product.Stock == 0 ? "Hết hàng" : "Thêm vào giỏ")
-        </button>
-        <button class="btn-ghost pdp-checkout" type="button" id="btnBuyNow" data-detail-buy-now data-product-id="@product.Id" data-stock-disabled="@stockDisabled" @(product.Stock == 0 ? "disabled" : "")>Mua ngay</button>
+        @if (!isAdminViewer)
+        {
+            <div class="pdp-subtotal"><span>Tạm tính</span><strong id="pdpSubtotal">@product.SalePrice.ToString("N0") ₫</strong></div>
+            <button class="btn-primary pdp-buy" type="button" id="btnAddCart" data-detail-add-cart data-product-id="@product.Id" data-stock-disabled="@stockDisabled" @(product.Stock == 0 ? "disabled" : "")>
+                @(product.Stock == 0 ? "Hết hàng" : "Thêm vào giỏ")
+            </button>
+            <button class="btn-ghost pdp-checkout" type="button" id="btnBuyNow" data-detail-buy-now data-product-id="@product.Id" data-stock-disabled="@stockDisabled" @(product.Stock == 0 ? "disabled" : "")>Mua ngay</button>
+        }
     </aside>
 </section>
 

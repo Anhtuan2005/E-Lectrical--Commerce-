@@ -4,10 +4,12 @@ using EcommerceApp.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using System.Globalization;
+using System.IO.Compression;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -43,6 +45,8 @@ builder.Services
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
 
+builder.Services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, MinimalUserClaimsPrincipalFactory>();
+
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = "/Account/Login";
@@ -56,6 +60,22 @@ builder.Services.AddSession(options =>
     options.IdleTimeout = TimeSpan.FromDays(7);
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
+});
+
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[]
+    {
+        "text/css",
+        "application/javascript",
+        "text/javascript",
+        "application/json"
+    });
+});
+builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
 });
 
 builder.Services.AddRateLimiter(options =>
@@ -106,15 +126,26 @@ builder.Services.AddRateLimiter(options =>
 });
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
 builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IProductSpecService, ProductSpecService>();
 builder.Services.AddScoped<ICartService, CartService>();
+builder.Services.AddScoped<ICrossSellService, CrossSellService>();
+builder.Services.AddScoped<ICustomerSegmentService, CustomerSegmentService>();
+builder.Services.AddScoped<IAbandonedCartRecoveryService, AbandonedCartRecoveryService>();
+builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
+builder.Services.AddScoped<IReturnWarrantyRequestService, ReturnWarrantyRequestService>();
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+builder.Services.AddScoped<IOrderEmailService, OrderEmailService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IShippingService, ShippingService>();
+builder.Services.AddScoped<IShippingFeeService, ShippingFeeService>();
 builder.Services.AddScoped<IVnpayService, VnpayService>();
 builder.Services.AddHttpClient<IAiChatService, GeminiChatService>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(35);
 });
+builder.Services.AddHostedService<AbandonedCartRecoveryHostedService>();
 
 builder.Services.AddControllersWithViews();
 
@@ -128,15 +159,24 @@ try
         app.UseHsts();
     }
 
+    app.UseResponseCompression();
     app.UseSerilogRequestLogging();
     app.UseHttpsRedirection();
+    app.UseStatusCodePagesWithReExecute("/Home/Status", "?code={0}");
     var staticFileContentTypes = new FileExtensionContentTypeProvider();
     staticFileContentTypes.Mappings[".glb"] = "model/gltf-binary";
     staticFileContentTypes.Mappings[".gltf"] = "model/gltf+json";
     staticFileContentTypes.Mappings[".bin"] = "application/octet-stream";
     app.UseStaticFiles(new StaticFileOptions
     {
-        ContentTypeProvider = staticFileContentTypes
+        ContentTypeProvider = staticFileContentTypes,
+        OnPrepareResponse = context =>
+        {
+            var headers = context.Context.Response.Headers;
+            headers.CacheControl = app.Environment.IsDevelopment()
+                ? "no-cache"
+                : "public,max-age=31536000,immutable";
+        }
     });
 
     app.UseRouting();

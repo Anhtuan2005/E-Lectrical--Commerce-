@@ -1,0 +1,66 @@
+@model NotificationIndexViewModel
+@{
+    ViewData["Title"] = "Thông báo";
+}
+
+<section class="notification-page">
+    <header class="support-hero support-hero-compact">
+        <div>
+            <span class="eyebrow">Tài khoản</span>
+            <h1>Thông báo</h1>
+            <p>@Model.UnreadCount thông báo chưa đọc.</p>
+        </div>
+        @if (Model.UnreadCount > 0)
+        {
+            <form asp-action="MarkAllRead" method="post">
+                @Html.AntiForgeryToken()
+                <button class="btn-ghost" type="submit">
+                    <i data-lucide="check-check" aria-hidden="true"></i>
+                    Đánh dấu đã đọc
+                </button>
+            </form>
+        }
+    </header>
+
+    @if (!Model.Notifications.Any())
+    {
+        <div class="orders-empty">
+            <div class="orders-empty-icon"><i data-lucide="bell" aria-hidden="true"></i></div>
+            <h2>Chưa có thông báo</h2>
+            <p>Cập nhật về đơn hàng, vận chuyển, hoàn tiền và bảo hành sẽ hiển thị tại đây.</p>
+        </div>
+    }
+    else
+    {
+        <div class="notification-list">
+            @foreach (var notification in Model.Notifications)
+            {
+                <a class="notification-row @(notification.IsRead ? "is-read" : "is-unread")" asp-action="Go" asp-route-id="@notification.Id">
+                    <span class="notification-icon @notification.Type">
+                        <i data-lucide="@Icon(notification.Type)" aria-hidden="true"></i>
+                    </span>
+                    <div>
+                        <strong>@notification.Title</strong>
+                        <p>@notification.Message</p>
+                        <small>@notification.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                    </div>
+                    @if (!notification.IsRead)
+                    {
+                        <em>mới</em>
+                    }
+                </a>
+            }
+        </div>
+    }
+</section>
+
+@functions {
+    private static string Icon(string type)
+    {
+        if (type == NotificationTypes.Order) return "package-check";
+        if (type == NotificationTypes.Support) return "shield-check";
+        if (type == NotificationTypes.Voucher) return "ticket-percent";
+        if (type == NotificationTypes.Wishlist) return "heart";
+        return "bell";
+    }
+}

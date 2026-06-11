@@ -1,0 +1,61 @@
+@model CustomerSegmentDetailViewModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = Model.Segment.Name;
+}
+
+<section class="admin-panel">
+    <div class="panel-head">
+        <div>
+            <h2>@Model.Segment.Name</h2>
+            <p>@Model.Segment.Description</p>
+        </div>
+        <a class="admin-button secondary" href="/Admin/CustomerSegment"><i class="bi bi-arrow-left"></i> Quay lại</a>
+    </div>
+
+    <div class="detail-list">
+        <span>Điều kiện</span>
+        <strong>@Model.Segment.RuleDescription</strong>
+        <span>Hành động đề xuất</span>
+        <strong>@Model.Segment.RecommendedAction</strong>
+        <span>Số khách</span>
+        <strong>@Model.Segment.MemberCount</strong>
+    </div>
+
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Khách hàng</th>
+                <th>Email</th>
+                <th>Đơn mua</th>
+                <th>Tổng chi tiêu</th>
+                <th>Lần mua gần nhất</th>
+                <th>Cập nhật</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (!Model.Members.Any())
+            {
+                <tr>
+                    <td colspan="6">
+                        <div class="empty-state">Chưa có khách trong nhóm này.</div>
+                    </td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var member in Model.Members)
+                {
+                    <tr>
+                        <td><strong>@(string.IsNullOrWhiteSpace(member.FullName) ? "Khách hàng" : member.FullName)</strong></td>
+                        <td>@member.Email</td>
+                        <td>@member.TotalOrders</td>
+                        <td>@member.TotalSpent.ToString("N0") ₫</td>
+                        <td>@((member.LastOrderAt?.ToLocalTime().ToString("dd/MM/yyyy")) ?? "Chưa có")</td>
+                        <td>@member.UpdatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</section>

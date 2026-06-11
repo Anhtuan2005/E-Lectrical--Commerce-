@@ -1,0 +1,93 @@
+@model ReturnWarrantyRequest
+@{
+    ViewData["Title"] = $"{Model.Type} #{Model.Id}";
+}
+
+<section class="support-page">
+    <header class="support-hero support-hero-compact">
+        <div>
+            <a class="orders-back" asp-action="Index">
+                <i data-lucide="arrow-left" aria-hidden="true"></i>
+                Đổi trả và bảo hành
+            </a>
+            <h1>@Model.Type #@Model.Id</h1>
+            <p>Đơn #DH@(Model.OrderId.ToString("D4")) · Gửi lúc @Model.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
+        </div>
+        <span class="support-status-large">@Model.Status</span>
+    </header>
+
+    <div class="support-detail-grid">
+        <main class="order-panel">
+            <div class="panel-title">
+                <h2>Sản phẩm yêu cầu</h2>
+                <span>@Model.Items.Sum(item => item.Quantity) sản phẩm</span>
+            </div>
+            <div class="order-detail-items">
+                @foreach (var item in Model.Items)
+                {
+                    <article class="order-detail-item">
+                        @if (!string.IsNullOrWhiteSpace(item.OrderItem?.Product?.PrimaryImageUrl))
+                        {
+                            <img src="@item.OrderItem.Product.PrimaryImageUrl" alt="@item.ProductNameSnapshot" />
+                        }
+                        else
+                        {
+                            <div class="order-item-fallback"><i data-lucide="cpu" aria-hidden="true"></i></div>
+                        }
+                        <div>
+                            <h3>@item.ProductNameSnapshot</h3>
+                            <span>Số lượng yêu cầu: @item.Quantity</span>
+                        </div>
+                    </article>
+                }
+            </div>
+
+            <div class="support-note-block">
+                <h2>Lý do và mô tả</h2>
+                <dl class="order-info-list">
+                    <div><dt>Lý do</dt><dd>@Model.Reason</dd></div>
+                    <div><dt>Phương án mong muốn</dt><dd>@Model.PreferredResolution</dd></div>
+                    <div><dt>Mô tả</dt><dd>@Model.Description</dd></div>
+                </dl>
+            </div>
+
+            @if (Model.Images.Any())
+            {
+                <div class="support-note-block">
+                    <h2>Ảnh minh chứng</h2>
+                    <div class="support-image-grid">
+                        @foreach (var image in Model.Images.OrderBy(image => image.SortOrder))
+                        {
+                            <a href="@image.ImageUrl" target="_blank" rel="noopener">
+                                <img src="@image.ImageUrl" alt="Ảnh minh chứng yêu cầu #@Model.Id" />
+                            </a>
+                        }
+                    </div>
+                </div>
+            }
+        </main>
+
+        <aside class="order-panel">
+            <h2>Trạng thái xử lý</h2>
+            <dl class="order-info-list">
+                <div><dt>Trạng thái</dt><dd>@Model.Status</dd></div>
+                <div><dt>Người liên hệ</dt><dd>@Model.ContactName</dd></div>
+                <div><dt>Số điện thoại</dt><dd>@Model.ContactPhone</dd></div>
+                <div><dt>Cập nhật</dt><dd>@Model.UpdatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd></div>
+                @if (Model.ReviewedAt.HasValue)
+                {
+                    <div><dt>Đã xem xét</dt><dd>@Model.ReviewedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd></div>
+                }
+                @if (Model.CompletedAt.HasValue)
+                {
+                    <div><dt>Hoàn tất</dt><dd>@Model.CompletedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd></div>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.AdminNote))
+                {
+                    <div><dt>Phản hồi Techvora</dt><dd>@Model.AdminNote</dd></div>
+                }
+            </dl>
+            <a class="btn-ghost support-action" asp-controller="Order" asp-action="Detail" asp-route-id="@Model.OrderId">Xem đơn hàng</a>
+        </aside>
+    </div>
+</section>

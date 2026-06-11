@@ -2,9 +2,12 @@
 @{
     ViewData["Title"] = $"Đơn hàng #DH{Model.Id:D4}";
     var subtotal = Model.Items.Sum(item => item.Quantity * item.UnitPrice);
-    var shippingFee = 0m;
+    var shippingFee = Model.ShippingFee;
     var discount = Model.DiscountAmount;
     var currentStep = OrderStatusFilters.StepIndex(Model.Status);
+    var isAdminViewer = User.IsInRole("Admin");
+    var latestRequest = Model.ReturnWarrantyRequests.OrderByDescending(request => request.CreatedAt).FirstOrDefault();
+    var canCreateSupportRequest = !isAdminViewer && Model.Status == OrderStatuses.Delivered;
 }
 
 <section class="order-detail-page">
@@ -30,7 +33,7 @@
                     <div class="cancelled-timeline">
                         <i data-lucide="circle-x" aria-hidden="true"></i>
                         <div>
-                            <strong>Đơn hàng đã hủy</strong>
+                            <strong>Đơn hàng đã huỷ</strong>
                             <span>@(string.IsNullOrWhiteSpace(Model.CancelledReason) ? "Đơn hàng không còn được xử lý." : Model.CancelledReason)</span>
                         </div>
                     </div>
@@ -62,9 +65,9 @@
                     @foreach (var item in Model.Items)
                     {
                         <article class="order-detail-item">
-                            @if (!string.IsNullOrWhiteSpace(item.Product?.ImageUrl))
+                            @if (!string.IsNullOrWhiteSpace(item.Product?.PrimaryImageUrl))
                             {
-                                <img src="@item.Product.ImageUrl" alt="@item.Product.Name" />
+                                <img src="@item.Product.PrimaryImageUrl" alt="@item.Product.Name" />
                             }
                             else
                             {
@@ -118,6 +121,31 @@
             </section>
 
             <section class="order-panel">
+                <h2>Hỗ trợ sau mua</h2>
+                @if (latestRequest is not null)
+                {
+                    <div class="support-summary">
+                        <span class="support-pill">@latestRequest.Status</span>
+                        <strong>@latestRequest.Type #@latestRequest.Id</strong>
+                        <small>Gửi lúc @latestRequest.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                        <a asp-controller="ReturnWarranty" asp-action="Details" asp-route-id="@latestRequest.Id">Xem yêu cầu</a>
+                    </div>
+                }
+                else if (canCreateSupportRequest)
+                {
+                    <p class="support-copy">Đơn đã giao. Bạn có thể gửi yêu cầu đổi trả hoặc bảo hành cho từng sản phẩm trong đơn.</p>
+                    <a class="btn-ghost support-action" asp-controller="ReturnWarranty" asp-action="Create" asp-route-orderId="@Model.Id">
+                        <i data-lucide="shield-check" aria-hidden="true"></i>
+                        Yêu cầu đổi trả / bảo hành
+                    </a>
+                }
+                else
+                {
+                    <p class="support-copy">Yêu cầu đổi trả hoặc bảo hành sẽ mở sau khi đơn hàng giao thành công.</p>
+                }
+            </section>
+
+            <section class="order-panel">
                 <h2>Tổng kết</h2>
                 <dl class="order-price-list">
                     <div><dt>Tạm tính</dt><dd>@subtotal.ToString("N0") đ</dd></div>
@@ -130,12 +158,22 @@
                 </dl>
 
                 <div class="order-detail-actions">
-                    <form asp-action="Reorder" method="post">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="id" value="@Model.Id" />
-                        <button class="btn-primary" type="submit">Mua lại</button>
-                    </form>
-                    @if (string.Equals(Model.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase) && !Model.IsPaid && Model.Status == OrderStatuses.Pending)
+                    @if (isAdminViewer)
+                    {
+                        <div class="admin-view-note">
+                            <strong>Chế độ xem admin</strong>
+                            <span>Admin chỉ kiểm tra đơn, không mua lại hoặc thanh toán.</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <form asp-action="Reorder" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@Model.Id" />
+                            <button class="btn-primary" type="submit">Mua lại</button>
+                        </form>
+                    }
+                    @if (!isAdminViewer && string.Equals(Model.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase) && !Model.IsPaid && Model.Status == OrderStatuses.Pending)
                     {
                         <form asp-controller="Payment" asp-action="VnpayCreate" method="post">
                             @Html.AntiForgeryToken()
@@ -148,7 +186,7 @@
                         <form asp-action="Cancel" method="post">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="id" value="@Model.Id" />
-                            <button class="btn-ghost danger" type="submit" onclick="return confirm('Hủy đơn hàng #DH@(Model.Id.ToString("D4"))?')">Hủy đơn</button>
+                            <button class="btn-ghost danger" type="submit" onclick="return confirm('Huỷ đơn hàng #DH@(Model.Id.ToString("D4"))?')">Huỷ đơn</button>
                         </form>
                     }
                 </div>

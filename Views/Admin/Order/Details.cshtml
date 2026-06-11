@@ -15,10 +15,24 @@
             <dt>Người nhận</dt><dd>@Model.RecipientName - @Model.RecipientPhone</dd>
             <dt>Địa chỉ</dt><dd>@Model.ShippingAddress</dd>
             <dt>Thanh toán</dt><dd>@Model.PaymentMethod</dd>
+            <dt>Hoàn tiền</dt><dd><span class="admin-pill @(Model.RefundStatus == RefundStatuses.PendingManual ? "warning" : Model.RefundStatus == RefundStatuses.Refunded ? "success" : "")">@Model.RefundStatus</span></dd>
+            @if (Model.RefundRequestedAt.HasValue)
+            {
+                <dt>Yêu cầu hoàn</dt><dd>@Model.RefundRequestedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd>
+            }
+            @if (Model.RefundedAt.HasValue)
+            {
+                <dt>Đã hoàn lúc</dt><dd>@Model.RefundedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.RefundNote))
+            {
+                <dt>Ghi chú hoàn tiền</dt><dd>@Model.RefundNote</dd>
+            }
             @if (!string.IsNullOrWhiteSpace(Model.VoucherCode) || Model.DiscountAmount > 0)
             {
                 <dt>Mã giảm giá</dt><dd>@(string.IsNullOrWhiteSpace(Model.VoucherCode) ? "Không có" : Model.VoucherCode) (-@Model.DiscountAmount.ToString("N0") ₫)</dd>
             }
+            <dt>Phí vận chuyển</dt><dd>@Model.ShippingFee.ToString("N0") ₫</dd>
             <dt>Tổng tiền</dt><dd>@Model.TotalAmount.ToString("N0") ₫</dd>
         </dl>
         <form asp-action="UpdateStatus" method="post" class="inline-form">
@@ -31,6 +45,15 @@
             </select>
             <button class="admin-button" type="submit">Cập nhật trạng thái</button>
         </form>
+        @if (Model.RefundStatus == RefundStatuses.PendingManual)
+        {
+            <form asp-action="MarkRefunded" method="post" class="stack-form">
+                <input type="hidden" name="id" value="@Model.Id" />
+                <label>Ghi chú hoàn tiền thủ công</label>
+                <textarea name="note" rows="3" placeholder="VD: Đã hoàn qua VNPAY/manual banking, mã đối soát...">@Model.RefundNote</textarea>
+                <button class="admin-button" type="submit">Đánh dấu đã hoàn tiền</button>
+            </form>
+        }
     </div>
     <div class="admin-panel">
         <div class="panel-head">

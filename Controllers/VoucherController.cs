@@ -14,15 +14,18 @@ public class VoucherController : Controller
 {
     private readonly AppDbContext _db;
     private readonly ICartService _cartService;
+    private readonly ICustomerSegmentService _customerSegmentService;
 
-    public VoucherController(AppDbContext db, ICartService cartService)
+    public VoucherController(AppDbContext db, ICartService cartService, ICustomerSegmentService customerSegmentService)
     {
         _db = db;
         _cartService = cartService;
+        _customerSegmentService = customerSegmentService;
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [EnableRateLimiting("voucher")]
     public Task<IActionResult> Apply(string code)
     {
         return Validate(code);
@@ -57,6 +60,17 @@ public class VoucherController : Controller
         if (!string.IsNullOrWhiteSpace(userId) && await _db.VoucherUsages.AnyAsync(usage => usage.VoucherId == voucher.Id && usage.UserId == userId))
         {
             return Json(new { valid = false, discountAmount = 0, discountLabel = "", newTotal = subtotal, message = "Bạn đã sử dụng mã giảm giá này." });
+        }
+
+        if (!string.IsNullOrWhiteSpace(voucher.TargetUserId) && voucher.TargetUserId != userId)
+        {
+            return Json(new { valid = false, discountAmount = 0, discountLabel = "", newTotal = subtotal, message = "Mã giảm giá này chỉ áp dụng cho tài khoản được tặng." });
+        }
+
+        if (voucher.CustomerSegmentId.HasValue &&
+            (string.IsNullOrWhiteSpace(userId) || !await _customerSegmentService.UserBelongsToSegmentAsync(userId, voucher.CustomerSegmentId.Value)))
+        {
+            return Json(new { valid = false, discountAmount = 0, discountLabel = "", newTotal = subtotal, message = "Mã giảm giá này chỉ áp dụng cho nhóm khách hàng phù hợp." });
         }
 
         if (subtotal < voucher.MinOrderAmount)

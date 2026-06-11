@@ -1,0 +1,94 @@
+@model ReturnWarrantyRequest
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = $"{Model.Type} #{Model.Id}";
+}
+
+<section class="admin-grid">
+    <div class="admin-panel">
+        <div class="panel-head">
+            <div>
+                <h2>Thông tin yêu cầu</h2>
+                <p>Đơn #DH@(Model.OrderId.ToString("D4")) · gửi lúc @Model.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
+            </div>
+            <span class="admin-pill @StatusClass(Model.Status)">@Model.Status</span>
+        </div>
+        <dl class="detail-list">
+            <dt>Khách hàng</dt><dd>@Model.User?.FullName (@Model.User?.Email)</dd>
+            <dt>Liên hệ</dt><dd>@Model.ContactName - @Model.ContactPhone</dd>
+            <dt>Loại yêu cầu</dt><dd>@Model.Type</dd>
+            <dt>Lý do</dt><dd>@Model.Reason</dd>
+            <dt>Phương án mong muốn</dt><dd>@Model.PreferredResolution</dd>
+            <dt>Mô tả</dt><dd>@Model.Description</dd>
+            @if (!string.IsNullOrWhiteSpace(Model.AdminNote))
+            {
+                <dt>Ghi chú hiện tại</dt><dd>@Model.AdminNote</dd>
+            }
+        </dl>
+        <div class="admin-support-actions">
+            <a class="admin-button secondary" href="/Admin/Order/@Model.OrderId">Xem đơn hàng</a>
+        </div>
+    </div>
+
+    <div class="admin-panel">
+        <div class="panel-head">
+            <h2>Cập nhật xử lý</h2>
+        </div>
+        <form asp-action="UpdateStatus" method="post" class="stack-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.Id" />
+            <label>Trạng thái</label>
+            <select name="status">
+                @foreach (var status in ReturnWarrantyRequestStatuses.All)
+                {
+                    <option value="@status" selected="@(Model.Status == status)">@status</option>
+                }
+            </select>
+            <label>Ghi chú gửi cho khách</label>
+            <textarea name="adminNote" rows="5" placeholder="VD: Techvora đã tiếp nhận, vui lòng gửi thêm ảnh số serial...">@Model.AdminNote</textarea>
+            <button class="admin-button" type="submit">Lưu trạng thái</button>
+        </form>
+    </div>
+</section>
+
+<section class="admin-panel">
+    <div class="panel-head"><h2>Sản phẩm trong yêu cầu</h2></div>
+    <table class="admin-table">
+        <thead><tr><th>Sản phẩm</th><th>Số lượng</th><th>Đơn hàng</th></tr></thead>
+        <tbody>
+            @foreach (var item in Model.Items)
+            {
+                <tr>
+                    <td>@item.ProductNameSnapshot</td>
+                    <td>@item.Quantity</td>
+                    <td>#DH@(Model.OrderId.ToString("D4"))</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</section>
+
+@if (Model.Images.Any())
+{
+    <section class="admin-panel">
+        <div class="panel-head"><h2>Ảnh minh chứng</h2></div>
+        <div class="admin-support-images">
+            @foreach (var image in Model.Images.OrderBy(image => image.SortOrder))
+            {
+                <a href="@image.ImageUrl" target="_blank" rel="noopener">
+                    <img src="@image.ImageUrl" alt="Ảnh minh chứng yêu cầu #@Model.Id" />
+                </a>
+            }
+        </div>
+    </section>
+}
+
+@functions {
+    private static string StatusClass(string status)
+    {
+        if (status == ReturnWarrantyRequestStatuses.Submitted) return "warning";
+        if (status == ReturnWarrantyRequestStatuses.Approved || status == ReturnWarrantyRequestStatuses.Completed) return "success";
+        if (status == ReturnWarrantyRequestStatuses.Rejected) return "danger";
+        return "";
+    }
+}

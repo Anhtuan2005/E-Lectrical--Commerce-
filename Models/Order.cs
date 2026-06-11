@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EcommerceApp.Models;
 
@@ -16,8 +17,8 @@ public class Order
     [Range(0, double.MaxValue)]
     public decimal TotalAmount { get; set; }
 
-    [StringLength(30)]
-    public string? VoucherCode { get; set; }
+    [Range(0, double.MaxValue)]
+    public decimal ShippingFee { get; set; }
 
     [Range(0, double.MaxValue)]
     public decimal DiscountAmount { get; set; }
@@ -46,11 +47,25 @@ public class Order
     public bool IsPaid { get; set; }
     public DateTime? PaidAt { get; set; }
 
+    [Required, StringLength(40)]
+    public string RefundStatus { get; set; } = RefundStatuses.NotRequired;
+
+    public DateTime? RefundRequestedAt { get; set; }
+    public DateTime? RefundedAt { get; set; }
+
+    [StringLength(500)]
+    public string? RefundNote { get; set; }
+
     [StringLength(500)]
     public string? CancelledReason { get; set; }
 
     public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
+    public ICollection<ReturnWarrantyRequest> ReturnWarrantyRequests { get; set; } = new List<ReturnWarrantyRequest>();
     public ShippingInfo? ShippingInfo { get; set; }
+    public VoucherUsage? VoucherUsage { get; set; }
+
+    [NotMapped]
+    public string? VoucherCode => VoucherUsage?.Voucher?.Code;
 }
 
 public static class OrderStatuses
@@ -62,4 +77,13 @@ public static class OrderStatuses
     public const string Cancelled = "Huỷ";
 
     public static readonly string[] All = { Pending, Confirmed, Shipping, Delivered, Cancelled };
+}
+
+public static class RefundStatuses
+{
+    public const string NotRequired = "Không cần hoàn tiền";
+    public const string PendingManual = "Cần hoàn tiền thủ công";
+    public const string Refunded = "Đã hoàn tiền";
+
+    public static readonly string[] All = { NotRequired, PendingManual, Refunded };
 }

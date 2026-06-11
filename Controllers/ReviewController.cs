@@ -36,6 +36,11 @@ public class ReviewController : Controller
     [EnableRateLimiting("review")]
     public async Task<IActionResult> Submit(int productId, [Range(1, 5)] int rating, [Required, MinLength(10), MaxLength(1000)] string comment, List<IFormFile>? images)
     {
+        if (User.IsInRole("Admin"))
+        {
+            return Json(new { success = false, message = "Tài khoản admin chỉ được xem và kiểm duyệt, không thể đánh giá sản phẩm." });
+        }
+
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var canReview = await _db.Orders.AnyAsync(order => order.UserId == userId && order.Status == OrderStatuses.Delivered && order.Items.Any(item => item.ProductId == productId));
         if (!canReview)

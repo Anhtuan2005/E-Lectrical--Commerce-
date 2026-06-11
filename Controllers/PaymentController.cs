@@ -1,9 +1,11 @@
 using EcommerceApp.Data;
 using EcommerceApp.Models;
+using EcommerceApp.Models.ViewModels;
 using EcommerceApp.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 using System.Security.Claims;
 
 namespace EcommerceApp.Controllers;
@@ -13,12 +15,18 @@ public class PaymentController : Controller
 {
     private readonly AppDbContext _db;
     private readonly IVnpayService _vnpayService;
+    private readonly IOrderEmailService _orderEmailService;
+    private readonly IUserNotificationService _notificationService;
+    private readonly ICustomerSegmentService _customerSegmentService;
     private readonly ILogger<PaymentController> _logger;
 
-    public PaymentController(AppDbContext db, IVnpayService vnpayService, ILogger<PaymentController> logger)
+    public PaymentController(AppDbContext db, IVnpayService vnpayService, IOrderEmailService orderEmailService, IUserNotificationService notificationService, ICustomerSegmentService customerSegmentService, ILogger<PaymentController> logger)
     {
         _db = db;
         _vnpayService = vnpayService;
+        _orderEmailService = orderEmailService;
+        _notificationService = notificationService;
+        _customerSegmentService = customerSegmentService;
         _logger = logger;
     }
 
@@ -27,6 +35,12 @@ public class PaymentController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> VnpayCreate(int orderId)
     {
+        if (User.IsInRole("Admin"))
+        {
+            TempData["Error"] = "Tài khoản admin chỉ được xem và kiểm tra, không thể thanh toán đơn hàng.";
+            return RedirectToAction("Detail", "Order", new { id = orderId });
+        }
+
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var order = await _db.Orders.FirstOrDefaultAsync(row => row.Id == orderId && row.UserId == userId);
         if (order is null)
@@ -107,12 +121,17 @@ public class PaymentController : Controller
             return Json(new { RspCode = "04", Message = "Invalid amount" });
         }
 
+        if (order.IsPaid && response.IsSuccess)
+        {
+            return Json(new { RspCode = "00", Message = "Order already confirmed" });
+        }
+
         if (order.IsPaid || order.Status != OrderStatuses.Pending)
         {
             return Json(new { RspCode = "02", Message = "Order already confirmed" });
         }
 
-        await UpdateOrderPaymentAsync(response, order);
+        await UpdateOrderPaymentAsync(response);
         return Json(new { RspCode = "00", Message = "Confirm Success" });
     }
 
@@ -128,7 +147,10 @@ public class PaymentController : Controller
             return null;
         }
 
-        var order = await _db.Orders.FirstOrDefaultAsync(row => row.Id == id);
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        var order = await _db.Orders
+            .FromSqlInterpolated($"SELECT * FROM Orders WITH (UPDLOCK, ROWLOCK) WHERE Id = {id}")
+            .FirstOrDefaultAsync();
         if (order is null)
         {
             return null;
@@ -139,12 +161,39 @@ public class PaymentController : Controller
             return null;
         }
 
-        await UpdateOrderPaymentAsync(response, order);
+        var shouldSendStatusEmail = ApplyPaymentResponse(response, order);
+        await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        if (response.IsSuccess)
+        {
+            await _customerSegmentService.RefreshUserAsync(order.UserId);
+        }
+
+        if (shouldSendStatusEmail)
+        {
+            await _orderEmailService.SendOrderStatusChangedAsync(order.Id, order.Status);
+            await _notificationService.CreateAsync(
+                order.UserId,
+                "Thanh toán VNPAY thành công",
+                $"Đơn #DH{order.Id:D4} đã thanh toán và chuyển sang trạng thái {OrderStatusFilters.ToDisplayLabel(order.Status)}.",
+                NotificationTypes.Order,
+                $"/Order/Detail/{order.Id}");
+        }
+
         return order;
     }
 
-    private async Task UpdateOrderPaymentAsync(VnpayResponse response, Order order)
+    private static bool ApplyPaymentResponse(VnpayResponse response, Order order)
     {
+        var wasPaid = order.IsPaid;
+        var oldStatus = order.Status;
+
+        if (order.IsPaid)
+        {
+            return false;
+        }
+
         order.VnpayTransactionId = response.TransactionId;
         order.VnpayResponseCode = response.ResponseCode;
         if (response.IsSuccess)
@@ -158,6 +207,6 @@ public class PaymentController : Controller
         }
 
         order.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
+        return !wasPaid && response.IsSuccess && oldStatus != order.Status;
     }
 }

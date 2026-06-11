@@ -20,36 +20,61 @@ public class CartController : Controller
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Add(int productId, int quantity = 1)
     {
+        if (User.IsInRole("Admin"))
+        {
+            return await CartJson("Tài khoản admin chỉ được xem và kiểm tra, không thể mua hàng.", false);
+        }
+
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        await _cartService.AddAsync(productId, quantity, userId, GetStableCartSessionId(userId));
+        try
+        {
+            await _cartService.AddAsync(productId, quantity, userId, GetStableCartSessionId(userId));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return await CartJson(ex.Message, false);
+        }
         return await CartJson("Đã thêm vào giỏ hàng.");
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Update(int productId, int quantity)
     {
+        if (User.IsInRole("Admin"))
+        {
+            return await CartJson("Tài khoản admin chỉ được xem và kiểm tra, không thể chỉnh giỏ hàng.", false);
+        }
+
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         await _cartService.UpdateQuantityAsync(productId, quantity, userId, GetStableCartSessionId(userId));
         return await CartJson("Đã cập nhật giỏ hàng.");
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Remove(int productId)
     {
+        if (User.IsInRole("Admin"))
+        {
+            return await CartJson("Tài khoản admin chỉ được xem và kiểm tra, không thể chỉnh giỏ hàng.", false);
+        }
+
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         await _cartService.RemoveAsync(productId, userId, GetStableCartSessionId(userId));
         return await CartJson("Đã xoá sản phẩm khỏi giỏ hàng.");
     }
 
-    private async Task<IActionResult> CartJson(string message)
+    private async Task<IActionResult> CartJson(string message, bool success = true)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var cart = await _cartService.GetCartAsync(userId, GetStableCartSessionId(userId));
         return Json(new
         {
-            success = true,
+            success,
             message,
             itemCount = cart.ItemCount,
             total = cart.Total.ToString("N0") + " ₫",
@@ -57,7 +82,18 @@ public class CartController : Controller
             {
                 productId = item.ProductId,
                 quantity = item.Quantity,
-                lineTotal = ((item.Product?.SalePrice ?? item.Product?.Price ?? 0) * item.Quantity).ToString("N0") + " ₫"
+                lineTotal = (cart.GetUnitPrice(item) * item.Quantity).ToString("N0") + " ₫"
+            }),
+            crossSellSuggestions = cart.CrossSellSuggestions.Select(suggestion => new
+            {
+                productId = suggestion.ProductId,
+                productName = suggestion.ProductName,
+                anchorProductName = suggestion.AnchorProductName,
+                imageUrl = suggestion.ImageUrl,
+                discountPercent = suggestion.DiscountPercent,
+                originalPrice = suggestion.OriginalPrice.ToString("N0") + " ₫",
+                offerPrice = suggestion.OfferPrice.ToString("N0") + " ₫",
+                savings = suggestion.Savings.ToString("N0") + " ₫"
             })
         });
     }

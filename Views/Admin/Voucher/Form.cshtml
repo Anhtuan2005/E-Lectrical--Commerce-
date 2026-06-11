@@ -2,6 +2,7 @@
 @{
     Layout = "_AdminLayout";
     ViewData["Title"] = Model.Id == 0 ? "Tạo voucher" : "Sửa voucher";
+    var customerSegments = ViewBag.CustomerSegments as IEnumerable<CustomerSegment> ?? Enumerable.Empty<CustomerSegment>();
 }
 
 <section class="admin-panel narrow">
@@ -20,6 +21,14 @@
         <input asp-for="MaxDiscount" type="number" min="0" step="1000" />
         <label>Giới hạn lượt dùng</label>
         <input asp-for="UsageLimit" type="number" min="1" />
+        <label>Nhóm khách áp dụng</label>
+        <select asp-for="CustomerSegmentId">
+            <option value="">Tất cả khách hàng</option>
+            @foreach (var segment in customerSegments)
+            {
+                <option value="@segment.Id">@segment.Name</option>
+            }
+        </select>
         <label>Ngày bắt đầu</label>
         <input asp-for="StartDate" type="datetime-local" />
         <label>Ngày kết thúc</label>

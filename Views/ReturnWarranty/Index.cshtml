@@ -1,0 +1,48 @@
+@model UserReturnWarrantyRequestsViewModel
+@{
+    ViewData["Title"] = "Đổi trả và bảo hành";
+}
+
+<section class="support-page">
+    <header class="support-hero">
+        <div>
+            <span class="eyebrow">Hỗ trợ sau mua</span>
+            <h1>Đổi trả và bảo hành</h1>
+            <p>Theo dõi các yêu cầu đã gửi cho sản phẩm trong đơn hàng của bạn.</p>
+        </div>
+        <a class="btn-ghost" asp-controller="Order" asp-action="History">
+            <i data-lucide="package-check" aria-hidden="true"></i>
+            Xem đơn hàng
+        </a>
+    </header>
+
+    @if (!Model.Requests.Any())
+    {
+        <div class="orders-empty">
+            <div class="orders-empty-icon"><i data-lucide="shield-check" aria-hidden="true"></i></div>
+            <h2>Chưa có yêu cầu hỗ trợ</h2>
+            <p>Khi đơn đã giao, bạn có thể gửi yêu cầu đổi trả hoặc bảo hành từ trang chi tiết đơn hàng.</p>
+            <a class="btn-primary" asp-controller="Order" asp-action="History">Chọn đơn hàng</a>
+        </div>
+    }
+    else
+    {
+        <div class="support-request-list">
+            @foreach (var request in Model.Requests)
+            {
+                <article class="support-request-card">
+                    <div>
+                        <span class="support-pill">@request.Status</span>
+                        <h2>@request.Type #@request.Id</h2>
+                        <p>Đơn #DH@(request.OrderId.ToString("D4")) · @request.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
+                    </div>
+                    <div class="support-request-meta">
+                        <span>@request.Items.Sum(item => item.Quantity) sản phẩm</span>
+                        <strong>@request.Reason</strong>
+                    </div>
+                    <a class="btn-ghost" asp-action="Details" asp-route-id="@request.Id">Xem chi tiết</a>
+                </article>
+            }
+        </div>
+    }
+</section>

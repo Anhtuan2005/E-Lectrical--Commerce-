@@ -8,8 +8,11 @@
         "Bình Phước", "Bình Thuận", "Cà Mau", "Đắk Lắk", "Đồng Tháp", "Gia Lai", "Khánh Hòa",
         "Lâm Đồng", "Long An", "Nghệ An", "Quảng Nam", "Quảng Ninh", "Thanh Hóa", "Thừa Thiên Huế"
     };
-    var shippingFee = 0m;
+    var shippingFee = Model.ShippingFee;
+    var grossSubtotal = Model.Cart.GrossTotal;
+    var crossSellDiscount = Model.Cart.CrossSellDiscountAmount;
     var subtotal = Model.Cart.Total;
+    var total = Math.Max(0, subtotal - Model.DiscountAmount) + shippingFee;
 }
 
 <section class="checkout-layout">
@@ -92,18 +95,65 @@
         <span>Đơn hàng của bạn</span>
         @foreach (var item in Model.Cart.Items)
         {
-            var price = item.Product?.SalePrice ?? item.Product?.Price ?? 0;
+            var regularPrice = Model.Cart.GetRegularUnitPrice(item);
+            var price = Model.Cart.GetUnitPrice(item);
+            var hasCrossSellPrice = price < regularPrice;
             <div class="summary-item">
-                <img src="@(item.Product?.ImageUrl ?? "/images/placeholder.svg")" alt="@item.Product?.Name" />
+                <img src="@(item.Product?.PrimaryImageUrl ?? "/images/placeholder.svg")" alt="@item.Product?.Name" />
                 <div>
                     <strong>@item.Product?.Name</strong>
-                    <small>Số lượng: @item.Quantity × @price.ToString("N0") ₫</small>
+                    <small>
+                        Số lượng: @item.Quantity ×
+                        @if (hasCrossSellPrice)
+                        {
+                            <del>@regularPrice.ToString("N0") ₫</del>
+                        }
+                        @price.ToString("N0") ₫
+                    </small>
                 </div>
                 <b>@((price * item.Quantity).ToString("N0")) ₫</b>
             </div>
         }
+        @if (Model.Cart.CrossSellSuggestions.Any())
+        {
+            <section class="checkout-cross-sell">
+                <div class="checkout-cross-sell-head">
+                    <span>Mua kèm ưu đãi</span>
+                    <strong>Thêm trước khi đặt</strong>
+                </div>
+                @foreach (var suggestion in Model.Cart.CrossSellSuggestions.Take(3))
+                {
+                    <article class="cross-sell-item compact">
+                        <div class="cross-sell-media">
+                            <img src="@suggestion.ImageUrl" alt="@suggestion.ProductName" />
+                            <span>-@suggestion.DiscountPercent%</span>
+                        </div>
+                        <div class="cross-sell-copy">
+                            <strong>@suggestion.ProductName</strong>
+                            <small>Kèm @suggestion.AnchorProductName</small>
+                            <span class="cross-sell-price">
+                                <del>@suggestion.OriginalPrice.ToString("N0") ₫</del>
+                                <b>@suggestion.OfferPrice.ToString("N0") ₫</b>
+                            </span>
+                        </div>
+                        <button class="cross-sell-add" type="button" data-cart-product="@suggestion.ProductId" data-cart-reload="true">
+                            <i data-lucide="plus" aria-hidden="true"></i>
+                            Thêm
+                        </button>
+                    </article>
+                }
+            </section>
+        }
+        @if (crossSellDiscount > 0)
+        {
+            <div class="summary-line"><span>Tạm tính gốc</span><strong>@grossSubtotal.ToString("N0") ₫</strong></div>
+            <div class="summary-line discount-line show"><span>Ưu đãi mua kèm</span><strong>-@crossSellDiscount.ToString("N0") ₫</strong></div>
+        }
         <div class="summary-line"><span>Tạm tính</span><strong>@subtotal.ToString("N0") ₫</strong></div>
-        <div class="summary-line"><span>Phí vận chuyển</span><strong>@shippingFee.ToString("N0") ₫</strong></div>
+        <div class="summary-line">
+            <span>Phí vận chuyển <small class="shipping-fee-note" id="shippingFeeNote">Chọn địa điểm để cập nhật phí.</small></span>
+            <strong id="shippingFeeText">@shippingFee.ToString("N0") ₫</strong>
+        </div>
         <div class="voucher-box">
             <label for="voucherInput">Mã giảm giá</label>
             <div>
@@ -116,7 +166,7 @@
             <span>Giảm giá</span>
             <strong id="discountText">0 ₫</strong>
         </div>
-        <strong class="summary-total" id="checkoutTotal" data-subtotal="@subtotal">@((subtotal + shippingFee).ToString("N0")) ₫</strong>
+        <strong class="summary-total" id="checkoutTotal" data-subtotal="@subtotal" data-shipping-fee="@shippingFee">@total.ToString("N0") ₫</strong>
     </aside>
 </section>
 

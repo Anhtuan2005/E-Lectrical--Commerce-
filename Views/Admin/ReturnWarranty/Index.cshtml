@@ -1,0 +1,85 @@
+@model AdminReturnWarrantyRequestsViewModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Đổi trả và bảo hành";
+}
+
+<section class="admin-panel">
+    <div class="panel-head">
+        <div>
+            <h2>Bộ lọc yêu cầu</h2>
+            <p>Ưu tiên các yêu cầu mới gửi và yêu cầu đang chờ khách bổ sung thông tin.</p>
+        </div>
+    </div>
+    <form class="admin-filters" method="get">
+        <select name="status">
+            <option value="">Tất cả trạng thái</option>
+            @foreach (var status in Model.Statuses)
+            {
+                <option value="@status" selected="@(Model.Status == status)">@status</option>
+            }
+        </select>
+        <select name="type">
+            <option value="">Tất cả loại yêu cầu</option>
+            @foreach (var type in Model.Types)
+            {
+                <option value="@type" selected="@(Model.Type == type)">@type</option>
+            }
+        </select>
+        <input name="query" value="@Model.Query" placeholder="Mã đơn, tên, email hoặc SĐT" />
+        <button class="admin-button" type="submit">Lọc</button>
+    </form>
+</section>
+
+<section class="admin-panel">
+    <div class="panel-head">
+        <h2>Danh sách yêu cầu</h2>
+        <span class="admin-pill">@Model.Requests.Count yêu cầu</span>
+    </div>
+    @if (!Model.Requests.Any())
+    {
+        <div class="empty-state">Không có yêu cầu phù hợp với bộ lọc.</div>
+    }
+    else
+    {
+        <table class="admin-table admin-support-table">
+            <thead>
+                <tr>
+                    <th>Mã</th>
+                    <th>Khách hàng</th>
+                    <th>Đơn hàng</th>
+                    <th>Loại</th>
+                    <th>Trạng thái</th>
+                    <th>Ngày gửi</th>
+                    <th>Sản phẩm</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var request in Model.Requests)
+                {
+                    <tr>
+                        <td>#@request.Id</td>
+                        <td>@request.User?.FullName<br /><small>@request.User?.Email</small></td>
+                        <td>#DH@(request.OrderId.ToString("D4"))</td>
+                        <td>@request.Type</td>
+                        <td><span class="admin-pill @StatusClass(request.Status)">@request.Status</span></td>
+                        <td>@request.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>@request.Items.Count dòng<br /><small>@request.Items.Sum(item => item.Quantity) sản phẩm</small></td>
+                        <td><a class="admin-link" href="/Admin/ReturnWarranty/@request.Id">Chi tiết</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@functions {
+    private static string StatusClass(string status)
+    {
+        if (status == ReturnWarrantyRequestStatuses.Submitted) return "warning";
+        if (status == ReturnWarrantyRequestStatuses.Approved || status == ReturnWarrantyRequestStatuses.Completed) return "success";
+        if (status == ReturnWarrantyRequestStatuses.Rejected) return "danger";
+        return "";
+    }
+}

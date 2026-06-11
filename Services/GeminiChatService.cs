@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -49,7 +50,7 @@ public class GeminiChatService : IAiChatService
 
         var model = _configuration["Gemini:Model"] ?? "gemini-3.5-flash";
         var baseUrl = (_configuration["Gemini:BaseUrl"] ?? "https://generativelanguage.googleapis.com/v1beta").TrimEnd('/');
-        var endpoint = $"{baseUrl}/{NormalizeModelPath(model)}:generateContent?key={Uri.EscapeDataString(apiKey)}";
+        var endpoint = $"{baseUrl}/{NormalizeModelPath(model)}:generateContent";
         var catalogContext = await BuildCatalogContextAsync(message, cancellationToken);
 
         var request = new GeminiGenerateRequest
@@ -73,7 +74,7 @@ public class GeminiChatService : IAiChatService
 
         try
         {
-            using var response = await _httpClient.PostAsJsonAsync(endpoint, request, JsonOptions, cancellationToken);
+            using var response = await SendGeminiRequestWithRetryAsync(endpoint, apiKey, request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -151,6 +152,42 @@ public class GeminiChatService : IAiChatService
     private static AiChatResponse TextOnly(string reply)
     {
         return new AiChatResponse { Reply = reply };
+    }
+
+    private async Task<HttpResponseMessage> SendGeminiRequestWithRetryAsync(string endpoint, string apiKey, GeminiGenerateRequest request, CancellationToken cancellationToken)
+    {
+        const int maxAttempts = 3;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            using var message = new HttpRequestMessage(HttpMethod.Post, endpoint)
+            {
+                Content = JsonContent.Create(request, options: JsonOptions)
+            };
+            message.Headers.TryAddWithoutValidation("x-goog-api-key", apiKey);
+
+            var response = await _httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (!ShouldRetry(response.StatusCode) || attempt == maxAttempts)
+            {
+                return response;
+            }
+
+            _logger.LogWarning("Gemini API returned {StatusCode}. Retrying attempt {NextAttempt}/{MaxAttempts}.", response.StatusCode, attempt + 1, maxAttempts);
+            response.Dispose();
+            await Task.Delay(TimeSpan.FromMilliseconds(300 * attempt * attempt), cancellationToken);
+        }
+
+        throw new InvalidOperationException("Gemini retry loop ended unexpectedly.");
+    }
+
+    private static bool ShouldRetry(HttpStatusCode statusCode)
+    {
+        return statusCode is HttpStatusCode.RequestTimeout
+            or HttpStatusCode.TooManyRequests
+            or HttpStatusCode.InternalServerError
+            or HttpStatusCode.BadGateway
+            or HttpStatusCode.ServiceUnavailable
+            or HttpStatusCode.GatewayTimeout;
     }
 
     private static List<int> ExtractMentionedProductIds(string answer)

@@ -13,23 +13,32 @@ public class OrderController : Controller
 {
     private readonly IOrderService _orderService;
     private readonly ICartService _cartService;
+    private readonly IShippingFeeService _shippingFeeService;
     private readonly IVnpayService _vnpayService;
     private readonly UserManager<ApplicationUser> _userManager;
 
     public OrderController(
         IOrderService orderService,
         ICartService cartService,
+        IShippingFeeService shippingFeeService,
         IVnpayService vnpayService,
         UserManager<ApplicationUser> userManager)
     {
         _orderService = orderService;
         _cartService = cartService;
+        _shippingFeeService = shippingFeeService;
         _vnpayService = vnpayService;
         _userManager = userManager;
     }
 
     public async Task<IActionResult> Checkout()
     {
+        if (User.IsInRole("Admin"))
+        {
+            TempData["Error"] = "Tài khoản admin chỉ được xem và kiểm tra, không thể đặt hàng.";
+            return RedirectToAction("Index", "Product");
+        }
+
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var cart = await _cartService.GetCartAsync(userId, HttpContext.Session.Id);
         if (!cart.Items.Any())
@@ -44,7 +53,46 @@ public class OrderController : Controller
             Cart = cart,
             RecipientName = user?.FullName ?? string.Empty,
             RecipientPhone = user?.PhoneNumber ?? string.Empty,
+            ShippingFee = _shippingFeeService.Calculate(null, null, cart.Total).Fee,
             ProfileAddress = user?.Address
+        });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ShippingFee(string? province, string? district)
+    {
+        if (User.IsInRole("Admin"))
+        {
+            return Json(new
+            {
+                ready = false,
+                fee = 0,
+                formattedFee = "0 đ",
+                subtotal = 0,
+                total = 0,
+                formattedTotal = "0 đ",
+                zone = "",
+                eta = "",
+                message = "Tài khoản admin không thể đặt hàng."
+            });
+        }
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var cart = await _cartService.GetCartAsync(userId, HttpContext.Session.Id);
+        var quote = _shippingFeeService.Calculate(province, district, cart.Total);
+        var total = cart.Total + quote.Fee;
+
+        return Json(new
+        {
+            ready = quote.Ready,
+            fee = quote.Fee,
+            formattedFee = quote.Fee.ToString("N0") + " đ",
+            subtotal = cart.Total,
+            total,
+            formattedTotal = total.ToString("N0") + " đ",
+            zone = quote.Zone,
+            eta = quote.Eta,
+            message = quote.Message
         });
     }
 
@@ -52,9 +100,16 @@ public class OrderController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Checkout(CheckoutViewModel model)
     {
+        if (User.IsInRole("Admin"))
+        {
+            TempData["Error"] = "Tài khoản admin chỉ được xem và kiểm tra, không thể đặt hàng.";
+            return RedirectToAction("Index", "Product");
+        }
+
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         model.Cart = await _cartService.GetCartAsync(userId, HttpContext.Session.Id);
         model.ProfileAddress = (await _userManager.GetUserAsync(User))?.Address;
+        model.ShippingFee = _shippingFeeService.Calculate(model.Province, model.District, model.Cart.Total).Fee;
         if (!ModelState.IsValid)
         {
             return View(model);
@@ -116,11 +171,11 @@ public class OrderController : Controller
         var cancelled = await _orderService.CancelUserOrderAsync(id, userId, reason);
         if (!cancelled)
         {
-            TempData["Error"] = "Chỉ có thể hủy đơn đang chờ xác nhận.";
+            TempData["Error"] = "Chỉ có thể huỷ đơn đang chờ xác nhận.";
             return RedirectToAction(nameof(History), new { status = returnStatus });
         }
 
-        TempData["Success"] = "Đã hủy đơn hàng.";
+        TempData["Success"] = "Đã huỷ đơn hàng.";
         return RedirectToAction(nameof(History), new { status = returnStatus });
     }
 
@@ -128,6 +183,12 @@ public class OrderController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Reorder(int id)
     {
+        if (User.IsInRole("Admin"))
+        {
+            TempData["Error"] = "Tài khoản admin chỉ được xem và kiểm tra, không thể mua lại đơn hàng.";
+            return RedirectToAction(nameof(Detail), new { id });
+        }
+
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var added = await _orderService.ReorderAsync(id, userId, HttpContext.Session.Id);
         if (added == 0)

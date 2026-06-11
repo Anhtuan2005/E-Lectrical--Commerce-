@@ -16,6 +16,7 @@
     }
     var mainDeal = flashProducts.FirstOrDefault();
     var miniDeals = flashProducts.Skip(1).Take(4).ToList();
+    var isAdminViewer = User.IsInRole("Admin");
 }
 
 @functions {
@@ -150,7 +151,7 @@
             <div class="flash-market-products">
                 <article class="flash-main-deal">
                     <a class="flash-main-media" asp-controller="Product" asp-action="Detail" asp-route-id="@mainDeal.Id">
-                        <img src="@mainDeal.ImageUrl" alt="@mainDeal.Name" loading="lazy" />
+                        <img src="@mainDeal.PrimaryImageUrl" alt="@mainDeal.Name" loading="lazy" />
                         <span>-@mainDeal.DiscountPercent%</span>
                     </a>
                     <div class="flash-main-info">
@@ -166,10 +167,13 @@
                                 <i data-lucide="eye" aria-hidden="true"></i>
                                 Chi tiết
                             </a>
-                            <button class="btn-primary flash-cart-btn" type="button" data-cart-product="@mainDeal.Id">
-                                <i data-lucide="shopping-cart" aria-hidden="true"></i>
-                                Thêm giỏ
-                            </button>
+                            @if (!isAdminViewer)
+                            {
+                                <button class="btn-primary flash-cart-btn" type="button" data-cart-product="@mainDeal.Id">
+                                    <i data-lucide="shopping-cart" aria-hidden="true"></i>
+                                    Thêm giỏ
+                                </button>
+                            }
                         </div>
                     </div>
                 </article>
@@ -180,7 +184,7 @@
                         var itemSaved = product.Price - product.SalePrice;
                         <article class="flash-mini-deal">
                             <a asp-controller="Product" asp-action="Detail" asp-route-id="@product.Id">
-                                <img src="@product.ImageUrl" alt="@product.Name" loading="lazy" />
+                                <img src="@product.PrimaryImageUrl" alt="@product.Name" loading="lazy" />
                             </a>
                             <div>
                                 <span>-@product.DiscountPercent%</span>

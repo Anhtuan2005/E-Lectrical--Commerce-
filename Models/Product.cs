@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EcommerceApp.Models;
 
@@ -18,9 +19,6 @@ public class Product
     [Range(0, int.MaxValue)]
     public int Stock { get; set; }
 
-    [StringLength(500)]
-    public string ImageUrl { get; set; } = string.Empty;
-
     public int CategoryId { get; set; }
     public Category? Category { get; set; }
 
@@ -37,4 +35,13 @@ public class Product
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<ProductImage> Images { get; set; } = new List<ProductImage>();
+    public ICollection<ProductSearchTerm> SearchTerms { get; set; } = new List<ProductSearchTerm>();
+
+    [NotMapped]
+    public string PrimaryImageUrl => Images
+        .OrderBy(image => image.SortOrder)
+        .ThenBy(image => image.Id)
+        .Select(image => image.ImageUrl)
+        .FirstOrDefault(url => !string.IsNullOrWhiteSpace(url))
+        ?? "/images/placeholder.svg";
 }

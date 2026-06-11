@@ -10,12 +10,22 @@ public class OrderService : IOrderService
 {
     private readonly AppDbContext _db;
     private readonly ICartService _cartService;
+    private readonly IShippingFeeService _shippingFeeService;
+    private readonly IOrderEmailService _orderEmailService;
+    private readonly ICustomerSegmentService _customerSegmentService;
+    private readonly ICrossSellService _crossSellService;
+    private readonly IUserNotificationService _notificationService;
     private readonly ILogger<OrderService> _logger;
 
-    public OrderService(AppDbContext db, ICartService cartService, ILogger<OrderService> logger)
+    public OrderService(AppDbContext db, ICartService cartService, IShippingFeeService shippingFeeService, IOrderEmailService orderEmailService, ICustomerSegmentService customerSegmentService, ICrossSellService crossSellService, IUserNotificationService notificationService, ILogger<OrderService> logger)
     {
         _db = db;
         _cartService = cartService;
+        _shippingFeeService = shippingFeeService;
+        _orderEmailService = orderEmailService;
+        _customerSegmentService = customerSegmentService;
+        _crossSellService = crossSellService;
+        _notificationService = notificationService;
         _logger = logger;
     }
 
@@ -37,6 +47,7 @@ public class OrderService : IOrderService
 
         await using var transaction = await _db.Database.BeginTransactionAsync();
 
+        var crossSellUnitPrices = await _crossSellService.GetEligibleUnitPricesAsync(cart.Items);
         var order = new Order
         {
             UserId = userId,
@@ -51,7 +62,9 @@ public class OrderService : IOrderService
             {
                 ProductId = item.ProductId,
                 Quantity = item.Quantity,
-                UnitPrice = item.Product?.SalePrice ?? item.Product?.Price ?? 0
+                UnitPrice = crossSellUnitPrices.TryGetValue(item.ProductId, out var unitPrice)
+                    ? unitPrice
+                    : (item.Product?.SalePrice ?? item.Product?.Price ?? 0)
             }).ToList()
         };
 
@@ -87,6 +100,17 @@ public class OrderService : IOrderService
                 throw new InvalidOperationException("Bạn đã sử dụng mã giảm giá này.");
             }
 
+            if (!string.IsNullOrWhiteSpace(voucher.TargetUserId) && voucher.TargetUserId != userId)
+            {
+                throw new InvalidOperationException("Mã giảm giá này chỉ áp dụng cho tài khoản được tặng.");
+            }
+
+            if (voucher.CustomerSegmentId.HasValue &&
+                !await _customerSegmentService.UserBelongsToSegmentAsync(userId, voucher.CustomerSegmentId.Value))
+            {
+                throw new InvalidOperationException("Mã giảm giá này chỉ áp dụng cho nhóm khách hàng phù hợp.");
+            }
+
             var affected = await _db.Database.ExecuteSqlRawAsync(
                 "UPDATE Vouchers SET UsedCount = UsedCount + 1 WHERE Id = {0} AND UsedCount < UsageLimit",
                 voucher.Id);
@@ -95,11 +119,13 @@ public class OrderService : IOrderService
                 throw new InvalidOperationException("Mã giảm giá vừa hết lượt sử dụng. Vui lòng chọn mã khác.");
             }
 
-            order.VoucherCode = voucher.Code;
             order.DiscountAmount = CalculateDiscount(voucher, subtotal);
             appliedVoucherId = voucher.Id;
         }
-        order.TotalAmount = Math.Max(0, subtotal - order.DiscountAmount);
+
+        var shippingQuote = _shippingFeeService.Calculate(model.Province, model.District, subtotal);
+        order.ShippingFee = shippingQuote.Fee;
+        order.TotalAmount = Math.Max(0, subtotal - order.DiscountAmount) + order.ShippingFee;
 
         _db.Orders.Add(order);
         if (appliedVoucherId.HasValue)
@@ -135,7 +161,20 @@ public class OrderService : IOrderService
 
         await _cartService.ClearAsync(userId, sessionId);
         await transaction.CommitAsync();
+        await _customerSegmentService.RefreshUserAsync(userId);
         _logger.LogInformation("Order {OrderId} created for user {UserId} with payment {PaymentMethod} and total {TotalAmount}", order.Id, userId, order.PaymentMethod, order.TotalAmount);
+        await _orderEmailService.SendOrderCreatedAsync(order.Id);
+        await _notificationService.CreateAsync(
+            userId,
+            "Đã nhận đơn hàng",
+            $"Techvora đã nhận đơn #DH{order.Id:D4}. Bạn có thể theo dõi tiến trình trong lịch sử đơn hàng.",
+            NotificationTypes.Order,
+            $"/Order/Detail/{order.Id}");
+        await _notificationService.CreateForAdminsAsync(
+            "Đơn hàng mới",
+            $"Đơn #DH{order.Id:D4} vừa được tạo với tổng tiền {order.TotalAmount:N0} đ.",
+            NotificationTypes.Order,
+            $"/Admin/Order/{order.Id}");
         return order;
     }
 
@@ -144,7 +183,10 @@ public class OrderService : IOrderService
         return await _db.Orders
             .IgnoreQueryFilters()
             .Include(order => order.Items).ThenInclude(item => item.Product)
+            .ThenInclude(product => product!.Images)
             .Include(order => order.ShippingInfo)
+            .Include(order => order.VoucherUsage).ThenInclude(usage => usage!.Voucher)
+            .Include(order => order.ReturnWarrantyRequests)
             .Where(order => order.UserId == userId)
             .OrderByDescending(order => order.CreatedAt)
             .ToListAsync();
@@ -184,7 +226,10 @@ public class OrderService : IOrderService
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .Include(order => order.Items).ThenInclude(item => item.Product)
+                .ThenInclude(product => product!.Images)
                 .Include(order => order.ShippingInfo)
+                .Include(order => order.VoucherUsage).ThenInclude(usage => usage!.Voucher)
+                .Include(order => order.ReturnWarrantyRequests)
                 .ToListAsync(),
             Tabs = OrderStatusFilters.Tabs.Select(tab => new OrderStatusTabViewModel
             {
@@ -206,16 +251,25 @@ public class OrderService : IOrderService
             .IgnoreQueryFilters()
             .Include(order => order.User)
             .Include(order => order.Items).ThenInclude(item => item.Product)
+            .ThenInclude(product => product!.Images)
             .Include(order => order.ShippingInfo)
+            .Include(order => order.VoucherUsage).ThenInclude(usage => usage!.Voucher)
+            .Include(order => order.ReturnWarrantyRequests)
             .FirstOrDefaultAsync(order => order.Id == id && order.UserId == userId);
     }
 
     public async Task<OrderListViewModel> GetOrdersAsync(string? status, string? customer, DateTime? fromDate, DateTime? toDate)
     {
         var query = _db.Orders
+            .AsNoTracking()
+            .AsSplitQuery()
             .Include(order => order.User)
             .Include(order => order.ShippingInfo)
+            .Include(order => order.VoucherUsage).ThenInclude(usage => usage!.Voucher)
+            .Include(order => order.ReturnWarrantyRequests)
             .Include(order => order.Items)
+            .ThenInclude(item => item.Product)
+            .ThenInclude(product => product!.Images)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(status))
@@ -254,7 +308,10 @@ public class OrderService : IOrderService
             .IgnoreQueryFilters()
             .Include(order => order.User)
             .Include(order => order.Items).ThenInclude(item => item.Product)
+            .ThenInclude(product => product!.Images)
             .Include(order => order.ShippingInfo)
+            .Include(order => order.VoucherUsage).ThenInclude(usage => usage!.Voucher)
+            .Include(order => order.ReturnWarrantyRequests)
             .FirstOrDefaultAsync(order => order.Id == id);
     }
 
@@ -271,6 +328,8 @@ public class OrderService : IOrderService
             return;
         }
 
+        var oldStatus = order.Status;
+        var oldRefundStatus = order.RefundStatus;
         order.Status = status;
         order.UpdatedAt = DateTime.UtcNow;
 
@@ -283,8 +342,30 @@ public class OrderService : IOrderService
             order.ShippingInfo.Status = ShippingStatuses.Delivered;
         }
 
+        if (status == OrderStatuses.Cancelled)
+        {
+            MarkManualRefundRequiredIfNeeded(order, "Đơn VNPAY đã thanh toán bị huỷ bởi admin.");
+        }
+
         await _db.SaveChangesAsync();
+        await _customerSegmentService.RefreshUserAsync(order.UserId);
         _logger.LogInformation("Admin updated order {OrderId} status to {Status}", id, status);
+
+        if (oldStatus != status)
+        {
+            await _orderEmailService.SendOrderStatusChangedAsync(order.Id, status);
+            await _notificationService.CreateAsync(
+                order.UserId,
+                "Cập nhật đơn hàng",
+                $"Đơn #DH{order.Id:D4} hiện ở trạng thái: {OrderStatusFilters.ToDisplayLabel(status)}.",
+                NotificationTypes.Order,
+                $"/Order/Detail/{order.Id}");
+        }
+
+        if (oldRefundStatus != order.RefundStatus && order.RefundStatus == RefundStatuses.PendingManual)
+        {
+            await _orderEmailService.SendRefundRequiredAsync(order.Id);
+        }
     }
 
     public async Task<int> ConfirmPendingOrdersAsync(IEnumerable<int> ids)
@@ -307,7 +388,45 @@ public class OrderService : IOrderService
 
         await _db.SaveChangesAsync();
         _logger.LogInformation("Admin bulk-confirmed {OrderCount} pending orders", orders.Count);
+        foreach (var order in orders)
+        {
+            await _orderEmailService.SendOrderStatusChangedAsync(order.Id, OrderStatuses.Confirmed);
+            await _notificationService.CreateAsync(
+                order.UserId,
+                "Đơn hàng đã được xác nhận",
+                $"Đơn #DH{order.Id:D4} đang được chuẩn bị.",
+                NotificationTypes.Order,
+                $"/Order/Detail/{order.Id}");
+        }
+
         return orders.Count;
+    }
+
+    public async Task<bool> MarkManualRefundCompletedAsync(int id, string? note)
+    {
+        var order = await _db.Orders.FirstOrDefaultAsync(row => row.Id == id);
+        if (order is null || order.RefundStatus != RefundStatuses.PendingManual)
+        {
+            return false;
+        }
+
+        order.RefundStatus = RefundStatuses.Refunded;
+        order.RefundedAt = DateTime.UtcNow;
+        order.RefundNote = string.IsNullOrWhiteSpace(note)
+            ? "Admin đã xác nhận hoàn tiền thủ công."
+            : note.Trim();
+        order.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("Admin marked manual refund completed for order {OrderId}", id);
+        await _orderEmailService.SendRefundCompletedAsync(order.Id);
+        await _notificationService.CreateAsync(
+            order.UserId,
+            "Đã ghi nhận hoàn tiền",
+            $"Đơn #DH{order.Id:D4} đã được đánh dấu hoàn tiền.",
+            NotificationTypes.Order,
+            $"/Order/Detail/{order.Id}");
+        return true;
     }
 
     public async Task<bool> CancelUserOrderAsync(int id, string userId, string? reason)
@@ -321,11 +440,13 @@ public class OrderService : IOrderService
         }
 
         await using var transaction = await _db.Database.BeginTransactionAsync();
+        var oldRefundStatus = order.RefundStatus;
         order.Status = OrderStatuses.Cancelled;
         order.CancelledReason = string.IsNullOrWhiteSpace(reason)
             ? "Khách hàng hủy đơn trước khi xác nhận."
             : reason.Trim();
         order.UpdatedAt = DateTime.UtcNow;
+        MarkManualRefundRequiredIfNeeded(order, "Đơn VNPAY đã thanh toán bị khách hàng huỷ.");
 
         foreach (var item in order.Items)
         {
@@ -338,6 +459,23 @@ public class OrderService : IOrderService
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
         _logger.LogInformation("User {UserId} cancelled order {OrderId}", userId, id);
+        await _orderEmailService.SendOrderStatusChangedAsync(order.Id, OrderStatuses.Cancelled);
+        await _notificationService.CreateAsync(
+            userId,
+            "Đã huỷ đơn hàng",
+            $"Đơn #DH{order.Id:D4} đã được huỷ và tồn kho đã được hoàn lại.",
+            NotificationTypes.Order,
+            $"/Order/Detail/{order.Id}");
+        await _notificationService.CreateForAdminsAsync(
+            "Khách huỷ đơn hàng",
+            $"Đơn #DH{order.Id:D4} vừa được khách hàng huỷ.",
+            NotificationTypes.Order,
+            $"/Admin/Order/{order.Id}");
+        if (oldRefundStatus != order.RefundStatus && order.RefundStatus == RefundStatuses.PendingManual)
+        {
+            await _orderEmailService.SendRefundRequiredAsync(order.Id);
+        }
+
         return true;
     }
 
@@ -361,8 +499,15 @@ public class OrderService : IOrderService
             }
 
             var quantity = Math.Min(item.Quantity, item.Product.Stock);
-            await _cartService.AddAsync(item.ProductId, quantity, userId, sessionId);
-            added++;
+            try
+            {
+                await _cartService.AddAsync(item.ProductId, quantity, userId, sessionId);
+                added++;
+            }
+            catch (InvalidOperationException)
+            {
+                // The cart may already contain all currently available stock.
+            }
         }
 
         _logger.LogInformation("User {UserId} reordered {AddedCount} items from order {OrderId}", userId, added, id);
@@ -419,6 +564,20 @@ public class OrderService : IOrderService
                 .Take(10)
                 .ToListAsync()
         };
+    }
+
+    private static void MarkManualRefundRequiredIfNeeded(Order order, string note)
+    {
+        if (!order.IsPaid ||
+            !string.Equals(order.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase) ||
+            order.RefundStatus is RefundStatuses.PendingManual or RefundStatuses.Refunded)
+        {
+            return;
+        }
+
+        order.RefundStatus = RefundStatuses.PendingManual;
+        order.RefundRequestedAt ??= DateTime.UtcNow;
+        order.RefundNote = note;
     }
 
     private static decimal CalculateDiscount(Voucher voucher, decimal subtotal)

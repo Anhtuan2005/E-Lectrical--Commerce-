@@ -73,6 +73,17 @@ public class AdminOrderController : Controller
         return RedirectToAction(nameof(Details), new { id });
     }
 
+    [HttpPost("MarkRefunded")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> MarkRefunded(int id, string? note)
+    {
+        var updated = await _orderService.MarkManualRefundCompletedAsync(id, note);
+        TempData[updated ? "Success" : "Error"] = updated
+            ? "Đã ghi nhận hoàn tiền thủ công cho đơn VNPAY."
+            : "Đơn hàng không ở trạng thái cần hoàn tiền thủ công.";
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
     [HttpGet("Print/{id:int}")]
     public async Task<IActionResult> Print(int id)
     {
@@ -85,10 +96,10 @@ public class AdminOrderController : Controller
     {
         var model = await _orderService.GetOrdersAsync(status, customer, fromDate, toDate);
         var csv = new StringBuilder();
-        csv.AppendLine("MaDon,KhachHang,Email,TrangThai,TongTien,NgayDat,VanChuyen,MaVanDon");
+        csv.AppendLine("MaDon,KhachHang,Email,TrangThai,HoanTien,TongTien,NgayDat,VanChuyen,MaVanDon");
         foreach (var order in model.Orders)
         {
-            csv.AppendLine($"{order.Id},\"{order.User?.FullName}\",{order.User?.Email},\"{order.Status}\",{order.TotalAmount},{order.CreatedAt:yyyy-MM-dd},\"{order.ShippingInfo?.Carrier}\",\"{order.ShippingInfo?.TrackingCode}\"");
+            csv.AppendLine($"{order.Id},\"{order.User?.FullName}\",{order.User?.Email},\"{order.Status}\",\"{order.RefundStatus}\",{order.TotalAmount},{order.CreatedAt:yyyy-MM-dd},\"{order.ShippingInfo?.Carrier}\",\"{order.ShippingInfo?.TrackingCode}\"");
         }
 
         return File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray(), "text/csv", $"don-hang-{DateTime.Now:yyyyMMddHHmm}.csv");

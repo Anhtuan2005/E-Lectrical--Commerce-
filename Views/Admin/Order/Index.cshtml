@@ -45,13 +45,21 @@
             <thead>
                 <tr>
                     <th class="select-col"><input type="checkbox" data-bulk-check-all aria-label="Chọn tất cả đơn chờ xác nhận" @(pendingCount == 0 ? "disabled" : "") /></th>
-                    <th>Mã</th><th>Khách hàng</th><th>Ngày đặt</th><th>Trạng thái</th><th>Vận chuyển</th><th>Tổng tiền</th><th></th>
+                    <th>Mã</th>
+                    <th>Khách hàng</th>
+                    <th>Ngày đặt</th>
+                    <th>Trạng thái</th>
+                    <th>Thanh toán</th>
+                    <th>Vận chuyển</th>
+                    <th>Tổng tiền</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (var order in Model.Orders)
                 {
                     var canBulkConfirm = order.Status == OrderStatuses.Pending;
+                    var refundClass = order.RefundStatus == RefundStatuses.PendingManual ? "warning" : order.RefundStatus == RefundStatuses.Refunded ? "success" : "";
                     <tr class="@(canBulkConfirm ? "bulk-selectable-row" : "")">
                         <td class="select-col">
                             <input type="checkbox" name="selectedOrderIds" value="@order.Id" data-bulk-check aria-label="Chọn đơn #@order.Id" @(canBulkConfirm ? "" : "disabled") />
@@ -60,6 +68,11 @@
                         <td>@order.User?.FullName<br /><small>@order.User?.Email</small></td>
                         <td>@order.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
                         <td><span class="admin-pill @(canBulkConfirm ? "warning" : "")">@order.Status</span></td>
+                        <td>
+                            @order.PaymentMethod<br />
+                            <small>@(order.IsPaid ? "Đã thanh toán" : "Chưa thanh toán")</small><br />
+                            <span class="admin-pill @refundClass">@order.RefundStatus</span>
+                        </td>
                         <td>@(order.ShippingInfo?.Carrier ?? "Chưa gán")<br /><small>@(order.ShippingInfo?.TrackingCode ?? "")</small></td>
                         <td>@order.TotalAmount.ToString("N0") ₫</td>
                         <td><a class="admin-link" href="/Admin/Order/@order.Id">Chi tiết</a></td>

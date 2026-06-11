@@ -22,31 +22,58 @@
 else
 {
     <section class="cart-layout">
-        <div class="cart-list">
-            @foreach (var item in Model.Items)
-            {
-                <article class="cart-item" data-product-id="@item.ProductId">
-                    <img src="@item.Product?.ImageUrl" alt="@item.Product?.Name" />
-                    <div>
-                        <h3>@item.Product?.Name</h3>
-                        <span>@((item.Product?.SalePrice ?? item.Product?.Price ?? 0).ToString("N0")) ₫</span>
-                    </div>
-                    <div class="quantity-stepper cart-stepper">
-                        <button type="button" data-qty-minus>-</button>
-                        <input class="cart-qty" type="number" min="0" max="@item.Product?.Stock" value="@item.Quantity" />
-                        <button type="button" data-qty-plus>+</button>
-                    </div>
-                    <strong class="line-total">@(((item.Product?.SalePrice ?? item.Product?.Price ?? 0) * item.Quantity).ToString("N0")) ₫</strong>
-                    <button class="icon-button cart-remove" type="button" aria-label="Xoá">
-                        <i data-lucide="x" aria-hidden="true"></i>
-                    </button>
-                </article>
-            }
+        <div class="cart-main-stack">
+            <div class="cart-list">
+                @foreach (var item in Model.Items)
+                {
+                    var regularPrice = Model.GetRegularUnitPrice(item);
+                    var unitPrice = Model.GetUnitPrice(item);
+                    var hasCrossSellPrice = unitPrice < regularPrice;
+                    <article class="cart-item" data-product-id="@item.ProductId">
+                        <img src="@item.Product?.PrimaryImageUrl" alt="@item.Product?.Name" />
+                        <div>
+                            <h3>@item.Product?.Name</h3>
+                            @if (hasCrossSellPrice)
+                            {
+                                <span><del>@regularPrice.ToString("N0") ₫</del> @unitPrice.ToString("N0") ₫</span>
+                                <small class="cross-sell-note">Giá mua kèm</small>
+                            }
+                            else
+                            {
+                                <span>@unitPrice.ToString("N0") ₫</span>
+                            }
+                        </div>
+                        <div class="quantity-stepper cart-stepper">
+                            <button type="button" data-qty-minus>-</button>
+                            <input class="cart-qty" type="number" min="0" max="@item.Product?.Stock" value="@item.Quantity" />
+                            <button type="button" data-qty-plus>+</button>
+                        </div>
+                        <strong class="line-total">@((unitPrice * item.Quantity).ToString("N0")) ₫</strong>
+                        <button class="icon-button cart-remove" type="button" aria-label="Xoá">
+                            <i data-lucide="x" aria-hidden="true"></i>
+                        </button>
+                    </article>
+                }
+            </div>
+
         </div>
+
         <aside class="checkout-summary">
             <span>Tổng tiền</span>
+            @if (Model.CrossSellDiscountAmount > 0)
+            {
+                <div class="summary-line"><span>Tạm tính</span><strong>@Model.GrossTotal.ToString("N0") ₫</strong></div>
+                <div class="summary-line discount-line show"><span>Ưu đãi mua kèm</span><strong>-@Model.CrossSellDiscountAmount.ToString("N0") ₫</strong></div>
+            }
             <strong id="cart-total">@Model.Total.ToString("N0") ₫</strong>
-            @if (User.Identity?.IsAuthenticated == true)
+            @if (User.IsInRole("Admin"))
+            {
+                <div class="admin-view-note">
+                    <strong>Chế độ xem admin</strong>
+                    <span>Admin chỉ kiểm tra dữ liệu, không thể đặt hàng.</span>
+                </div>
+            }
+            else if (User.Identity?.IsAuthenticated == true)
             {
                 <a class="btn-primary" asp-controller="Order" asp-action="Checkout">Tiến hành thanh toán</a>
             }

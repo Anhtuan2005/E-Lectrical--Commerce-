@@ -1,0 +1,14 @@
+@{
+    ViewData["Title"] = ViewData["StatusTitle"] ?? "Không thể mở trang";
+    var statusCode = ViewData["StatusCode"]?.ToString() ?? "500";
+    var message = ViewData["StatusMessage"]?.ToString() ?? "Techvora chưa thể xử lý yêu cầu này.";
+}
+
+<section class="error-page">
+    <div>
+        <span class="eyebrow">Lỗi @statusCode</span>
+        <h1>@ViewData["Title"]</h1>
+        <p>@message</p>
+        <a class="btn-primary" asp-controller="Home" asp-action="Index">Về trang chủ</a>
+    </div>
+</section>

@@ -21,7 +21,10 @@ public class AdminVoucherController : Controller
     public async Task<IActionResult> Index(string? filter)
     {
         var now = DateTime.UtcNow;
-        var query = _db.Vouchers.AsQueryable();
+        var query = _db.Vouchers
+            .Include(voucher => voucher.CustomerSegment)
+            .Include(voucher => voucher.TargetUser)
+            .AsQueryable();
         query = filter switch
         {
             "active" => query.Where(voucher => voucher.IsActive && voucher.StartDate <= now && voucher.EndDate >= now && voucher.UsedCount < voucher.UsageLimit),
@@ -34,8 +37,9 @@ public class AdminVoucherController : Controller
     }
 
     [HttpGet("Create")]
-    public IActionResult Create()
+    public async Task<IActionResult> Create()
     {
+        await LoadSegmentOptionsAsync();
         return View("~/Views/Admin/Voucher/Form.cshtml", new Voucher { StartDate = DateTime.UtcNow, EndDate = DateTime.UtcNow.AddMonths(1), UsageLimit = 100 });
     }
 
@@ -46,6 +50,7 @@ public class AdminVoucherController : Controller
         model.Code = model.Code.Trim().ToUpperInvariant();
         if (!ModelState.IsValid)
         {
+            await LoadSegmentOptionsAsync();
             return View("~/Views/Admin/Voucher/Form.cshtml", model);
         }
 
@@ -59,7 +64,13 @@ public class AdminVoucherController : Controller
     public async Task<IActionResult> Edit(int id)
     {
         var voucher = await _db.Vouchers.FindAsync(id);
-        return voucher is null ? NotFound() : View("~/Views/Admin/Voucher/Form.cshtml", voucher);
+        if (voucher is null)
+        {
+            return NotFound();
+        }
+
+        await LoadSegmentOptionsAsync();
+        return View("~/Views/Admin/Voucher/Form.cshtml", voucher);
     }
 
     [HttpPost("Edit/{id:int}")]
@@ -81,6 +92,7 @@ public class AdminVoucherController : Controller
         voucher.StartDate = model.StartDate;
         voucher.EndDate = model.EndDate;
         voucher.IsActive = model.IsActive;
+        voucher.CustomerSegmentId = model.CustomerSegmentId;
         await _db.SaveChangesAsync();
         TempData["Success"] = "Đã cập nhật voucher.";
         return RedirectToAction(nameof(Index));
@@ -113,5 +125,13 @@ public class AdminVoucherController : Controller
         }
 
         return RedirectToAction(nameof(Index));
+    }
+
+    private async Task LoadSegmentOptionsAsync()
+    {
+        ViewBag.CustomerSegments = await _db.CustomerSegments
+            .AsNoTracking()
+            .OrderBy(segment => segment.Name)
+            .ToListAsync();
     }
 }

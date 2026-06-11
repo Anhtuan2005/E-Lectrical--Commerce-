@@ -70,7 +70,7 @@ public class AdminProductController : Controller
             Stock = product.Stock,
             DiscountPercent = product.DiscountPercent,
             CategoryId = product.CategoryId,
-            ImageUrl = product.ImageUrl,
+            ImageUrl = product.PrimaryImageUrl,
             IsFeatured = product.IsFeatured,
             Categories = await _productService.GetCategoriesAsync(),
             StockLogs = await _db.StockLogs

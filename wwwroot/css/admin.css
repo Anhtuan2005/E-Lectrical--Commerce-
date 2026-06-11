@@ -258,6 +258,16 @@ input[type="checkbox"] {
 .adm-toast.success, .admin-alert { background: var(--adm-success); }
 .adm-toast.error { background: var(--adm-danger); }
 .adm-toast.info { background: var(--adm-accent); }
+.adm-toast[href] {
+  display: block;
+  text-decoration: none;
+  transition: transform 160ms ease-out, filter 160ms ease-out;
+}
+.adm-toast[href]:hover {
+  color: oklch(0.985 0.006 248);
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
 
 .admin-panel,
 .adm-panel {
@@ -819,6 +829,7 @@ input[type="checkbox"] {
   font-style: normal;
   font-weight: 850;
 }
+.adm-notification-link em:empty { display: none; }
 
 .admin-support-table td {
   vertical-align: top;

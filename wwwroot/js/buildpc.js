@@ -214,7 +214,7 @@
         return '' +
           '<article class="smart-slot-card">' +
             '<a href="' + escapeHtml(slot.url || "#") + '">' +
-              '<img src="' + escapeHtml(slot.imageUrl || "/images/placeholder.svg") + '" alt="' + escapeHtml(slot.name) + '" />' +
+              '<img src="' + escapeHtml(slot.imageUrl || "/images/placeholder.svg") + '" alt="' + escapeHtml(slot.name) + '" loading="lazy" decoding="async" />' +
             '</a>' +
             '<div>' +
               '<span>' + escapeHtml(slot.label || slot.slot) + '</span>' +
@@ -338,7 +338,7 @@
       var selected = build[slot] && Number(build[slot].id) === Number(product.id);
       return '' +
         '<article class="modal-product-item ' + (selected ? "selected" : "") + '" data-product-id="' + product.id + '">' +
-          '<img src="' + escapeHtml(product.imageUrl || "/images/placeholder.svg") + '" alt="' + escapeHtml(product.name) + '" />' +
+          '<img src="' + escapeHtml(product.imageUrl || "/images/placeholder.svg") + '" alt="' + escapeHtml(product.name) + '" loading="lazy" decoding="async" />' +
           '<div class="modal-product-info">' +
             '<span>' + escapeHtml(product.name) + '</span>' +
             '<strong>' + escapeHtml(product.price) + '</strong>' +

@@ -1,7 +1,9 @@
 using EcommerceApp.Data;
+using EcommerceApp.Hubs;
 using EcommerceApp.Models;
 using EcommerceApp.Models.ViewModels;
 using Microsoft.Data.SqlClient;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace EcommerceApp.Services;
@@ -15,9 +17,10 @@ public class OrderService : IOrderService
     private readonly ICustomerSegmentService _customerSegmentService;
     private readonly ICrossSellService _crossSellService;
     private readonly IUserNotificationService _notificationService;
+    private readonly IHubContext<AdminNotificationHub> _adminNotificationHub;
     private readonly ILogger<OrderService> _logger;
 
-    public OrderService(AppDbContext db, ICartService cartService, IShippingFeeService shippingFeeService, IOrderEmailService orderEmailService, ICustomerSegmentService customerSegmentService, ICrossSellService crossSellService, IUserNotificationService notificationService, ILogger<OrderService> logger)
+    public OrderService(AppDbContext db, ICartService cartService, IShippingFeeService shippingFeeService, IOrderEmailService orderEmailService, ICustomerSegmentService customerSegmentService, ICrossSellService crossSellService, IUserNotificationService notificationService, IHubContext<AdminNotificationHub> adminNotificationHub, ILogger<OrderService> logger)
     {
         _db = db;
         _cartService = cartService;
@@ -26,6 +29,7 @@ public class OrderService : IOrderService
         _customerSegmentService = customerSegmentService;
         _crossSellService = crossSellService;
         _notificationService = notificationService;
+        _adminNotificationHub = adminNotificationHub;
         _logger = logger;
     }
 
@@ -175,6 +179,22 @@ public class OrderService : IOrderService
             $"Đơn #DH{order.Id:D4} vừa được tạo với tổng tiền {order.TotalAmount:N0} đ.",
             NotificationTypes.Order,
             $"/Admin/Order/{order.Id}");
+        try
+        {
+            await _adminNotificationHub.Clients
+                .Group(AdminNotificationHub.AdminGroup)
+                .SendAsync("OrderCreated", new AdminOrderCreatedMessage(
+                    order.Id,
+                    $"DH{order.Id:D4}",
+                    order.RecipientName,
+                    order.TotalAmount,
+                    order.CreatedAt,
+                    $"/Admin/Order/{order.Id}"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not publish realtime notification for order {OrderId}", order.Id);
+        }
         return order;
     }
 

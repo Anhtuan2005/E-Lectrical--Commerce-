@@ -99,7 +99,7 @@
             var price = Model.Cart.GetUnitPrice(item);
             var hasCrossSellPrice = price < regularPrice;
             <div class="summary-item">
-                <img src="@(item.Product?.PrimaryImageUrl ?? "/images/placeholder.svg")" alt="@item.Product?.Name" />
+                <img src="@(item.Product?.PrimaryImageUrl ?? "/images/placeholder.svg")" alt="@item.Product?.Name" loading="lazy" decoding="async" />
                 <div>
                     <strong>@item.Product?.Name</strong>
                     <small>
@@ -125,7 +125,7 @@
                 {
                     <article class="cross-sell-item compact">
                         <div class="cross-sell-media">
-                            <img src="@suggestion.ImageUrl" alt="@suggestion.ProductName" />
+                            <img src="@suggestion.ImageUrl" alt="@suggestion.ProductName" loading="lazy" decoding="async" />
                             <span>-@suggestion.DiscountPercent%</span>
                         </div>
                         <div class="cross-sell-copy">

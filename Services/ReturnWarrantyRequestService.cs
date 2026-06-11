@@ -19,18 +19,18 @@ public class ReturnWarrantyRequestService : IReturnWarrantyRequestService
     };
 
     private readonly AppDbContext _db;
-    private readonly IWebHostEnvironment _environment;
+    private readonly IImageStorageService _imageStorage;
     private readonly IUserNotificationService _notificationService;
     private readonly ILogger<ReturnWarrantyRequestService> _logger;
 
     public ReturnWarrantyRequestService(
         AppDbContext db,
-        IWebHostEnvironment environment,
+        IImageStorageService imageStorage,
         IUserNotificationService notificationService,
         ILogger<ReturnWarrantyRequestService> logger)
     {
         _db = db;
-        _environment = environment;
+        _imageStorage = imageStorage;
         _notificationService = notificationService;
         _logger = logger;
     }
@@ -288,19 +288,19 @@ public class ReturnWarrantyRequestService : IReturnWarrantyRequestService
     private async Task<List<string>> SaveImagesAsync(IEnumerable<IFormFile> images)
     {
         var urls = new List<string>();
-        var webRoot = _environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-        var uploadRoot = Path.Combine(webRoot, "uploads", "return-warranty");
-        Directory.CreateDirectory(uploadRoot);
-
         foreach (var image in images)
         {
-            var extension = Path.GetExtension(image.FileName).ToLowerInvariant();
-            var fileName = $"{Guid.NewGuid():N}{extension}";
-            var path = Path.Combine(uploadRoot, fileName);
-
-            await using var stream = File.Create(path);
-            await image.CopyToAsync(stream);
-            urls.Add($"/uploads/return-warranty/{fileName}");
+            var url = await _imageStorage.SaveAsWebpAsync(
+                image,
+                "return-warranty",
+                1800,
+                1800,
+                80,
+                MaxEvidenceImageBytes);
+            if (url is not null)
+            {
+                urls.Add(url);
+            }
         }
 
         return urls;

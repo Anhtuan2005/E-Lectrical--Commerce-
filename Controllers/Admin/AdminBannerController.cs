@@ -1,5 +1,6 @@
 using EcommerceApp.Data;
 using EcommerceApp.Models;
+using EcommerceApp.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,12 +12,12 @@ namespace EcommerceApp.Controllers.Admin;
 public class AdminBannerController : Controller
 {
     private readonly AppDbContext _db;
-    private readonly IWebHostEnvironment _environment;
+    private readonly IImageStorageService _imageStorage;
 
-    public AdminBannerController(AppDbContext db, IWebHostEnvironment environment)
+    public AdminBannerController(AppDbContext db, IImageStorageService imageStorage)
     {
         _db = db;
-        _environment = environment;
+        _imageStorage = imageStorage;
     }
 
     [HttpGet("")]
@@ -40,7 +41,15 @@ public class AdminBannerController : Controller
             return View("~/Views/Admin/Banner/Form.cshtml", model);
         }
 
-        model.ImageUrl = await SaveImageAsync(imageFile) ?? model.ImageUrl;
+        try
+        {
+            model.ImageUrl = await _imageStorage.SaveAsWebpAsync(imageFile, "banners", 1920, 1080, 84) ?? model.ImageUrl;
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError("imageFile", ex.Message);
+            return View("~/Views/Admin/Banner/Form.cshtml", model);
+        }
         _db.Banners.Add(model);
         await _db.SaveChangesAsync();
         TempData["Success"] = "Đã thêm banner.";
@@ -75,7 +84,17 @@ public class AdminBannerController : Controller
         banner.ButtonText = model.ButtonText;
         banner.SortOrder = model.SortOrder;
         banner.IsActive = model.IsActive;
-        banner.ImageUrl = await SaveImageAsync(imageFile) ?? model.ImageUrl ?? banner.ImageUrl;
+        try
+        {
+            banner.ImageUrl = await _imageStorage.SaveAsWebpAsync(imageFile, "banners", 1920, 1080, 84)
+                ?? model.ImageUrl
+                ?? banner.ImageUrl;
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError("imageFile", ex.Message);
+            return View("~/Views/Admin/Banner/Form.cshtml", model);
+        }
         await _db.SaveChangesAsync();
         TempData["Success"] = "Đã cập nhật banner.";
         return RedirectToAction(nameof(Index));
@@ -127,19 +146,4 @@ public class AdminBannerController : Controller
         return Json(new { success = true });
     }
 
-    private async Task<string?> SaveImageAsync(IFormFile? imageFile)
-    {
-        if (imageFile is null || imageFile.Length == 0)
-        {
-            return null;
-        }
-
-        var uploadDir = Path.Combine(_environment.WebRootPath, "uploads", "banners");
-        Directory.CreateDirectory(uploadDir);
-        var fileName = $"{Guid.NewGuid():N}{Path.GetExtension(imageFile.FileName)}";
-        var filePath = Path.Combine(uploadDir, fileName);
-        await using var stream = System.IO.File.Create(filePath);
-        await imageFile.CopyToAsync(stream);
-        return $"/uploads/banners/{fileName}";
-    }
 }

@@ -67,7 +67,7 @@
                         <article class="order-detail-item">
                             @if (!string.IsNullOrWhiteSpace(item.Product?.PrimaryImageUrl))
                             {
-                                <img src="@item.Product.PrimaryImageUrl" alt="@item.Product.Name" />
+                                <img src="@item.Product.PrimaryImageUrl" alt="@item.Product.Name" loading="lazy" decoding="async" />
                             }
                             else
                             {

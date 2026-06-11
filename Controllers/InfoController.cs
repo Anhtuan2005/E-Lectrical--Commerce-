@@ -122,6 +122,8 @@ public class InfoController : Controller
 
     private IActionResult FooterPage(string eyebrow, string title, string intro, IReadOnlyList<FooterPageSectionViewModel> sections, string actionLabel = "Xem sản phẩm", string actionUrl = "/Product")
     {
+        ViewData["MetaDescription"] = intro;
+        ViewData["CanonicalPath"] = Request.Path.Value;
         return View("Page", new FooterPageViewModel
         {
             Eyebrow = eyebrow,

@@ -1,4 +1,5 @@
 using EcommerceApp.Data;
+using EcommerceApp.Hubs;
 using EcommerceApp.Models;
 using EcommerceApp.Services;
 using Microsoft.AspNetCore.Http;
@@ -129,6 +130,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductSpecService, ProductSpecService>();
+builder.Services.AddScoped<IImageStorageService, ImageStorageService>();
 builder.Services.AddScoped<ICartService, CartService>();
 builder.Services.AddScoped<ICrossSellService, CrossSellService>();
 builder.Services.AddScoped<ICustomerSegmentService, CustomerSegmentService>();
@@ -148,14 +150,15 @@ builder.Services.AddHttpClient<IAiChatService, GeminiChatService>(client =>
 builder.Services.AddHostedService<AbandonedCartRecoveryHostedService>();
 
 builder.Services.AddControllersWithViews();
+builder.Services.AddSignalR();
 
 var app = builder.Build();
 
 try
 {
+    app.UseExceptionHandler("/Home/Error");
     if (!app.Environment.IsDevelopment())
     {
-        app.UseExceptionHandler("/Home/Error");
         app.UseHsts();
     }
 
@@ -195,6 +198,7 @@ try
     app.MapControllerRoute(
         name: "default",
         pattern: "{controller=Home}/{action=Index}/{id?}");
+    app.MapHub<AdminNotificationHub>("/hubs/admin-notifications");
 
     await SeedData.InitializeAsync(app.Services);
 

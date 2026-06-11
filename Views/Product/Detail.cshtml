@@ -4,6 +4,15 @@
 @{
     ViewData["Title"] = Model.Product.Name;
     var product = Model.Product;
+    var cleanDescription = string.Join(" ", product.Description
+        .Split(new[] { '\r', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries))
+        .Trim();
+    ViewData["MetaDescription"] = cleanDescription.Length > 160
+        ? $"{cleanDescription[..157]}..."
+        : cleanDescription;
+    ViewData["CanonicalPath"] = Url.Action("Detail", "Product", new { id = product.Id });
+    ViewData["OgType"] = "product";
+    ViewData["OgImage"] = product.PrimaryImageUrl;
     var stockClass = product.Stock == 0 ? "out" : product.Stock <= 5 ? "low" : "ok";
     var stockText = product.Stock == 0 ? "Hết hàng" : $"Còn {product.Stock} sản phẩm";
     var rawGallery = product.Images.Any()
@@ -41,13 +50,13 @@
     @Html.AntiForgeryToken()
     <aside class="pdp-left">
         <div class="pdp-gallery-card">
-            <img class="main-product-image" id="mainProductImage" src="@gallery.First()" alt="@product.Name" />
+            <img class="main-product-image" id="mainProductImage" src="@gallery.First()" alt="@product.Name" loading="eager" decoding="async" fetchpriority="high" />
         </div>
         <div class="thumb-row pdp-thumbs">
             @foreach (var image in gallery.Select((url, index) => new { url, index }))
             {
                 <button type="button" class="thumb @(image.index == 0 ? "active" : "")" data-gallery-thumb="@image.url">
-                    <img src="@image.url" alt="@product.Name ảnh @(image.index + 1)" />
+                    <img src="@image.url" alt="@product.Name ảnh @(image.index + 1)" loading="lazy" decoding="async" />
                 </button>
             }
         </div>
@@ -100,6 +109,17 @@
             </div>
             <div class="pdp-icon-actions">
                 <button type="button" data-copy-link aria-label="Copy link"><i data-lucide="copy" aria-hidden="true"></i></button>
+                <button type="button"
+                        data-compare-product="@product.Id"
+                        data-compare-name="@product.Name"
+                        data-compare-image="@product.PrimaryImageUrl"
+                        data-compare-category-id="@product.CategoryId"
+                        data-compare-category-name="@product.Category?.Name"
+                        title="Thêm vào so sánh"
+                        aria-label="Thêm @product.Name vào so sánh"
+                        aria-pressed="false">
+                    <i data-lucide="git-compare-arrows" aria-hidden="true"></i>
+                </button>
                 @if (Model.IsAuthenticated)
                 {
                     <button class="btn-wishlist @(Model.IsWishlisted ? "active" : "")" type="button" data-product-id="@product.Id" aria-label="Yêu thích"><i data-lucide="heart" aria-hidden="true"></i></button>
@@ -260,7 +280,7 @@
                                         @foreach (var image in reviewImages)
                                         {
                                             <a class="review-photo-thumb" href="@image.ImageUrl" target="_blank" rel="noopener">
-                                                <img src="@image.ImageUrl" alt="Ảnh đánh giá của @(item.User?.FullName ?? "khách hàng")" loading="lazy" />
+                                                <img src="@image.ImageUrl" alt="Ảnh đánh giá của @(item.User?.FullName ?? "khách hàng")" loading="lazy" decoding="async" />
                                             </a>
                                         }
                                     </div>
@@ -373,7 +393,7 @@
         </header>
         <div class="spec-modal-body">
             <div class="spec-modal-product" id="specModalProduct">
-                <img src="@gallery.First()" alt="@product.Name" />
+                <img src="@gallery.First()" alt="@product.Name" loading="lazy" decoding="async" />
                 <div>
                     <span>@product.Category?.Name</span>
                     <strong>@product.Name</strong>

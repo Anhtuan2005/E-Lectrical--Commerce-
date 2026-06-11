@@ -30,7 +30,7 @@ else
                     var unitPrice = Model.GetUnitPrice(item);
                     var hasCrossSellPrice = unitPrice < regularPrice;
                     <article class="cart-item" data-product-id="@item.ProductId">
-                        <img src="@item.Product?.PrimaryImageUrl" alt="@item.Product?.Name" />
+                        <img src="@item.Product?.PrimaryImageUrl" alt="@item.Product?.Name" loading="lazy" decoding="async" />
                         <div>
                             <h3>@item.Product?.Name</h3>
                             @if (hasCrossSellPrice)

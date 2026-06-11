@@ -1,5 +1,6 @@
 using EcommerceApp.Data;
 using EcommerceApp.Models;
+using EcommerceApp.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -23,12 +24,12 @@ public class ReviewController : Controller
     };
 
     private readonly AppDbContext _db;
-    private readonly IWebHostEnvironment _environment;
+    private readonly IImageStorageService _imageStorage;
 
-    public ReviewController(AppDbContext db, IWebHostEnvironment environment)
+    public ReviewController(AppDbContext db, IImageStorageService imageStorage)
     {
         _db = db;
-        _environment = environment;
+        _imageStorage = imageStorage;
     }
 
     [HttpPost]
@@ -70,7 +71,15 @@ public class ReviewController : Controller
             return Json(new { success = false, message = imageError });
         }
 
-        var savedImages = await SaveReviewImagesAsync(imageFiles);
+        List<string> savedImages;
+        try
+        {
+            savedImages = await SaveReviewImagesAsync(imageFiles);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
 
         var review = new Review
         {
@@ -126,19 +135,19 @@ public class ReviewController : Controller
     private async Task<List<string>> SaveReviewImagesAsync(IEnumerable<IFormFile> images)
     {
         var urls = new List<string>();
-        var webRoot = _environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-        var uploadRoot = Path.Combine(webRoot, "uploads", "reviews");
-        Directory.CreateDirectory(uploadRoot);
-
         foreach (var image in images)
         {
-            var extension = Path.GetExtension(image.FileName).ToLowerInvariant();
-            var fileName = $"{Guid.NewGuid():N}{extension}";
-            var path = Path.Combine(uploadRoot, fileName);
-
-            await using var stream = System.IO.File.Create(path);
-            await image.CopyToAsync(stream);
-            urls.Add($"/uploads/reviews/{fileName}");
+            var url = await _imageStorage.SaveAsWebpAsync(
+                image,
+                "reviews",
+                1600,
+                1600,
+                80,
+                MaxReviewImageBytes);
+            if (url is not null)
+            {
+                urls.Add(url);
+            }
         }
 
         return urls;

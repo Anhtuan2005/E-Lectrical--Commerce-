@@ -28,7 +28,7 @@
                     <article class="order-detail-item">
                         @if (!string.IsNullOrWhiteSpace(item.OrderItem?.Product?.PrimaryImageUrl))
                         {
-                            <img src="@item.OrderItem.Product.PrimaryImageUrl" alt="@item.ProductNameSnapshot" />
+                            <img src="@item.OrderItem.Product.PrimaryImageUrl" alt="@item.ProductNameSnapshot" loading="lazy" decoding="async" />
                         }
                         else
                         {
@@ -59,7 +59,7 @@
                         @foreach (var image in Model.Images.OrderBy(image => image.SortOrder))
                         {
                             <a href="@image.ImageUrl" target="_blank" rel="noopener">
-                                <img src="@image.ImageUrl" alt="Ảnh minh chứng yêu cầu #@Model.Id" />
+                                <img src="@image.ImageUrl" alt="Ảnh minh chứng yêu cầu #@Model.Id" loading="lazy" decoding="async" />
                             </a>
                         }
                     </div>

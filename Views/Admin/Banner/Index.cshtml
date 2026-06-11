@@ -15,7 +15,7 @@
             @foreach (var banner in Model)
             {
                 <tr class="drag-row" data-id="@banner.Id">
-                    <td><img class="banner-thumb" src="@banner.ImageUrl" alt="@banner.Title" /></td>
+                    <td><img class="banner-thumb" src="@banner.ImageUrl" alt="@banner.Title" loading="lazy" decoding="async" /></td>
                     <td><strong>@banner.Title</strong><br /><small>@banner.Subtitle</small></td>
                     <td>@banner.LinkUrl</td>
                     <td>@banner.SortOrder</td>

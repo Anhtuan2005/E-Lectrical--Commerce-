@@ -1,0 +1,17 @@
+<aside class="compare-tray" data-compare-tray hidden aria-live="polite">
+    <div class="compare-tray-summary">
+        <span class="compare-tray-icon"><i data-lucide="git-compare-arrows" aria-hidden="true"></i></span>
+        <div>
+            <strong><span data-compare-count>0</span>/4 sản phẩm</strong>
+            <small data-compare-hint>Chọn ít nhất 2 sản phẩm</small>
+        </div>
+    </div>
+    <div class="compare-tray-items" data-compare-items></div>
+    <div class="compare-tray-actions">
+        <button type="button" data-compare-clear>Xóa</button>
+        <a class="btn-primary disabled" asp-controller="Product" asp-action="Compare" data-compare-open aria-disabled="true">
+            So sánh ngay
+            <i data-lucide="arrow-right" aria-hidden="true"></i>
+        </a>
+    </div>
+</aside>

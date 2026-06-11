@@ -1,0 +1,19 @@
+@model ErrorViewModel
+@{
+    ViewData["Title"] = "Oops! Đã xảy ra lỗi.";
+    ViewData["Robots"] = "noindex,nofollow";
+}
+
+<section class="system-error-page" aria-labelledby="errorTitle">
+    <div class="system-error-panel">
+        <span class="system-error-code">500</span>
+        <h1 id="errorTitle">Oops! Đã xảy ra lỗi.</h1>
+        <p>Hệ thống đang gặp sự cố.</p>
+        <p>Vui lòng thử lại sau.</p>
+        <a class="btn-primary" asp-controller="Home" asp-action="Index">Quay về trang chủ</a>
+        @if (Model.ShowRequestId)
+        {
+            <small>Mã tham chiếu: @Model.RequestId</small>
+        }
+    </div>
+</section>

@@ -1,6 +1,8 @@
 @model HomeViewModel
 @{
     ViewData["Title"] = "Trang chủ";
+    ViewData["MetaDescription"] = "Techvora cung cấp điện thoại, laptop, linh kiện PC và phụ kiện công nghệ với giá rõ ràng, giao hàng nhanh và bảo hành minh bạch.";
+    ViewData["CanonicalPath"] = Url.Action("Index", "Home");
     var banners = Model.Banners.Any()
         ? Model.Banners
         : new[]
@@ -40,11 +42,16 @@
 <section class="home-shell tv-home">
     <section class="hero-slider hero-premium reveal" id="heroSlider">
         <div class="slider-track">
+            @{ var bannerIndex = 0; }
             @foreach (var banner in banners.Take(3))
             {
                 <div class="slide">
                     <div class="slide-bg">
-                        <img src="@banner.ImageUrl" alt="@banner.Title" />
+                        <img src="@banner.ImageUrl"
+                             alt="@banner.Title"
+                             loading="@(bannerIndex == 0 ? "eager" : "lazy")"
+                             decoding="async"
+                             fetchpriority="@(bannerIndex == 0 ? "high" : "low")" />
                     </div>
                     <div class="slide-content">
                         <p class="slide-eyebrow"><span></span> Techvora Signature</p>
@@ -56,6 +63,7 @@
                         </div>
                     </div>
                 </div>
+                bannerIndex++;
             }
         </div>
         <div class="slider-dots">
@@ -151,7 +159,7 @@
             <div class="flash-market-products">
                 <article class="flash-main-deal">
                     <a class="flash-main-media" asp-controller="Product" asp-action="Detail" asp-route-id="@mainDeal.Id">
-                        <img src="@mainDeal.PrimaryImageUrl" alt="@mainDeal.Name" loading="lazy" />
+                        <img src="@mainDeal.PrimaryImageUrl" alt="@mainDeal.Name" loading="lazy" decoding="async" />
                         <span>-@mainDeal.DiscountPercent%</span>
                     </a>
                     <div class="flash-main-info">
@@ -184,7 +192,7 @@
                         var itemSaved = product.Price - product.SalePrice;
                         <article class="flash-mini-deal">
                             <a asp-controller="Product" asp-action="Detail" asp-route-id="@product.Id">
-                                <img src="@product.PrimaryImageUrl" alt="@product.Name" loading="lazy" />
+                                <img src="@product.PrimaryImageUrl" alt="@product.Name" loading="lazy" decoding="async" />
                             </a>
                             <div>
                                 <span>-@product.DiscountPercent%</span>

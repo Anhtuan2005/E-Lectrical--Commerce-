@@ -15,13 +15,13 @@ namespace EcommerceApp.Controllers.Admin;
 public class AdminProductController : Controller
 {
     private readonly IProductService _productService;
-    private readonly IWebHostEnvironment _environment;
+    private readonly IImageStorageService _imageStorage;
     private readonly AppDbContext _db;
 
-    public AdminProductController(IProductService productService, IWebHostEnvironment environment, AppDbContext db)
+    public AdminProductController(IProductService productService, IImageStorageService imageStorage, AppDbContext db)
     {
         _productService = productService;
-        _environment = environment;
+        _imageStorage = imageStorage;
         _db = db;
     }
 
@@ -47,7 +47,18 @@ public class AdminProductController : Controller
             return View("~/Views/Admin/Product/Form.cshtml", model);
         }
 
-        await _productService.CreateProductAsync(model, await SaveImageAsync(imageFile));
+        string? imageUrl;
+        try
+        {
+            imageUrl = await _imageStorage.SaveAsWebpAsync(imageFile, "products", 1600, 1600, 82);
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError("imageFile", ex.Message);
+            return View("~/Views/Admin/Product/Form.cshtml", model);
+        }
+
+        await _productService.CreateProductAsync(model, imageUrl);
         TempData["Success"] = "Đã thêm sản phẩm.";
         return RedirectToAction(nameof(Index));
     }
@@ -98,7 +109,18 @@ public class AdminProductController : Controller
             .Select(product => product.Stock)
             .FirstOrDefaultAsync();
 
-        await _productService.UpdateProductAsync(model, await SaveImageAsync(imageFile));
+        string? imageUrl;
+        try
+        {
+            imageUrl = await _imageStorage.SaveAsWebpAsync(imageFile, "products", 1600, 1600, 82);
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError("imageFile", ex.Message);
+            return View("~/Views/Admin/Product/Form.cshtml", model);
+        }
+
+        await _productService.UpdateProductAsync(model, imageUrl);
         if (oldStock != model.Stock)
         {
             _db.StockLogs.Add(new StockLog
@@ -155,22 +177,6 @@ public class AdminProductController : Controller
         }
 
         return RedirectToAction(nameof(Index));
-    }
-
-    private async Task<string?> SaveImageAsync(IFormFile? imageFile)
-    {
-        if (imageFile is null || imageFile.Length == 0)
-        {
-            return null;
-        }
-
-        var uploadDir = Path.Combine(_environment.WebRootPath, "uploads", "products");
-        Directory.CreateDirectory(uploadDir);
-        var fileName = $"{Guid.NewGuid():N}{Path.GetExtension(imageFile.FileName)}";
-        var filePath = Path.Combine(uploadDir, fileName);
-        await using var stream = System.IO.File.Create(filePath);
-        await imageFile.CopyToAsync(stream);
-        return $"/uploads/products/{fileName}";
     }
 
     private static string ToSlug(string value)

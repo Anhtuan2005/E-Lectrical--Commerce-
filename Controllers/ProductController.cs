@@ -29,6 +29,56 @@ public class ProductController : Controller
     }
 
     [HttpGet]
+    public async Task<IActionResult> Compare([FromQuery] int[]? ids)
+    {
+        var requestedIds = (ids ?? Array.Empty<int>())
+            .Where(id => id > 0)
+            .Distinct()
+            .Take(4)
+            .ToList();
+
+        var products = await _db.Products
+            .AsNoTracking()
+            .Include(product => product.Category)
+            .Include(product => product.Images)
+            .Where(product => requestedIds.Contains(product.Id))
+            .ToListAsync();
+        var productsById = products.ToDictionary(product => product.Id);
+        var orderedProducts = requestedIds
+            .Where(productsById.ContainsKey)
+            .Select(id => productsById[id])
+            .ToList();
+        var categoryId = orderedProducts.FirstOrDefault()?.CategoryId;
+        var comparableProducts = categoryId.HasValue
+            ? orderedProducts.Where(product => product.CategoryId == categoryId.Value).ToList()
+            : new List<Product>();
+        var items = comparableProducts
+            .Select(product =>
+            {
+                return new ProductCompareItemViewModel
+                {
+                    Product = product,
+                    Specs = _productSpecService.Build(product)
+                        .GroupBy(spec => spec.Label, StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(group => group.Key, group => group.First().Value, StringComparer.OrdinalIgnoreCase)
+                };
+            })
+            .ToList();
+        var labels = items
+            .SelectMany(item => item.Specs.Keys)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return View(new ProductCompareViewModel
+        {
+            Products = items,
+            SpecLabels = labels,
+            CategoryName = comparableProducts.FirstOrDefault()?.Category?.Name,
+            HasRejectedProducts = comparableProducts.Count != orderedProducts.Count
+        });
+    }
+
+    [HttpGet]
     public async Task<IActionResult> Search(string? q)
     {
         var terms = ProductSearchIndex.QueryTerms(q);

@@ -1,0 +1,19 @@
+@{
+    var statusCode = ViewData["StatusCode"] as int? ?? Context.Response.StatusCode;
+    var title = ViewData["StatusTitle"]?.ToString() ?? "Có lỗi xảy ra";
+    var message = ViewData["StatusMessage"]?.ToString() ?? "Vui lòng thử lại sau.";
+    ViewData["Title"] = title;
+    ViewData["Robots"] = "noindex,nofollow";
+}
+
+<section class="system-error-page" aria-labelledby="statusTitle">
+    <div class="system-error-panel">
+        <span class="system-error-code">@statusCode</span>
+        <h1 id="statusTitle">@title</h1>
+        @foreach (var line in message.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            <p>@line.</p>
+        }
+        <a class="btn-primary" asp-controller="Home" asp-action="Index">Quay về trang chủ</a>
+    </div>
+</section>

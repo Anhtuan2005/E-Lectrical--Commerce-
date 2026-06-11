@@ -5,7 +5,7 @@ document.addEventListener("DOMContentLoaded", function () {
   initDashboardChart();
   initReportCharts();
   initBannerSort();
-  initOrderPolling();
+  initOrderNotifications();
 });
 
 function initAdminConfirm() {
@@ -222,27 +222,81 @@ function saveBannerSort(tbody) {
   });
 }
 
-function initOrderPolling() {
+function initOrderNotifications() {
   var lastCheck = Date.now();
-  setInterval(function () {
+  var realtimeConnected = false;
+
+  function incrementBadge(id, amount) {
+    var badge = document.getElementById(id);
+    if (!badge) return;
+    var current = Number(badge.textContent) || 0;
+    badge.textContent = String(current + amount);
+  }
+
+  function handleNewOrders(count, message, url) {
+    if (count <= 0) return;
+    incrementBadge("new-order-badge", count);
+    incrementBadge("admin-notification-badge", count);
+    showAdminToast(message || ("Có " + count + " đơn hàng mới!"), "info", url);
+    lastCheck = Date.now();
+  }
+
+  function pollNewOrders() {
+    if (realtimeConnected) return;
     fetch("/Admin/Order/NewCount?since=" + lastCheck)
       .then(function (response) { return response.json(); })
       .then(function (data) {
         if (data.count > 0) {
-          showAdminToast("Có " + data.count + " đơn hàng mới!", "info");
-          var badge = document.getElementById("new-order-badge");
-          if (badge) badge.textContent = data.count;
-          lastCheck = Date.now();
+          handleNewOrders(data.count);
         }
+      })
+      .catch(function () {
+        // The next interval retries without interrupting the admin workflow.
       });
-  }, 30000);
+  }
+
+  setInterval(pollNewOrders, 30000);
+
+  if (!window.signalR) return;
+  var connection = new window.signalR.HubConnectionBuilder()
+    .withUrl("/hubs/admin-notifications")
+    .withAutomaticReconnect([0, 2000, 10000, 30000])
+    .build();
+
+  connection.on("OrderCreated", function (order) {
+    var total = Number(order.totalAmount || 0).toLocaleString("vi-VN") + " ₫";
+    handleNewOrders(
+      1,
+      "Đơn #" + order.code + " mới từ " + order.customerName + ", " + total,
+      order.url
+    );
+  });
+  connection.onreconnecting(function () {
+    realtimeConnected = false;
+  });
+  connection.onreconnected(function () {
+    realtimeConnected = true;
+    lastCheck = Date.now();
+  });
+  connection.onclose(function () {
+    realtimeConnected = false;
+  });
+  connection.start()
+    .then(function () {
+      realtimeConnected = true;
+      lastCheck = Date.now();
+    })
+    .catch(function () {
+      realtimeConnected = false;
+    });
 }
 
-function showAdminToast(message, type) {
+function showAdminToast(message, type, url) {
   var stack = document.getElementById("admin-toast-stack");
   if (!stack) return;
-  var toast = document.createElement("div");
+  var toast = document.createElement(url ? "a" : "div");
   toast.className = "adm-toast " + (type || "info");
+  if (url) toast.href = url;
   toast.textContent = message;
   stack.appendChild(toast);
   setTimeout(function () { toast.remove(); }, 3200);

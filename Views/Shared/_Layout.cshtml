@@ -1,9 +1,56 @@
+@inject IConfiguration Configuration
+@{
+    var viewTitle = ViewData["Title"]?.ToString();
+    var pageTitle = string.IsNullOrWhiteSpace(viewTitle) ? "Techvora" : $"Techvora - {viewTitle}";
+    var metaDescription = ViewData["MetaDescription"]?.ToString()
+        ?? Configuration["Seo:DefaultDescription"]
+        ?? "Techvora - cửa hàng công nghệ dành cho điện thoại, laptop, linh kiện PC và phụ kiện.";
+    var configuredBaseUrl = Configuration["Seo:BaseUrl"]?.Trim();
+    var requestBaseUrl = $"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.PathBase}";
+    var siteBaseUrl = string.IsNullOrWhiteSpace(configuredBaseUrl) ? requestBaseUrl : configuredBaseUrl;
+    siteBaseUrl = siteBaseUrl.TrimEnd('/');
+    var canonicalPath = ViewData["CanonicalPath"]?.ToString() ?? Context.Request.Path.Value ?? "/";
+    var canonicalUrl = Uri.TryCreate(canonicalPath, UriKind.Absolute, out var absoluteCanonical)
+        ? absoluteCanonical.AbsoluteUri
+        : $"{siteBaseUrl}/{canonicalPath.TrimStart('/')}";
+    var ogImageValue = ViewData["OgImage"]?.ToString()
+        ?? Configuration["Seo:DefaultImage"]
+        ?? "/images/techvora-favicon.svg";
+    var ogImageUrl = Uri.TryCreate(ogImageValue, UriKind.Absolute, out var absoluteImage)
+        ? absoluteImage.AbsoluteUri
+        : $"{siteBaseUrl}/{ogImageValue.TrimStart('/')}";
+    var ogType = ViewData["OgType"]?.ToString() ?? "website";
+    var privatePrefixes = new[]
+    {
+        "/Admin", "/Account", "/Cart", "/Order", "/Payment",
+        "/Notification", "/Wishlist", "/ReturnWarranty"
+    };
+    var defaultRobots = privatePrefixes.Any(prefix =>
+        Context.Request.Path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase))
+        ? "noindex,nofollow"
+        : "index,follow";
+    var robots = ViewData["Robots"]?.ToString() ?? defaultRobots;
+}
 <!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Techvora - @ViewData["Title"]</title>
+    <title>@pageTitle</title>
+    <meta name="description" content="@metaDescription" />
+    <meta name="robots" content="@robots" />
+    <link rel="canonical" href="@canonicalUrl" />
+    <meta property="og:locale" content="vi_VN" />
+    <meta property="og:site_name" content="Techvora" />
+    <meta property="og:type" content="@ogType" />
+    <meta property="og:title" content="@pageTitle" />
+    <meta property="og:description" content="@metaDescription" />
+    <meta property="og:url" content="@canonicalUrl" />
+    <meta property="og:image" content="@ogImageUrl" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="@pageTitle" />
+    <meta name="twitter:description" content="@metaDescription" />
+    <meta name="twitter:image" content="@ogImageUrl" />
     <link rel="icon" href="~/images/techvora-favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -46,6 +93,7 @@
     <main role="main">
         @RenderBody()
     </main>
+    <partial name="_CompareTray" />
     <div class="cart-offer-modal" id="cartOfferModal" hidden aria-hidden="true">
         <div class="cart-offer-backdrop" data-cart-offer-close></div>
         <section class="cart-offer-dialog" role="dialog" aria-modal="true" aria-labelledby="cartOfferTitle">

@@ -1,7 +1,9 @@
 @model ProductViewModel
 @{
     ViewData["Title"] = "Sản phẩm";
-    var selectedCategory = Model.Categories.FirstOrDefault(category => category.Id == Model.CategoryId);
+    var categories = Model.Categories.ToList();
+    var selectedCategory = categories.FirstOrDefault(category => category.Id == Model.CategoryId);
+    const int visibleCategoryCount = 7;
     var hasPriceFilter = Model.MinPrice.HasValue || Model.MaxPrice.HasValue;
     var activeFilterCount = (Model.CategoryId.HasValue ? 1 : 0) + (hasPriceFilter ? 1 : 0);
     Func<decimal, string> compactPrice = value =>
@@ -15,6 +17,16 @@
             : Model.MaxPrice.HasValue
                 ? $"Giá đến {compactPrice(Model.MaxPrice.Value)}"
                 : string.Empty;
+    ViewData["MetaDescription"] = selectedCategory is null
+        ? "Khám phá điện thoại, laptop, linh kiện PC và phụ kiện công nghệ tại Techvora."
+        : $"Mua {selectedCategory.Name} tại Techvora với giá rõ ràng, sản phẩm chọn lọc và bảo hành minh bạch.";
+    ViewData["CanonicalPath"] = Model.CategoryId.HasValue
+        ? Url.Action("Index", "Product", new { categoryId = Model.CategoryId })
+        : Url.Action("Index", "Product");
+    if (!string.IsNullOrWhiteSpace(Model.Search) || Model.MinPrice.HasValue || Model.MaxPrice.HasValue)
+    {
+        ViewData["Robots"] = "noindex,follow";
+    }
 }
 
 <section class="page-head product-page-head">
@@ -173,32 +185,52 @@
         }
     </div>
 
+    <aside class="catalog-category-rail" aria-label="Danh mục sản phẩm">
+        <div class="category-rail-head">
+            <strong>Danh mục</strong>
+            <span>@categories.Count</span>
+        </div>
+        <nav class="category-rail-list">
+            <a class="category-rail-link @(!Model.CategoryId.HasValue ? "active" : "")"
+               asp-action="Index"
+               asp-route-search="@Model.Search"
+               asp-route-minPrice="@Model.MinPrice"
+               asp-route-maxPrice="@Model.MaxPrice"
+               asp-route-sortBy="@Model.SortBy">
+                <span>Tất cả sản phẩm</span>
+            </a>
+            @for (var index = 0; index < categories.Count; index++)
+            {
+                var category = categories[index];
+                <a class="category-rail-link @(Model.CategoryId == category.Id ? "active" : "") @(index >= visibleCategoryCount ? "is-extra" : "")"
+                   asp-action="Index"
+                   asp-route-search="@Model.Search"
+                   asp-route-categoryId="@category.Id"
+                   asp-route-minPrice="@Model.MinPrice"
+                   asp-route-maxPrice="@Model.MaxPrice"
+                   asp-route-sortBy="@Model.SortBy">
+                    <span>@category.Name</span>
+                </a>
+            }
+        </nav>
+        @if (categories.Count > visibleCategoryCount)
+        {
+            <button class="category-rail-more" type="button" data-category-expand aria-expanded="false">
+                <span>Xem thêm</span>
+                <em>+@(categories.Count - visibleCategoryCount)</em>
+                <i data-lucide="chevron-down" aria-hidden="true"></i>
+            </button>
+        }
+    </aside>
+
     <aside class="catalog-sidebar catalog-filter-panel" id="catalogFilterPanel" hidden>
         <form method="get" class="catalog-filter">
             <input type="hidden" name="search" value="@Model.Search" />
             <input type="hidden" name="sortBy" value="@Model.SortBy" />
+            <input type="hidden" name="categoryId" value="@Model.CategoryId" />
             <div class="filter-title-row">
                 <h2>Bộ lọc sản phẩm</h2>
                 <a asp-action="Index" asp-route-search="@Model.Search" asp-route-sortBy="@Model.SortBy">Xóa lọc</a>
-            </div>
-            <div class="filter-group category-filter-group">
-                <div class="filter-group-head">
-                    <strong>Danh mục</strong>
-                    <span>@Model.Categories.Count()</span>
-                </div>
-                <div class="category-filter-grid">
-                    <label class="filter-check">
-                        <input type="radio" name="categoryId" value="" checked="@(!Model.CategoryId.HasValue)" />
-                        <span>Tất cả</span>
-                    </label>
-                    @foreach (var category in Model.Categories)
-                    {
-                        <label class="filter-check">
-                            <input type="radio" name="categoryId" value="@category.Id" checked="@(Model.CategoryId == category.Id)" />
-                            <span>@category.Name</span>
-                        </label>
-                    }
-                </div>
             </div>
             <div class="filter-group">
                 <div class="filter-group-head">

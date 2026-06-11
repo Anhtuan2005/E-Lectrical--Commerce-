@@ -9,6 +9,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
     <title>Techvora Admin - @ViewData["Title"]</title>
     <link rel="icon" href="~/images/techvora-favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -52,10 +53,7 @@
                 <a class="adm-ghost adm-notification-link" asp-controller="Notification" asp-action="Index">
                     <i class="bi bi-bell"></i>
                     Thông báo
-                    @if (adminUnreadCount > 0)
-                    {
-                        <em>@adminUnreadCount</em>
-                    }
+                    <em id="admin-notification-badge">@(adminUnreadCount > 0 ? adminUnreadCount.ToString() : string.Empty)</em>
                 </a>
                 <a class="adm-ghost" asp-controller="Home" asp-action="Index"><i class="bi bi-house"></i> Trang chủ</a>
                 <form asp-controller="Account" asp-action="Logout" method="post">
@@ -78,6 +76,7 @@
             @RenderBody()
         </main>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
     <environment include="Development">
         <script src="~/js/admin.js" asp-append-version="true"></script>
     </environment>

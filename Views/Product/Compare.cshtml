@@ -1,0 +1,139 @@
+@model ProductCompareViewModel
+@{
+    ViewData["Title"] = "So sánh sản phẩm";
+    ViewData["MetaDescription"] = "So sánh giá, tình trạng kho và thông số kỹ thuật của sản phẩm tại Techvora.";
+    ViewData["CanonicalPath"] = Url.Action("Compare", "Product");
+    ViewData["Robots"] = "noindex,follow";
+    var comparePath = Url.Action("Compare", "Product") ?? "/Product/Compare";
+    var currentIds = Model.Products.Select(item => item.Product.Id).ToList();
+    var isAdminViewer = User.IsInRole("Admin");
+}
+
+<section class="page-head compare-page-head">
+    <div>
+        <span class="eyebrow">Techvora Compare</span>
+        <h1>So sánh sản phẩm</h1>
+        <p>Đặt các sản phẩm cùng danh mục cạnh nhau để chọn thiết bị phù hợp hơn.</p>
+    </div>
+    <a class="btn-ghost" asp-action="Index">
+        <i data-lucide="arrow-left" aria-hidden="true"></i>
+        Chọn thêm sản phẩm
+    </a>
+</section>
+
+<section class="compare-page">
+    @if (Model.Products.Count < 2)
+    {
+        <div class="compare-empty">
+            <span><i data-lucide="git-compare-arrows" aria-hidden="true"></i></span>
+            <h2>Chọn ít nhất 2 sản phẩm</h2>
+            <p>
+                @if (Model.HasRejectedProducts && !string.IsNullOrWhiteSpace(Model.CategoryName))
+                {
+                    <text>Chỉ có thể so sánh các sản phẩm cùng danh mục @Model.CategoryName.</text>
+                }
+                else
+                {
+                    <text>Bạn có thể so sánh tối đa 4 sản phẩm cùng danh mục.</text>
+                }
+            </p>
+            <a class="btn-primary" asp-action="Index">Đi đến sản phẩm</a>
+        </div>
+    }
+    else
+    {
+        <div class="compare-summary">
+            <div>
+                <strong>@Model.Products.Count sản phẩm đang được so sánh</strong>
+                @if (Model.HasRejectedProducts && !string.IsNullOrWhiteSpace(Model.CategoryName))
+                {
+                    <span>Đã bỏ qua sản phẩm khác danh mục. Bảng này chỉ so sánh @Model.CategoryName.</span>
+                }
+            </div>
+            <a asp-action="Index" data-compare-clear-link>Xóa và chọn lại</a>
+        </div>
+        <div class="compare-table-wrap">
+            <table class="compare-table">
+                <thead>
+                    <tr>
+                        <th class="compare-label-column" scope="col">Sản phẩm</th>
+                        @foreach (var item in Model.Products)
+                        {
+                            var product = item.Product;
+                            var remainingIds = currentIds.Where(id => id != product.Id);
+                            var removeUrl = $"{comparePath}?{string.Join("&", remainingIds.Select(id => $"ids={id}"))}";
+                            <th scope="col">
+                                <article class="compare-product"
+                                         data-compare-seed="@product.Id"
+                                         data-compare-name="@product.Name"
+                                         data-compare-image="@product.PrimaryImageUrl"
+                                         data-compare-category-id="@product.CategoryId"
+                                         data-compare-category-name="@product.Category?.Name">
+                                    <a class="compare-product-image" asp-action="Detail" asp-route-id="@product.Id">
+                                        <img src="@product.PrimaryImageUrl" alt="@product.Name" loading="lazy" decoding="async" />
+                                    </a>
+                                    <span>@product.Category?.Name</span>
+                                    <a class="compare-product-name" asp-action="Detail" asp-route-id="@product.Id">@product.Name</a>
+                                    <div class="compare-product-price">
+                                        <strong>@product.SalePrice.ToString("N0") ₫</strong>
+                                        @if (product.DiscountPercent > 0)
+                                        {
+                                            <del>@product.Price.ToString("N0") ₫</del>
+                                        }
+                                    </div>
+                                    <div class="compare-product-actions">
+                                        @if (!isAdminViewer && product.Stock > 0)
+                                        {
+                                            <button class="btn-primary" type="button" data-cart-product="@product.Id">Thêm vào giỏ</button>
+                                        }
+                                        <a href="@removeUrl" aria-label="Bỏ @product.Name khỏi so sánh" data-compare-remove-id="@product.Id">
+                                            <i data-lucide="x" aria-hidden="true"></i>
+                                        </a>
+                                    </div>
+                                </article>
+                            </th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th scope="row">Danh mục</th>
+                        @foreach (var item in Model.Products)
+                        {
+                            <td>@item.Product.Category?.Name</td>
+                        }
+                    </tr>
+                    <tr>
+                        <th scope="row">Tình trạng</th>
+                        @foreach (var item in Model.Products)
+                        {
+                            <td>
+                                <span class="compare-stock @(item.Product.Stock > 0 ? "in-stock" : "out-of-stock")">
+                                    @(item.Product.Stock > 0 ? $"Còn {item.Product.Stock} sản phẩm" : "Hết hàng")
+                                </span>
+                            </td>
+                        }
+                    </tr>
+                    <tr>
+                        <th scope="row">Giảm giá</th>
+                        @foreach (var item in Model.Products)
+                        {
+                            <td>@(item.Product.DiscountPercent > 0 ? $"{item.Product.DiscountPercent}%" : "Không")</td>
+                        }
+                    </tr>
+                    @foreach (var label in Model.SpecLabels)
+                    {
+                        <tr>
+                            <th scope="row">@label</th>
+                            @foreach (var item in Model.Products)
+                            {
+                                var hasValue = item.Specs.TryGetValue(label, out var value);
+                                <td class="@(!hasValue ? "compare-not-applicable" : "")">@(hasValue ? value : "Không áp dụng")</td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

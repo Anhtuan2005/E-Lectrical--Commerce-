@@ -31,7 +31,7 @@ public class OrderController : Controller
         _userManager = userManager;
     }
 
-    public async Task<IActionResult> Checkout()
+    public async Task<IActionResult> Checkout([FromQuery] int[] selectedProductIds)
     {
         if (User.IsInRole("Admin"))
         {
@@ -39,8 +39,15 @@ public class OrderController : Controller
             return RedirectToAction("Index", "Product");
         }
 
+        var selectedIds = NormalizeSelectedProductIds(selectedProductIds);
+        if (!selectedIds.Any())
+        {
+            TempData["Error"] = "Vui lòng chọn sản phẩm cần thanh toán.";
+            return RedirectToAction("Index", "Cart");
+        }
+
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var cart = await _cartService.GetCartAsync(userId, HttpContext.Session.Id);
+        var cart = await _cartService.GetCartAsync(userId, GetStableCartSessionId(userId), selectedIds);
         if (!cart.Items.Any())
         {
             TempData["Error"] = "Giỏ hàng đang trống.";
@@ -51,6 +58,7 @@ public class OrderController : Controller
         return View(new CheckoutViewModel
         {
             Cart = cart,
+            SelectedProductIds = selectedIds,
             RecipientName = user?.FullName ?? string.Empty,
             RecipientPhone = user?.PhoneNumber ?? string.Empty,
             ShippingFee = _shippingFeeService.Calculate(null, null, cart.Total).Fee,
@@ -59,7 +67,7 @@ public class OrderController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> ShippingFee(string? province, string? district)
+    public async Task<IActionResult> ShippingFee(string? province, string? district, [FromQuery] int[] selectedProductIds)
     {
         if (User.IsInRole("Admin"))
         {
@@ -78,7 +86,7 @@ public class OrderController : Controller
         }
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var cart = await _cartService.GetCartAsync(userId, HttpContext.Session.Id);
+        var cart = await _cartService.GetCartAsync(userId, GetStableCartSessionId(userId), NormalizeSelectedProductIds(selectedProductIds));
         var quote = _shippingFeeService.Calculate(province, district, cart.Total);
         var total = cart.Total + quote.Fee;
 
@@ -107,7 +115,20 @@ public class OrderController : Controller
         }
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        model.Cart = await _cartService.GetCartAsync(userId, HttpContext.Session.Id);
+        model.SelectedProductIds = NormalizeSelectedProductIds(model.SelectedProductIds);
+        if (!model.SelectedProductIds.Any())
+        {
+            TempData["Error"] = "Vui lòng chọn sản phẩm cần thanh toán.";
+            return RedirectToAction("Index", "Cart");
+        }
+
+        model.Cart = await _cartService.GetCartAsync(userId, GetStableCartSessionId(userId), model.SelectedProductIds);
+        if (!model.Cart.Items.Any())
+        {
+            TempData["Error"] = "Các sản phẩm đã chọn không còn trong giỏ hàng.";
+            return RedirectToAction("Index", "Cart");
+        }
+
         model.ProfileAddress = (await _userManager.GetUserAsync(User))?.Address;
         model.ShippingFee = _shippingFeeService.Calculate(model.Province, model.District, model.Cart.Total).Fee;
         if (!ModelState.IsValid)
@@ -117,7 +138,7 @@ public class OrderController : Controller
 
         try
         {
-            var order = await _orderService.CreateOrderAsync(userId, model, HttpContext.Session.Id);
+            var order = await _orderService.CreateOrderAsync(userId, model, GetStableCartSessionId(userId));
             if (model.PaymentMethod == "VNPAY")
             {
                 return Redirect(_vnpayService.CreatePaymentUrl(order, HttpContext));
@@ -205,5 +226,23 @@ public class OrderController : Controller
     {
         return string.Equals(order.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase)
             && !order.IsPaid;
+    }
+
+    private static List<int> NormalizeSelectedProductIds(IEnumerable<int>? productIds)
+    {
+        return (productIds ?? Array.Empty<int>())
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList();
+    }
+
+    private string GetStableCartSessionId(string? userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            HttpContext.Session.SetString("CartSession", "active");
+        }
+
+        return HttpContext.Session.Id;
     }
 }

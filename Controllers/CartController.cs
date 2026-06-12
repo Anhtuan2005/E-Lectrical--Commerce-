@@ -82,7 +82,15 @@ public class CartController : Controller
             {
                 productId = item.ProductId,
                 quantity = item.Quantity,
-                lineTotal = (cart.GetUnitPrice(item) * item.Quantity).ToString("N0") + " ₫"
+                lineTotal = (cart.GetUnitPrice(item) * item.Quantity).ToString("N0") + " ₫",
+                lineTotalValue = cart.GetUnitPrice(item) * item.Quantity
+            }),
+            groups = cart.ItemGroups.Select(group => new
+            {
+                key = group.Key,
+                total = cart.GetGroupTotal(group).ToString("N0") + " ₫",
+                componentCount = group.ComponentCount,
+                quantityCount = group.QuantityCount
             }),
             crossSellSuggestions = cart.CrossSellSuggestions.Select(suggestion => new
             {

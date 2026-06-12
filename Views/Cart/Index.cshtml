@@ -1,3 +1,4 @@
+@using System.Globalization
 @model CartViewModel
 @{
     ViewData["Title"] = "Giỏ hàng";
@@ -21,17 +22,100 @@
 }
 else
 {
-    <section class="cart-layout">
+    <form class="cart-layout" id="cartCheckoutForm" asp-controller="Order" asp-action="Checkout" method="get">
         <div class="cart-main-stack">
             <div class="cart-list">
-                @foreach (var item in Model.Items)
+                @{
+                    var groupIndex = 0;
+                }
+                @foreach (var group in Model.ItemGroups)
+                {
+                    groupIndex++;
+                    var leadItem = group.Items.FirstOrDefault();
+                    var leadImage = leadItem?.Product?.PrimaryImageUrl ?? "/images/placeholder.svg";
+                    var leadName = leadItem?.Product?.Name ?? "Bộ linh kiện Smart PC";
+                    var groupPanelId = $"cart-build-{groupIndex}";
+                    <section class="cart-build-group is-collapsed" data-cart-group="@group.Key">
+                        <header class="cart-build-head">
+                            <div class="cart-build-primary">
+                                <label class="cart-select-cell cart-build-select" aria-label="Chọn cả bộ @group.Name">
+                                    <input class="cart-select-input" type="checkbox" data-cart-group-select checked />
+                                    <span></span>
+                                </label>
+                                <img class="cart-build-cover" src="@leadImage" alt="@leadName" loading="lazy" decoding="async" />
+                                <div class="cart-build-copy">
+                                    <span class="cart-build-eyebrow">Smart PC Builder</span>
+                                    <h2>@group.Name</h2>
+                                    <small>
+                                        <strong>@leadName</strong>
+                                        <span>trong <span data-cart-group-count>@group.ComponentCount</span> linh kiện</span>
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="cart-build-actions">
+                                <strong class="cart-build-total" data-cart-group-total>@Model.GetGroupTotal(group).ToString("N0") ₫</strong>
+                                <button class="cart-build-toggle" type="button" data-cart-group-toggle aria-expanded="false" aria-controls="@groupPanelId">
+                                    <span>Xem linh kiện</span>
+                                    <i data-lucide="chevron-down" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </header>
+                        <div class="cart-build-items" id="@groupPanelId" hidden>
+                            @foreach (var item in group.Items)
+                            {
+                                var regularPrice = Model.GetRegularUnitPrice(item);
+                                var unitPrice = Model.GetUnitPrice(item);
+                                var hasCrossSellPrice = unitPrice < regularPrice;
+                                var lineTotal = unitPrice * item.Quantity;
+                                <article class="cart-item" data-product-id="@item.ProductId">
+                                    <label class="cart-select-cell" aria-label="Chọn @item.Product?.Name">
+                                        <input class="cart-select-input" type="checkbox" name="selectedProductIds" value="@item.ProductId" data-cart-item-select data-line-total="@lineTotal.ToString(CultureInfo.InvariantCulture)" checked />
+                                        <span></span>
+                                    </label>
+                                    <img src="@item.Product?.PrimaryImageUrl" alt="@item.Product?.Name" loading="lazy" decoding="async" />
+                                    <div class="cart-item-copy">
+                                        @if (!string.IsNullOrWhiteSpace(item.GroupItemLabel))
+                                        {
+                                            <small class="cart-item-slot">@item.GroupItemLabel</small>
+                                        }
+                                        <h3>@item.Product?.Name</h3>
+                                        @if (hasCrossSellPrice)
+                                        {
+                                            <span><del>@regularPrice.ToString("N0") ₫</del> @unitPrice.ToString("N0") ₫</span>
+                                            <small class="cross-sell-note">Giá mua kèm</small>
+                                        }
+                                        else
+                                        {
+                                            <span>@unitPrice.ToString("N0") ₫</span>
+                                        }
+                                    </div>
+                                    <div class="quantity-stepper cart-stepper">
+                                        <button type="button" data-qty-minus>-</button>
+                                        <input class="cart-qty" type="number" min="0" max="@item.Product?.Stock" value="@item.Quantity" />
+                                        <button type="button" data-qty-plus>+</button>
+                                    </div>
+                                    <strong class="line-total">@lineTotal.ToString("N0") ₫</strong>
+                                    <button class="icon-button cart-remove" type="button" aria-label="Xoá">
+                                        <i data-lucide="x" aria-hidden="true"></i>
+                                    </button>
+                                </article>
+                            }
+                        </div>
+                    </section>
+                }
+                @foreach (var item in Model.StandaloneItems)
                 {
                     var regularPrice = Model.GetRegularUnitPrice(item);
                     var unitPrice = Model.GetUnitPrice(item);
                     var hasCrossSellPrice = unitPrice < regularPrice;
+                    var lineTotal = unitPrice * item.Quantity;
                     <article class="cart-item" data-product-id="@item.ProductId">
+                        <label class="cart-select-cell" aria-label="Chọn @item.Product?.Name">
+                            <input class="cart-select-input" type="checkbox" name="selectedProductIds" value="@item.ProductId" data-cart-item-select data-line-total="@lineTotal.ToString(CultureInfo.InvariantCulture)" checked />
+                            <span></span>
+                        </label>
                         <img src="@item.Product?.PrimaryImageUrl" alt="@item.Product?.Name" loading="lazy" decoding="async" />
-                        <div>
+                        <div class="cart-item-copy">
                             <h3>@item.Product?.Name</h3>
                             @if (hasCrossSellPrice)
                             {
@@ -48,39 +132,43 @@ else
                             <input class="cart-qty" type="number" min="0" max="@item.Product?.Stock" value="@item.Quantity" />
                             <button type="button" data-qty-plus>+</button>
                         </div>
-                        <strong class="line-total">@((unitPrice * item.Quantity).ToString("N0")) ₫</strong>
+                        <strong class="line-total">@lineTotal.ToString("N0") ₫</strong>
                         <button class="icon-button cart-remove" type="button" aria-label="Xoá">
                             <i data-lucide="x" aria-hidden="true"></i>
                         </button>
                     </article>
                 }
             </div>
-
         </div>
 
         <aside class="checkout-summary">
-            <span>Tổng tiền</span>
+            <span>Thanh toán</span>
             @if (Model.CrossSellDiscountAmount > 0)
             {
-                <div class="summary-line"><span>Tạm tính</span><strong>@Model.GrossTotal.ToString("N0") ₫</strong></div>
+                <div class="summary-line"><span>Tạm tính gốc</span><strong>@Model.GrossTotal.ToString("N0") ₫</strong></div>
                 <div class="summary-line discount-line show"><span>Ưu đãi mua kèm</span><strong>-@Model.CrossSellDiscountAmount.ToString("N0") ₫</strong></div>
             }
-            <strong id="cart-total">@Model.Total.ToString("N0") ₫</strong>
+            <div class="summary-line">
+                <span>Đã chọn</span>
+                <strong><span id="cart-selected-count">@Model.Items.Count()</span> mục</strong>
+            </div>
+            <strong id="cart-total" data-cart-selected-total>@Model.Total.ToString("N0") ₫</strong>
             @if (User.IsInRole("Admin"))
             {
                 <div class="admin-view-note">
                     <strong>Chế độ xem admin</strong>
                     <span>Admin chỉ kiểm tra dữ liệu, không thể đặt hàng.</span>
                 </div>
+                <button class="btn-primary" type="button" disabled>Admin không thể thanh toán</button>
             }
             else if (User.Identity?.IsAuthenticated == true)
             {
-                <a class="btn-primary" asp-controller="Order" asp-action="Checkout">Tiến hành thanh toán</a>
+                <button class="btn-primary" type="submit" id="cartCheckoutSubmit">Thanh toán mục đã chọn</button>
             }
             else
             {
-                <a class="btn-primary" asp-controller="Account" asp-action="Login" asp-route-returnUrl="/Order/Checkout">Đăng nhập để thanh toán</a>
+                <button class="btn-primary" type="submit" id="cartCheckoutSubmit">Đăng nhập để thanh toán</button>
             }
         </aside>
-    </section>
+    </form>
 }

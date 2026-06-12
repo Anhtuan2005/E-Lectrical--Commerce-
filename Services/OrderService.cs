@@ -41,7 +41,24 @@ public class OrderService : IOrderService
             throw new InvalidOperationException("Giỏ hàng đang trống.");
         }
 
-        foreach (var item in cart.Items)
+        var selectedProductIds = model.SelectedProductIds
+            .Where(id => id > 0)
+            .Distinct()
+            .ToHashSet();
+        if (!selectedProductIds.Any())
+        {
+            throw new InvalidOperationException("Vui lòng chọn sản phẩm cần thanh toán.");
+        }
+
+        var checkoutItems = cart.Items
+            .Where(item => selectedProductIds.Contains(item.ProductId))
+            .ToList();
+        if (!checkoutItems.Any())
+        {
+            throw new InvalidOperationException("Các sản phẩm đã chọn không còn trong giỏ hàng.");
+        }
+
+        foreach (var item in checkoutItems)
         {
             if (item.Product is null || item.Product.Stock < item.Quantity)
             {
@@ -51,7 +68,7 @@ public class OrderService : IOrderService
 
         await using var transaction = await _db.Database.BeginTransactionAsync();
 
-        var crossSellUnitPrices = await _crossSellService.GetEligibleUnitPricesAsync(cart.Items);
+        var crossSellUnitPrices = await _crossSellService.GetEligibleUnitPricesAsync(checkoutItems);
         var order = new Order
         {
             UserId = userId,
@@ -62,7 +79,7 @@ public class OrderService : IOrderService
             Status = OrderStatuses.Pending,
             IsPaid = false,
             PaidAt = null,
-            Items = cart.Items.Select(item => new OrderItem
+            Items = checkoutItems.Select(item => new OrderItem
             {
                 ProductId = item.ProductId,
                 Quantity = item.Quantity,
@@ -142,7 +159,7 @@ public class OrderService : IOrderService
             });
         }
 
-        foreach (var item in cart.Items)
+        foreach (var item in checkoutItems)
         {
             var affected = await _db.Database.ExecuteSqlRawAsync(
                 "UPDATE Products SET Stock = Stock - {0} WHERE Id = {1} AND Stock >= {0} AND IsDeleted = 0",
@@ -154,6 +171,9 @@ public class OrderService : IOrderService
             }
         }
 
+        _db.CartItems.RemoveRange(checkoutItems);
+        cart.UpdatedAt = DateTime.UtcNow;
+
         try
         {
             await _db.SaveChangesAsync();
@@ -163,7 +183,6 @@ public class OrderService : IOrderService
             throw new InvalidOperationException("Bạn đã sử dụng mã giảm giá này.");
         }
 
-        await _cartService.ClearAsync(userId, sessionId);
         await transaction.CommitAsync();
         await _customerSegmentService.RefreshUserAsync(userId);
         _logger.LogInformation("Order {OrderId} created for user {UserId} with payment {PaymentMethod} and total {TotalAmount}", order.Id, userId, order.PaymentMethod, order.TotalAmount);

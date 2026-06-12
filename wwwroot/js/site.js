@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", function () {
   initCartOfferModal();
   initCartButtons();
   initCartPage();
+  initCartSelection();
   initReviewForm();
   initReviewImagePreview();
   initVoucher();
@@ -910,6 +911,12 @@ function initCartButtons() {
           }
           updateCartBadges(data);
           if (button.dataset.cartReload === "true") {
+            if (document.getElementById("checkoutForm")) {
+              var checkoutUrl = new URL(window.location.href);
+              checkoutUrl.searchParams.append("selectedProductIds", button.dataset.cartProduct);
+              window.location.href = checkoutUrl.pathname + checkoutUrl.search + checkoutUrl.hash;
+              return;
+            }
             window.location.reload();
             return;
           }
@@ -954,7 +961,7 @@ function initDetailAddToCart() {
         }
         updateCartBadges(data);
         if (redirectToCheckout) {
-          window.location.href = "/Order/Checkout";
+          window.location.href = "/Order/Checkout?selectedProductIds=" + encodeURIComponent(source.dataset.productId);
           return;
         }
         if (!showCartOffersAfterAdd(data)) {
@@ -1128,37 +1135,158 @@ function initCartPage() {
   });
 }
 
+function initCartSelection() {
+  var form = document.getElementById("cartCheckoutForm");
+  if (!form) return;
+
+  function itemInputs(scope) {
+    return Array.from((scope || form).querySelectorAll("[data-cart-item-select]"));
+  }
+
+  function syncGroup(group) {
+    if (!group) return;
+    var groupInput = group.querySelector("[data-cart-group-select]");
+    if (!groupInput) return;
+
+    var inputs = itemInputs(group);
+    var checked = inputs.filter(function (input) { return input.checked; }).length;
+    groupInput.checked = inputs.length > 0 && checked === inputs.length;
+    groupInput.indeterminate = checked > 0 && checked < inputs.length;
+  }
+
+  function syncAllGroups() {
+    form.querySelectorAll("[data-cart-group]").forEach(syncGroup);
+  }
+
+  function syncSelection() {
+    var checkedItems = itemInputs().filter(function (input) { return input.checked; });
+    var count = checkedItems.length;
+    var totalValue = checkedItems.reduce(function (sum, input) {
+      return sum + parseLocalizedNumber(input.dataset.lineTotal, 0);
+    }, 0);
+    var selectedCount = document.getElementById("cart-selected-count");
+    var total = document.querySelector("[data-cart-selected-total]") || document.getElementById("cart-total");
+    var submit = document.getElementById("cartCheckoutSubmit");
+
+    if (selectedCount) selectedCount.textContent = String(count);
+    if (total) total.textContent = formatVnd(totalValue);
+    if (submit) submit.disabled = count === 0;
+    syncAllGroups();
+  }
+
+  form.querySelectorAll("[data-cart-group-toggle]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var targetId = button.getAttribute("aria-controls");
+      var panel = targetId ? document.getElementById(targetId) : null;
+      var group = button.closest("[data-cart-group]");
+      var expanded = button.getAttribute("aria-expanded") === "true";
+      var nextExpanded = !expanded;
+      var label = button.querySelector("span");
+
+      button.setAttribute("aria-expanded", String(nextExpanded));
+      if (panel) panel.hidden = !nextExpanded;
+      if (group) group.classList.toggle("is-collapsed", !nextExpanded);
+      if (label) label.textContent = nextExpanded ? "Thu gọn" : "Xem linh kiện";
+    });
+  });
+
+  form.querySelectorAll("[data-cart-group-select]").forEach(function (input) {
+    input.addEventListener("change", function () {
+      var group = input.closest("[data-cart-group]");
+      itemInputs(group).forEach(function (itemInput) {
+        itemInput.checked = input.checked;
+      });
+      input.indeterminate = false;
+      syncSelection();
+    });
+  });
+
+  itemInputs().forEach(function (input) {
+    input.addEventListener("change", syncSelection);
+  });
+
+  form.addEventListener("submit", function (event) {
+    if (itemInputs().some(function (input) { return input.checked; })) return;
+    event.preventDefault();
+    showToast("Vui lòng chọn ít nhất một sản phẩm để thanh toán.", "error");
+  });
+
+  window.syncCartSelection = syncSelection;
+  syncSelection();
+}
+
 function updateCart(url, productId, quantity, row, removeRow) {
   var body = new URLSearchParams();
   body.append("productId", productId);
-    body.append("quantity", quantity);
-    fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "RequestVerificationToken": antiForgeryToken()
-      },
-      body: body.toString()
-    })
-      .then(function (response) { return response.json(); })
-      .then(function (data) {
-        if (!data.success) {
-          showToast(data.message || "Không thể cập nhật giỏ hàng.", "error");
-          return;
-        }
-        var cartCount = document.getElementById("cart-count");
+  body.append("quantity", quantity);
+  var group = row ? row.closest("[data-cart-group]") : null;
+  fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "RequestVerificationToken": antiForgeryToken()
+    },
+    body: body.toString()
+  })
+    .then(function (response) { return response.json(); })
+    .then(function (data) {
+      if (!data.success) {
+        showToast(data.message || "Không thể cập nhật giỏ hàng.", "error");
+        return;
+      }
+      var cartCount = document.getElementById("cart-count");
       var cartTotal = document.getElementById("cart-total");
       if (cartCount) cartCount.textContent = data.itemCount;
-      if (cartTotal) cartTotal.textContent = data.total;
+      if (cartTotal && !document.querySelector("[data-cart-selected-total]")) cartTotal.textContent = data.total;
       var item = data.items.find(function (entry) { return String(entry.productId) === String(productId); });
       if (item && row) {
         var lineTotal = row.querySelector(".line-total");
+        var select = row.querySelector("[data-cart-item-select]");
         if (lineTotal) lineTotal.textContent = item.lineTotal;
+        if (select && item.lineTotalValue !== undefined) select.dataset.lineTotal = String(item.lineTotalValue);
       }
       if ((removeRow || Number(quantity) <= 0) && row) row.remove();
+      syncCartGroup(group, data);
+      if (window.syncCartSelection) window.syncCartSelection();
       showToast(data.message, "success");
       if (data.itemCount === 0) window.location.reload();
+    })
+    .catch(function () {
+      showToast("Không thể cập nhật giỏ hàng. Vui lòng thử lại.", "error");
     });
+}
+
+function syncCartGroup(group, data) {
+  if (!group) return;
+
+  var remainingItems = group.querySelectorAll(".cart-item").length;
+  if (remainingItems === 0) {
+    group.remove();
+    return;
+  }
+
+  var groupKey = group.dataset.cartGroup;
+  var groups = data && Array.isArray(data.groups) ? data.groups : [];
+  var updated = groups.find(function (entry) {
+    return String(entry.key) === String(groupKey);
+  });
+  if (!updated) return;
+
+  var total = group.querySelector("[data-cart-group-total]");
+  var count = group.querySelector("[data-cart-group-count]");
+  if (total) total.textContent = updated.total;
+  if (count) count.textContent = updated.componentCount;
+
+  var firstRow = group.querySelector(".cart-item");
+  var firstImage = firstRow ? firstRow.querySelector("img") : null;
+  var firstTitle = firstRow ? firstRow.querySelector("h3") : null;
+  var leadImage = group.querySelector(".cart-build-cover");
+  var leadTitle = group.querySelector(".cart-build-copy small strong");
+  if (leadImage && firstImage) {
+    leadImage.src = firstImage.currentSrc || firstImage.src;
+    leadImage.alt = firstImage.alt || "";
+  }
+  if (leadTitle && firstTitle) leadTitle.textContent = firstTitle.textContent || "";
 }
 
 function initReviewForm() {
@@ -1341,6 +1469,9 @@ function updateCheckoutShippingFee() {
   var query = new URLSearchParams();
   query.append("province", province.value);
   if (district && district.value) query.append("district", district.value);
+  document.querySelectorAll('input[name="SelectedProductIds"]').forEach(function (input) {
+    if (input.value) query.append("selectedProductIds", input.value);
+  });
 
   fetch("/Order/ShippingFee?" + query.toString(), { headers: { Accept: "application/json" } })
     .then(function (response) { return response.json(); })

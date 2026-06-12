@@ -440,7 +440,7 @@
 
   async function addAllToCart() {
     if (!btnAddAll) return;
-    var items = Object.values(build);
+    var items = Object.entries(build);
     if (!items.length) return;
 
     btnAddAll.disabled = true;
@@ -448,9 +448,13 @@
 
     try {
       var body = new URLSearchParams();
-      items.forEach(function (product) {
+      items.forEach(function (entry) {
+        var slot = entry[0];
+        var product = entry[1];
         body.append("productIds", product.id);
+        body.append("slots", slot);
       });
+      body.append("groupName", getCurrentBuildName());
       var response = await fetch("/BuildPc/AddToCart", {
         method: "POST",
         headers: {
@@ -477,6 +481,14 @@
       btnAddAll.textContent = "Thêm tất cả vào giỏ";
       showNotice("Chưa thêm được cấu hình vào giỏ.", "error");
     }
+  }
+
+  function getCurrentBuildName() {
+    if (activeSmartVariant && activeSmartVariant.label) {
+      return "Bộ cấu hình Smart PC - " + activeSmartVariant.label;
+    }
+
+    return "Bộ cấu hình Smart PC";
   }
 
   function resetBuild() {

@@ -16,14 +16,25 @@ public class CartService : ICartService
         _crossSellService = crossSellService;
     }
 
-    public async Task<CartViewModel> GetCartAsync(string? userId, string sessionId)
+    public async Task<CartViewModel> GetCartAsync(string? userId, string sessionId, IEnumerable<int>? productIds = null)
     {
         var cart = await GetOrCreateCartAsync(userId, sessionId);
         await _db.Entry(cart).Collection(c => c.Items).Query()
             .Include(item => item.Product)
             .ThenInclude(product => product!.Images)
             .LoadAsync();
-        var items = cart.Items.OrderBy(item => item.Product?.Name).ToList();
+        var items = cart.Items
+            .OrderBy(item => string.IsNullOrWhiteSpace(item.GroupKey))
+            .ThenBy(item => item.GroupKey)
+            .ThenBy(item => item.GroupSortOrder ?? 999)
+            .ThenBy(item => item.Product?.Name)
+            .ToList();
+        if (productIds is not null)
+        {
+            var selectedProductIds = productIds.Where(id => id > 0).Distinct().ToHashSet();
+            items = items.Where(item => selectedProductIds.Contains(item.ProductId)).ToList();
+        }
+
         return new CartViewModel
         {
             Items = items,
@@ -47,7 +58,7 @@ public class CartService : ICartService
         return cart?.Items.Sum(item => item.Quantity) ?? 0;
     }
 
-    public async Task AddAsync(int productId, int quantity, string? userId, string sessionId)
+    public async Task AddAsync(int productId, int quantity, string? userId, string sessionId, CartItemGroupInput? group = null)
     {
         var product = await _db.Products.FirstOrDefaultAsync(row => row.Id == productId);
         if (product is null || product.Stock <= 0)
@@ -66,11 +77,14 @@ public class CartService : ICartService
 
         if (item is null)
         {
-            _db.CartItems.Add(new CartItem { CartId = cart.Id, ProductId = productId, Quantity = quantity });
+            item = new CartItem { CartId = cart.Id, ProductId = productId, Quantity = quantity };
+            ApplyGroup(item, group);
+            _db.CartItems.Add(item);
         }
         else
         {
             item.Quantity += quantity;
+            ApplyGroup(item, group);
         }
 
         Touch(cart);
@@ -152,11 +166,28 @@ public class CartService : ICartService
                     var targetItem = userCart.Items.FirstOrDefault(item => item.ProductId == sessionItem.ProductId);
                     if (targetItem is null)
                     {
-                        userCart.Items.Add(new CartItem { ProductId = sessionItem.ProductId, Quantity = Math.Min(sessionItem.Quantity, sessionItem.Product?.Stock ?? sessionItem.Quantity) });
+                        userCart.Items.Add(new CartItem
+                        {
+                            ProductId = sessionItem.ProductId,
+                            Quantity = Math.Min(sessionItem.Quantity, sessionItem.Product?.Stock ?? sessionItem.Quantity),
+                            GroupKey = sessionItem.GroupKey,
+                            GroupName = sessionItem.GroupName,
+                            GroupSource = sessionItem.GroupSource,
+                            GroupItemLabel = sessionItem.GroupItemLabel,
+                            GroupSortOrder = sessionItem.GroupSortOrder
+                        });
                     }
                     else
                     {
                         targetItem.Quantity = Math.Min(targetItem.Quantity + sessionItem.Quantity, targetItem.Product?.Stock ?? targetItem.Quantity + sessionItem.Quantity);
+                        if (string.IsNullOrWhiteSpace(targetItem.GroupKey) && !string.IsNullOrWhiteSpace(sessionItem.GroupKey))
+                        {
+                            targetItem.GroupKey = sessionItem.GroupKey;
+                            targetItem.GroupName = sessionItem.GroupName;
+                            targetItem.GroupSource = sessionItem.GroupSource;
+                            targetItem.GroupItemLabel = sessionItem.GroupItemLabel;
+                            targetItem.GroupSortOrder = sessionItem.GroupSortOrder;
+                        }
                     }
                 }
 
@@ -189,5 +220,26 @@ public class CartService : ICartService
     private static void Touch(Cart cart)
     {
         cart.UpdatedAt = DateTime.UtcNow;
+    }
+
+    private static void ApplyGroup(CartItem item, CartItemGroupInput? group)
+    {
+        if (group is null || string.IsNullOrWhiteSpace(group.Key))
+        {
+            return;
+        }
+
+        item.GroupKey = Truncate(group.Key.Trim(), 64);
+        item.GroupName = Truncate(string.IsNullOrWhiteSpace(group.Name) ? "Bộ cấu hình Smart PC" : group.Name.Trim(), 120);
+        item.GroupSource = Truncate(string.IsNullOrWhiteSpace(group.Source) ? "SmartPC" : group.Source.Trim(), 40);
+        item.GroupItemLabel = Truncate(group.ItemLabel?.Trim(), 80);
+        item.GroupSortOrder = group.SortOrder;
+    }
+
+    private static string? Truncate(string? value, int maxLength)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? null
+            : value.Length <= maxLength ? value : value[..maxLength];
     }
 }

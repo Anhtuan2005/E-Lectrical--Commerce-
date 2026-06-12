@@ -101,7 +101,7 @@ public class BuildPcController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddToCart([FromForm] int[] productIds)
+    public async Task<IActionResult> AddToCart([FromForm] int[] productIds, [FromForm] string[] slots, [FromForm] string? groupName)
     {
         if (User.IsInRole("Admin"))
         {
@@ -113,23 +113,52 @@ public class BuildPcController : Controller
             });
         }
 
-        var cleanIds = productIds.Where(id => id > 0).Distinct().ToArray();
-        if (cleanIds.Length == 0)
+        var selectedItems = productIds
+            .Select((id, index) => new
+            {
+                ProductId = id,
+                Slot = index < slots.Length ? slots[index] : string.Empty
+            })
+            .Where(item => item.ProductId > 0)
+            .GroupBy(item => item.ProductId)
+            .Select(group => group.First())
+            .ToList();
+
+        if (selectedItems.Count == 0)
         {
             return Json(new { success = false, message = "Vui lÃ²ng chá»n Ã­t nháº¥t má»™t linh kiá»‡n." });
         }
 
+        var cleanIds = selectedItems.Select(item => item.ProductId).ToArray();
         var validIds = await _db.Products
             .Where(product => cleanIds.Contains(product.Id) && product.Stock > 0)
             .Select(product => product.Id)
             .ToListAsync();
+        var validIdSet = validIds.ToHashSet();
+        var groupKey = $"smartpc-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..31];
+        var safeGroupName = string.IsNullOrWhiteSpace(groupName) ? "Bộ cấu hình Smart PC" : groupName.Trim();
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var sessionId = GetStableCartSessionId(userId);
 
         var addedCount = 0;
-        foreach (var productId in validIds)
+        foreach (var item in selectedItems.Where(item => validIdSet.Contains(item.ProductId)))
         {
             try
             {
-                await _cartService.AddAsync(productId, 1, User.FindFirstValue(ClaimTypes.NameIdentifier), HttpContext.Session.Id);
+                var slotIndex = Array.FindIndex(PcSlots.All, slot => slot.Equals(item.Slot, StringComparison.OrdinalIgnoreCase));
+                await _cartService.AddAsync(
+                    item.ProductId,
+                    1,
+                    userId,
+                    sessionId,
+                    new CartItemGroupInput
+                    {
+                        Key = groupKey,
+                        Name = safeGroupName,
+                        Source = "SmartPC",
+                        ItemLabel = slotIndex >= 0 ? GetSlotLabel(PcSlots.All[slotIndex]) : item.Slot,
+                        SortOrder = slotIndex >= 0 ? slotIndex : 999
+                    });
                 addedCount++;
             }
             catch (InvalidOperationException)
@@ -138,7 +167,7 @@ public class BuildPcController : Controller
             }
         }
 
-        var cartCount = await _cartService.GetCountAsync(User.FindFirstValue(ClaimTypes.NameIdentifier), HttpContext.Session.Id);
+        var cartCount = await _cartService.GetCountAsync(userId, sessionId);
         return Json(new
         {
             success = addedCount > 0,
@@ -146,6 +175,16 @@ public class BuildPcController : Controller
             itemCount = cartCount,
             redirectUrl = Url.Action("Index", "Cart")
         });
+    }
+
+    private string GetStableCartSessionId(string? userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            HttpContext.Session.SetString("CartSession", "active");
+        }
+
+        return HttpContext.Session.Id;
     }
 
     private async Task<Dictionary<string, List<Product>>> LoadSlotProductsAsync()

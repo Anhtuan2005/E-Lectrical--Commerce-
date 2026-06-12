@@ -157,6 +157,25 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(item => new { item.CartId, item.ProductId })
             .IsUnique();
 
+        builder.Entity<CartItem>()
+            .Property(item => item.GroupKey)
+            .HasMaxLength(64);
+
+        builder.Entity<CartItem>()
+            .Property(item => item.GroupName)
+            .HasMaxLength(120);
+
+        builder.Entity<CartItem>()
+            .Property(item => item.GroupSource)
+            .HasMaxLength(40);
+
+        builder.Entity<CartItem>()
+            .Property(item => item.GroupItemLabel)
+            .HasMaxLength(80);
+
+        builder.Entity<CartItem>()
+            .HasIndex(item => new { item.CartId, item.GroupKey });
+
         builder.Entity<WishlistItem>()
             .HasIndex(item => new { item.UserId, item.ProductId })
             .IsUnique();

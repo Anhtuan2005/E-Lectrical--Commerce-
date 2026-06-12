@@ -39,6 +39,7 @@ public class CheckoutViewModel
     public string? VoucherCode { get; set; }
     public decimal DiscountAmount { get; set; }
     public decimal ShippingFee { get; set; }
+    public List<int> SelectedProductIds { get; set; } = new();
 
     public CartViewModel Cart { get; set; } = new();
 

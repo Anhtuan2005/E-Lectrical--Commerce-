@@ -129,7 +129,7 @@
                 <a class="btn-ghost" asp-controller="Cart" asp-action="Index">Xem giỏ</a>
                 @if (!User.IsInRole("Admin"))
                 {
-                    <a class="btn-primary" asp-controller="Order" asp-action="Checkout">Thanh toán</a>
+                    <a class="btn-primary" asp-controller="Cart" asp-action="Index">Thanh toán trong giỏ</a>
                 }
             </div>
         </section>

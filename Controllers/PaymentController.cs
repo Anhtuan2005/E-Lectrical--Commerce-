@@ -1,9 +1,11 @@
 using EcommerceApp.Data;
+using EcommerceApp.Hubs;
 using EcommerceApp.Models;
 using EcommerceApp.Models.ViewModels;
 using EcommerceApp.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 using System.Security.Claims;
@@ -18,15 +20,17 @@ public class PaymentController : Controller
     private readonly IOrderEmailService _orderEmailService;
     private readonly IUserNotificationService _notificationService;
     private readonly ICustomerSegmentService _customerSegmentService;
+    private readonly IHubContext<AdminNotificationHub> _adminNotificationHub;
     private readonly ILogger<PaymentController> _logger;
 
-    public PaymentController(AppDbContext db, IVnpayService vnpayService, IOrderEmailService orderEmailService, IUserNotificationService notificationService, ICustomerSegmentService customerSegmentService, ILogger<PaymentController> logger)
+    public PaymentController(AppDbContext db, IVnpayService vnpayService, IOrderEmailService orderEmailService, IUserNotificationService notificationService, ICustomerSegmentService customerSegmentService, IHubContext<AdminNotificationHub> adminNotificationHub, ILogger<PaymentController> logger)
     {
         _db = db;
         _vnpayService = vnpayService;
         _orderEmailService = orderEmailService;
         _notificationService = notificationService;
         _customerSegmentService = customerSegmentService;
+        _adminNotificationHub = adminNotificationHub;
         _logger = logger;
     }
 
@@ -60,7 +64,7 @@ public class PaymentController : Controller
             return RedirectToAction("Confirmation", "Order", new { id = order.Id });
         }
 
-        if (order.Status != OrderStatuses.Pending)
+        if (!IsUnpaidVnpayOrderAwaitingPayment(order))
         {
             TempData["Error"] = "Chỉ có thể thanh toán lại đơn VNPAY đang chờ thanh toán.";
             return RedirectToAction("Detail", "Order", new { id = order.Id });
@@ -88,7 +92,7 @@ public class PaymentController : Controller
             return RedirectToAction("Confirmation", "Order", new { id = order.Id });
         }
 
-        TempData["Error"] = "Thanh toán VNPAY chưa hoàn tất. Đơn hàng chưa được xác nhận.";
+        TempData["Error"] = "Thanh toán VNPAY chưa hoàn tất. Đơn hàng vẫn đang chờ thanh toán.";
         return RedirectToAction("Detail", "Order", new { id = order.Id });
     }
 
@@ -126,7 +130,7 @@ public class PaymentController : Controller
             return Json(new { RspCode = "00", Message = "Order already confirmed" });
         }
 
-        if (order.IsPaid || order.Status != OrderStatuses.Pending)
+        if (order.IsPaid || !IsUnpaidVnpayOrderAwaitingPayment(order))
         {
             return Json(new { RspCode = "02", Message = "Order already confirmed" });
         }
@@ -179,6 +183,7 @@ public class PaymentController : Controller
                 $"Đơn #DH{order.Id:D4} đã thanh toán và chuyển sang trạng thái {OrderStatusFilters.ToDisplayLabel(order.Status)}.",
                 NotificationTypes.Order,
                 $"/Order/Detail/{order.Id}");
+            await NotifyAdminsAboutPaidVnpayOrderAsync(order);
         }
 
         return order;
@@ -187,7 +192,6 @@ public class PaymentController : Controller
     private static bool ApplyPaymentResponse(VnpayResponse response, Order order)
     {
         var wasPaid = order.IsPaid;
-        var oldStatus = order.Status;
 
         if (order.IsPaid)
         {
@@ -200,13 +204,45 @@ public class PaymentController : Controller
         {
             order.IsPaid = true;
             order.PaidAt = DateTime.UtcNow;
-            if (order.Status == OrderStatuses.Pending)
+            if (order.Status == OrderStatuses.AwaitingPayment)
             {
-                order.Status = OrderStatuses.Confirmed;
+                order.Status = OrderStatuses.Pending;
             }
         }
 
         order.UpdatedAt = DateTime.UtcNow;
-        return !wasPaid && response.IsSuccess && oldStatus != order.Status;
+        return !wasPaid && response.IsSuccess && order.Status == OrderStatuses.Pending;
+    }
+
+    private async Task NotifyAdminsAboutPaidVnpayOrderAsync(Order order)
+    {
+        await _notificationService.CreateForAdminsAsync(
+            "Đơn VNPAY đã thanh toán",
+            $"Đơn #DH{order.Id:D4} đã thanh toán VNPAY và đang chờ xác nhận.",
+            NotificationTypes.Order,
+            $"/Admin/Order/{order.Id}");
+        try
+        {
+            await _adminNotificationHub.Clients
+                .Group(AdminNotificationHub.AdminGroup)
+                .SendAsync("OrderCreated", new AdminOrderCreatedMessage(
+                    order.Id,
+                    $"DH{order.Id:D4}",
+                    order.RecipientName,
+                    order.TotalAmount,
+                    order.PaidAt ?? order.UpdatedAt,
+                    $"/Admin/Order/{order.Id}"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not publish realtime notification for paid VNPAY order {OrderId}", order.Id);
+        }
+    }
+
+    private static bool IsUnpaidVnpayOrderAwaitingPayment(Order order)
+    {
+        return !order.IsPaid
+            && string.Equals(order.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase)
+            && order.Status is OrderStatuses.AwaitingPayment or OrderStatuses.Pending;
     }
 }

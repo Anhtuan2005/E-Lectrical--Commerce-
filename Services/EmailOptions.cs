@@ -10,4 +10,7 @@ public class EmailOptions
     public string Password { get; set; } = string.Empty;
     public string FromEmail { get; set; } = "no-reply@techvora.vn";
     public string FromName { get; set; } = "Techvora";
+
+    /// <summary>URL frontend dùng để tạo link reset password.</summary>
+    public string FrontendUrl { get; set; } = string.Empty;
 }

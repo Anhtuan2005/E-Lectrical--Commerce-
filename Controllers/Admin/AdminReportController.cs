@@ -26,6 +26,7 @@ public class AdminReportController : Controller
         {
             "7" => end.AddDays(-7),
             "90" => end.AddMonths(-3),
+            "365" => end.AddYears(-1),
             "custom" => (fromDate ?? end.AddDays(-30)).Date,
             _ => end.AddDays(-30)
         };
@@ -41,20 +42,30 @@ public class AdminReportController : Controller
             .Select(group => new { Date = group.Key, Revenue = group.Sum(order => order.TotalAmount) })
             .OrderBy(point => point.Date)
             .ToListAsync();
+        var revenueByDate = dailyRevenue.ToDictionary(point => point.Date, point => point.Revenue);
+        var dailyPoints = Enumerable.Range(0, Math.Max(1, (int)(end.Date - start.Date).TotalDays))
+            .Select(offset =>
+            {
+                var date = start.Date.AddDays(offset);
+                return new RevenuePointViewModel
+                {
+                    Label = date.ToString("dd/MM"),
+                    Revenue = revenueByDate.GetValueOrDefault(date)
+                };
+            })
+            .ToList();
 
         var model = new AdminReportViewModel
         {
             Period = period,
-            FromDate = fromDate,
-            ToDate = toDate,
+            FromDate = start.Date,
+            ToDate = end.AddDays(-1).Date,
             CurrentPeriodRevenue = currentRevenue,
             PreviousPeriodRevenue = previousRevenue,
             GrowthPercent = previousRevenue == 0 ? (currentRevenue > 0 ? 100 : 0) : (currentRevenue - previousRevenue) / previousRevenue * 100,
             TotalOrders = await currentOrders.CountAsync(),
             TotalCustomers = await _db.Users.CountAsync(),
-            DailyRevenue = dailyRevenue
-                .Select(point => new RevenuePointViewModel { Label = point.Date.ToString("dd/MM"), Revenue = point.Revenue })
-                .ToList(),
+            DailyRevenue = dailyPoints,
             RevenueByCategory = await _db.OrderItems
                 .IgnoreQueryFilters()
                 .Include(item => item.Product).ThenInclude(product => product!.Category)

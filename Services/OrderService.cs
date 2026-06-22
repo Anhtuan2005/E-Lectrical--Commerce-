@@ -68,6 +68,7 @@ public class OrderService : IOrderService
 
         await using var transaction = await _db.Database.BeginTransactionAsync();
 
+        var isVnpayOrder = IsVnpayPayment(model.PaymentMethod);
         var crossSellUnitPrices = await _crossSellService.GetEligibleUnitPricesAsync(checkoutItems);
         var order = new Order
         {
@@ -76,7 +77,7 @@ public class OrderService : IOrderService
             RecipientPhone = model.RecipientPhone,
             ShippingAddress = model.ShippingAddress,
             PaymentMethod = model.PaymentMethod,
-            Status = OrderStatuses.Pending,
+            Status = isVnpayOrder ? OrderStatuses.AwaitingPayment : OrderStatuses.Pending,
             IsPaid = false,
             PaidAt = null,
             Items = checkoutItems.Select(item => new OrderItem
@@ -187,33 +188,27 @@ public class OrderService : IOrderService
         await _customerSegmentService.RefreshUserAsync(userId);
         _logger.LogInformation("Order {OrderId} created for user {UserId} with payment {PaymentMethod} and total {TotalAmount}", order.Id, userId, order.PaymentMethod, order.TotalAmount);
         await _orderEmailService.SendOrderCreatedAsync(order.Id);
-        await _notificationService.CreateAsync(
-            userId,
-            "Đã nhận đơn hàng",
-            $"Techvora đã nhận đơn #DH{order.Id:D4}. Bạn có thể theo dõi tiến trình trong lịch sử đơn hàng.",
-            NotificationTypes.Order,
-            $"/Order/Detail/{order.Id}");
-        await _notificationService.CreateForAdminsAsync(
-            "Đơn hàng mới",
-            $"Đơn #DH{order.Id:D4} vừa được tạo với tổng tiền {order.TotalAmount:N0} đ.",
-            NotificationTypes.Order,
-            $"/Admin/Order/{order.Id}");
-        try
+
+        if (isVnpayOrder)
         {
-            await _adminNotificationHub.Clients
-                .Group(AdminNotificationHub.AdminGroup)
-                .SendAsync("OrderCreated", new AdminOrderCreatedMessage(
-                    order.Id,
-                    $"DH{order.Id:D4}",
-                    order.RecipientName,
-                    order.TotalAmount,
-                    order.CreatedAt,
-                    $"/Admin/Order/{order.Id}"));
+            await _notificationService.CreateAsync(
+                userId,
+                "Đơn đang chờ thanh toán",
+                $"Đơn #DH{order.Id:D4} đã được tạo. Hoàn tất VNPAY để gửi đơn sang admin xác nhận.",
+                NotificationTypes.Order,
+                $"/Order/Detail/{order.Id}");
         }
-        catch (Exception ex)
+        else
         {
-            _logger.LogWarning(ex, "Could not publish realtime notification for order {OrderId}", order.Id);
+            await _notificationService.CreateAsync(
+                userId,
+                "Đã nhận đơn hàng",
+                $"Techvora đã nhận đơn #DH{order.Id:D4}. Bạn có thể theo dõi tiến trình trong lịch sử đơn hàng.",
+                NotificationTypes.Order,
+                $"/Order/Detail/{order.Id}");
+            await NotifyAdminsAboutNewOrderAsync(order);
         }
+
         return order;
     }
 
@@ -367,6 +362,13 @@ public class OrderService : IOrderService
             return;
         }
 
+        if (IsVnpayPayment(order.PaymentMethod) &&
+            !order.IsPaid &&
+            status is not (OrderStatuses.AwaitingPayment or OrderStatuses.Cancelled))
+        {
+            return;
+        }
+
         var oldStatus = order.Status;
         var oldRefundStatus = order.RefundStatus;
         order.Status = status;
@@ -473,7 +475,7 @@ public class OrderService : IOrderService
         var order = await _db.Orders
             .Include(row => row.Items)
             .FirstOrDefaultAsync(row => row.Id == id && row.UserId == userId);
-        if (order is null || order.Status != OrderStatuses.Pending)
+        if (order is null || order.Status is not (OrderStatuses.AwaitingPayment or OrderStatuses.Pending))
         {
             return false;
         }
@@ -557,9 +559,20 @@ public class OrderService : IOrderService
     {
         var now = DateTime.UtcNow;
         var startOfDay = now.Date;
-        var startOfWeek = startOfDay.AddDays(-(int)startOfDay.DayOfWeek);
+        var startOfWeek = startOfDay.AddDays(-(((int)startOfDay.DayOfWeek + 6) % 7));
         var startOfMonth = new DateTime(now.Year, now.Month, 1);
+        var startOfYear = new DateTime(now.Year, 1, 1);
+        var startOfEngagementWindow = startOfDay.AddDays(-30);
         var revenueOrders = _db.Orders.Where(order => order.IsPaid || order.Status == OrderStatuses.Delivered);
+
+        var todayRevenue = await revenueOrders.Where(order => order.CreatedAt >= startOfDay).SumAsync(order => order.TotalAmount);
+        var weekRevenue = await revenueOrders.Where(order => order.CreatedAt >= startOfWeek).SumAsync(order => order.TotalAmount);
+        var monthRevenue = await revenueOrders.Where(order => order.CreatedAt >= startOfMonth).SumAsync(order => order.TotalAmount);
+        var yearRevenue = await revenueOrders.Where(order => order.CreatedAt >= startOfYear).SumAsync(order => order.TotalAmount);
+        var todayOrders = await _db.Orders.CountAsync(order => order.CreatedAt >= startOfDay);
+        var weekOrders = await _db.Orders.CountAsync(order => order.CreatedAt >= startOfWeek);
+        var monthOrders = await _db.Orders.CountAsync(order => order.CreatedAt >= startOfMonth);
+        var yearOrders = await _db.Orders.CountAsync(order => order.CreatedAt >= startOfYear);
 
         var topProducts = await _db.OrderItems
             .IgnoreQueryFilters()
@@ -576,33 +589,164 @@ public class OrderService : IOrderService
             .Take(5)
             .ToListAsync();
 
-        var revenuePoints = await revenueOrders
+        var revenueByDate = await revenueOrders
             .Where(order => order.CreatedAt >= startOfDay.AddDays(-6))
             .GroupBy(order => order.CreatedAt.Date)
-            .Select(group => new RevenuePointViewModel
+            .Select(group => new { Date = group.Key, Revenue = group.Sum(order => order.TotalAmount) })
+            .ToDictionaryAsync(point => point.Date, point => point.Revenue);
+
+        var revenuePoints = Enumerable.Range(0, 7)
+            .Select(offset =>
             {
-                Label = group.Key.ToString("dd/MM"),
-                Revenue = group.Sum(order => order.TotalAmount)
+                var date = startOfDay.AddDays(offset - 6);
+                return new RevenuePointViewModel
+                {
+                    Label = date.ToString("dd/MM"),
+                    Revenue = revenueByDate.GetValueOrDefault(date)
+                };
             })
+            .ToList();
+
+        var salesLast30Rows = await _db.OrderItems
+            .IgnoreQueryFilters()
+            .Where(item => item.Order != null
+                && item.Order.CreatedAt >= startOfEngagementWindow
+                && (item.Order.IsPaid || item.Order.Status == OrderStatuses.Delivered))
+            .GroupBy(item => item.ProductId)
+            .Select(group => new
+            {
+                ProductId = group.Key,
+                Quantity = group.Sum(item => item.Quantity),
+                Revenue = group.Sum(item => item.Quantity * item.UnitPrice)
+            })
+            .ToListAsync();
+        var salesLast30 = salesLast30Rows.ToDictionary(row => row.ProductId);
+
+        var viewRows = await _db.ProductInteractions
+            .AsNoTracking()
+            .Where(interaction => interaction.EventType == ProductInteractionEvents.DetailView && interaction.CreatedAt >= startOfEngagementWindow)
+            .GroupBy(interaction => new { interaction.ProductId, ProductName = interaction.Product!.Name })
+            .Select(group => new
+            {
+                group.Key.ProductId,
+                group.Key.ProductName,
+                ViewCount = group.Count(),
+                UniqueSessions = group.Select(interaction => interaction.SessionId).Distinct().Count()
+            })
+            .OrderByDescending(row => row.ViewCount)
+            .Take(10)
+            .ToListAsync();
+        var viewsLast30 = viewRows.ToDictionary(row => row.ProductId, row => row.ViewCount);
+
+        var topViewedProducts = viewRows
+            .Select(row =>
+            {
+                salesLast30.TryGetValue(row.ProductId, out var sale);
+                return new ProductEngagementViewModel
+                {
+                    ProductId = row.ProductId,
+                    ProductName = row.ProductName,
+                    ViewCount = row.ViewCount,
+                    UniqueSessions = row.UniqueSessions,
+                    SoldQuantity = sale?.Quantity ?? 0,
+                    Revenue = sale?.Revenue ?? 0
+                };
+            })
+            .ToList();
+
+        var productsForPriceReview = await _db.Products
+            .AsNoTracking()
+            .Include(product => product.Category)
+            .Where(product => product.Stock > 0)
+            .ToListAsync();
+        var priceReviewCandidates = productsForPriceReview
+            .Select(product =>
+            {
+                salesLast30.TryGetValue(product.Id, out var sale);
+                var sold = sale?.Quantity ?? 0;
+                var views = viewsLast30.GetValueOrDefault(product.Id);
+                var ageDays = Math.Max(0, (int)(now - product.CreatedAt).TotalDays);
+                var reason = BuildPriceReviewReason(product, ageDays, views, sold);
+                return new PriceReviewProductViewModel
+                {
+                    ProductId = product.Id,
+                    ProductName = product.Name,
+                    CategoryName = product.Category?.Name,
+                    Price = product.Price,
+                    DiscountPercent = product.DiscountPercent,
+                    Stock = product.Stock,
+                    AgeDays = ageDays,
+                    ViewsLast30Days = views,
+                    SoldLast30Days = sold,
+                    InventoryValue = product.Stock * product.Price,
+                    Reason = reason
+                };
+            })
+            .Where(product => !string.IsNullOrWhiteSpace(product.Reason))
+            .OrderByDescending(product => product.InventoryValue)
+            .ThenByDescending(product => product.ViewsLast30Days)
+            .ThenByDescending(product => product.AgeDays)
+            .ToList();
+
+        var lowStockProducts = await _db.Products
+            .Include(product => product.Category)
+            .Where(product => product.Stock <= 5)
+            .OrderBy(product => product.Stock)
+            .ThenBy(product => product.Name)
+            .Take(10)
             .ToListAsync();
 
         return new AdminDashboardViewModel
         {
-            TodayRevenue = await revenueOrders.Where(order => order.CreatedAt >= startOfDay).SumAsync(order => order.TotalAmount),
-            WeekRevenue = await revenueOrders.Where(order => order.CreatedAt >= startOfWeek).SumAsync(order => order.TotalAmount),
-            MonthRevenue = await revenueOrders.Where(order => order.CreatedAt >= startOfMonth).SumAsync(order => order.TotalAmount),
+            TodayRevenue = todayRevenue,
+            WeekRevenue = weekRevenue,
+            MonthRevenue = monthRevenue,
+            YearRevenue = yearRevenue,
             TotalOrders = await _db.Orders.CountAsync(),
+            PendingOrdersCount = await _db.Orders.CountAsync(order => order.Status == OrderStatuses.Pending),
+            AwaitingPaymentCount = await _db.Orders.CountAsync(order => order.Status == OrderStatuses.AwaitingPayment),
+            ManualRefundCount = await _db.Orders.CountAsync(order => order.RefundStatus == RefundStatuses.PendingManual),
+            LowStockCount = await _db.Products.CountAsync(product => product.Stock <= 5),
+            PriceReviewCount = priceReviewCandidates.Count,
             OrdersByStatus = await _db.Orders.GroupBy(order => order.Status).ToDictionaryAsync(group => group.Key, group => group.Count()),
+            PeriodMetrics = new[]
+            {
+                new DashboardPeriodMetricViewModel { Label = "Hôm nay", Revenue = todayRevenue, Orders = todayOrders },
+                new DashboardPeriodMetricViewModel { Label = "Tuần này", Revenue = weekRevenue, Orders = weekOrders },
+                new DashboardPeriodMetricViewModel { Label = "Tháng này", Revenue = monthRevenue, Orders = monthOrders },
+                new DashboardPeriodMetricViewModel { Label = "Năm nay", Revenue = yearRevenue, Orders = yearOrders }
+            },
             TopProducts = topProducts,
-            RevenuePoints = revenuePoints.OrderBy(point => point.Label).ToList(),
-            LowStockProducts = await _db.Products
-                .Include(product => product.Category)
-                .Where(product => product.Stock <= 5)
-                .OrderBy(product => product.Stock)
-                .ThenBy(product => product.Name)
-                .Take(10)
-                .ToListAsync()
+            TopViewedProducts = topViewedProducts,
+            PriceReviewProducts = priceReviewCandidates.Take(8).ToList(),
+            RevenuePoints = revenuePoints,
+            LowStockProducts = lowStockProducts
         };
+
+        static string BuildPriceReviewReason(Product product, int ageDays, int views, int sold)
+        {
+            if (ageDays >= 60 && product.Stock >= 8 && sold == 0)
+            {
+                return "Tồn lâu, chưa bán trong 30 ngày";
+            }
+
+            if (views >= 8 && sold == 0)
+            {
+                return "Nhiều người xem nhưng chưa ra đơn";
+            }
+
+            if (product.Stock >= 20 && sold <= 1)
+            {
+                return "Tồn kho cao, bán chậm";
+            }
+
+            if (product.DiscountPercent > 0 && views >= 8 && sold == 0)
+            {
+                return "Đã giảm giá nhưng chưa chuyển đổi";
+            }
+
+            return string.Empty;
+        }
     }
 
     private static void MarkManualRefundRequiredIfNeeded(Order order, string note)
@@ -617,6 +761,36 @@ public class OrderService : IOrderService
         order.RefundStatus = RefundStatuses.PendingManual;
         order.RefundRequestedAt ??= DateTime.UtcNow;
         order.RefundNote = note;
+    }
+
+    private async Task NotifyAdminsAboutNewOrderAsync(Order order)
+    {
+        await _notificationService.CreateForAdminsAsync(
+            "Đơn hàng mới",
+            $"Đơn #DH{order.Id:D4} vừa được tạo với tổng tiền {order.TotalAmount:N0} đ.",
+            NotificationTypes.Order,
+            $"/Admin/Order/{order.Id}");
+        try
+        {
+            await _adminNotificationHub.Clients
+                .Group(AdminNotificationHub.AdminGroup)
+                .SendAsync("OrderCreated", new AdminOrderCreatedMessage(
+                    order.Id,
+                    $"DH{order.Id:D4}",
+                    order.RecipientName,
+                    order.TotalAmount,
+                    order.CreatedAt,
+                    $"/Admin/Order/{order.Id}"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not publish realtime notification for order {OrderId}", order.Id);
+        }
+    }
+
+    private static bool IsVnpayPayment(string? paymentMethod)
+    {
+        return string.Equals(paymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase);
     }
 
     private static decimal CalculateDiscount(Voucher voucher, decimal subtotal)

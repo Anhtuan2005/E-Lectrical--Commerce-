@@ -15,20 +15,26 @@ public class OrderController : Controller
     private readonly ICartService _cartService;
     private readonly IShippingFeeService _shippingFeeService;
     private readonly IVnpayService _vnpayService;
+    private readonly IGhnShippingService _ghnShippingService;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ILogger<OrderController> _logger;
 
     public OrderController(
         IOrderService orderService,
         ICartService cartService,
         IShippingFeeService shippingFeeService,
         IVnpayService vnpayService,
-        UserManager<ApplicationUser> userManager)
+        IGhnShippingService ghnShippingService,
+        UserManager<ApplicationUser> userManager,
+        ILogger<OrderController> logger)
     {
         _orderService = orderService;
         _cartService = cartService;
         _shippingFeeService = shippingFeeService;
         _vnpayService = vnpayService;
+        _ghnShippingService = ghnShippingService;
         _userManager = userManager;
+        _logger = logger;
     }
 
     public async Task<IActionResult> Checkout([FromQuery] int[] selectedProductIds)
@@ -181,7 +187,28 @@ public class OrderController : Controller
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var order = await _orderService.GetUserOrderAsync(id, userId);
-        return order is null ? NotFound() : View(order);
+        if (order is null)
+        {
+            return NotFound();
+        }
+
+        if (ShouldRefreshGhnStatus(order))
+        {
+            try
+            {
+                var result = await _ghnShippingService.SyncOrderAsync(order.Id);
+                if (result.Success)
+                {
+                    order = await _orderService.GetUserOrderAsync(id, userId) ?? order;
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogWarning(ex, "Could not refresh GHN status for order {OrderId}.", order.Id);
+            }
+        }
+
+        return View(order);
     }
 
     [HttpPost]
@@ -192,7 +219,7 @@ public class OrderController : Controller
         var cancelled = await _orderService.CancelUserOrderAsync(id, userId, reason);
         if (!cancelled)
         {
-            TempData["Error"] = "Chỉ có thể huỷ đơn đang chờ xác nhận.";
+            TempData["Error"] = "Chỉ có thể huỷ đơn đang chờ thanh toán hoặc chờ xác nhận.";
             return RedirectToAction(nameof(History), new { status = returnStatus });
         }
 
@@ -226,6 +253,17 @@ public class OrderController : Controller
     {
         return string.Equals(order.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase)
             && !order.IsPaid;
+    }
+
+    private bool ShouldRefreshGhnStatus(Order order)
+    {
+        return _ghnShippingService.IsConfigured &&
+               order.Status != OrderStatuses.Delivered &&
+               order.Status != OrderStatuses.Cancelled &&
+               order.ShippingInfo is not null &&
+               string.Equals(order.ShippingInfo.Carrier, "Giao Hàng Nhanh", StringComparison.OrdinalIgnoreCase) &&
+               !string.IsNullOrWhiteSpace(order.ShippingInfo.TrackingCode) &&
+               order.UpdatedAt < DateTime.UtcNow.AddMinutes(-2);
     }
 
     private static List<int> NormalizeSelectedProductIds(IEnumerable<int>? productIds)

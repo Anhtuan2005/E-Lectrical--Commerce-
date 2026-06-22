@@ -14,13 +14,20 @@ public class AccountController : Controller
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly ICartService _cartService;
     private readonly IAbandonedCartRecoveryService _abandonedCartRecoveryService;
+    private readonly IPasswordResetService _passwordResetService;
 
-    public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, ICartService cartService, IAbandonedCartRecoveryService abandonedCartRecoveryService)
+    public AccountController(
+        UserManager<ApplicationUser> userManager,
+        SignInManager<ApplicationUser> signInManager,
+        ICartService cartService,
+        IAbandonedCartRecoveryService abandonedCartRecoveryService,
+        IPasswordResetService passwordResetService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _cartService = cartService;
         _abandonedCartRecoveryService = abandonedCartRecoveryService;
+        _passwordResetService = passwordResetService;
     }
 
     public IActionResult Login(string? returnUrl = null)
@@ -136,9 +143,45 @@ public class AccountController : Controller
             return View(model);
         }
 
-        _ = await _userManager.FindByEmailAsync(model.Email);
-        TempData["Success"] = "Nếu email tồn tại, Techvora sẽ gửi hướng dẫn đặt lại mật khẩu.";
-        return RedirectToAction(nameof(Login));
+        await _passwordResetService.SendResetLinkAsync(model.Email);
+
+        return RedirectToAction(nameof(ForgotPasswordConfirmation));
+    }
+
+    public IActionResult ForgotPasswordConfirmation()
+    {
+        return View();
+    }
+
+    public IActionResult ResetPassword(string? token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            TempData["Error"] = "Link đặt lại mật khẩu không hợp lệ.";
+            return RedirectToAction(nameof(Login));
+        }
+
+        return View(new ResetPasswordViewModel { Token = token });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
+    {
+        if (!ModelState.IsValid)
+        {
+            return View(model);
+        }
+
+        var (success, error) = await _passwordResetService.ResetPasswordAsync(model.Token, model.NewPassword);
+        if (success)
+        {
+            TempData["Success"] = "Đặt lại mật khẩu thành công. Hãy đăng nhập bằng mật khẩu mới.";
+            return RedirectToAction(nameof(Login));
+        }
+
+        ModelState.AddModelError(string.Empty, error ?? "Có lỗi xảy ra.");
+        return View(model);
     }
 
     [Authorize]

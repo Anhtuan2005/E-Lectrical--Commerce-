@@ -9,12 +9,15 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Serilog;
 using System.Globalization;
 using System.IO.Compression;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddUserSecrets<Program>(optional: true);
+
 var viCulture = CultureInfo.GetCultureInfo("vi-VN");
 CultureInfo.DefaultThreadCurrentCulture = viCulture;
 CultureInfo.DefaultThreadCurrentUICulture = viCulture;
@@ -38,7 +41,11 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options
+        .UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
+        .ConfigureWarnings(warnings => warnings.Ignore(
+            CoreEventId.MappedEntityTypeIgnoredWarning,
+            CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning)));
 
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -138,6 +145,7 @@ builder.Services.AddRateLimiter(options =>
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
+builder.Services.Configure<GhnOptions>(builder.Configuration.GetSection("Ghn"));
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductSpecService, ProductSpecService>();
 builder.Services.AddScoped<IImageStorageService, ImageStorageService>();
@@ -148,11 +156,17 @@ builder.Services.AddScoped<IAbandonedCartRecoveryService, AbandonedCartRecoveryS
 builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
 builder.Services.AddScoped<IReturnWarrantyRequestService, ReturnWarrantyRequestService>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 builder.Services.AddScoped<IOrderEmailService, OrderEmailService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IShippingService, ShippingService>();
 builder.Services.AddScoped<IShippingFeeService, ShippingFeeService>();
+builder.Services.AddScoped<IInvoiceService, LocalInvoiceService>();
 builder.Services.AddScoped<IVnpayService, VnpayService>();
+builder.Services.AddHttpClient<IGhnShippingService, GhnShippingService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
 builder.Services.AddHttpClient<IAiChatService, GeminiChatService>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(35);
@@ -175,7 +189,10 @@ try
     app.UseForwardedHeaders();
     app.UseResponseCompression();
     app.UseSerilogRequestLogging();
-    app.UseHttpsRedirection();
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseHttpsRedirection();
+    }
     app.UseStatusCodePagesWithReExecute("/Home/Status", "?code={0}");
     var staticFileContentTypes = new FileExtensionContentTypeProvider();
     staticFileContentTypes.Mappings[".glb"] = "model/gltf-binary";

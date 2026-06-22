@@ -59,6 +59,39 @@ public class Order
     [StringLength(500)]
     public string? CancelledReason { get; set; }
 
+    [Required, StringLength(40)]
+    public string InvoiceStatus { get; set; } = InvoiceStatuses.NotIssued;
+
+    [StringLength(40)]
+    public string? InvoiceProvider { get; set; }
+
+    [StringLength(80)]
+    public string? InvoiceFkey { get; set; }
+
+    [StringLength(60)]
+    public string? InvoicePattern { get; set; }
+
+    [StringLength(60)]
+    public string? InvoiceSerial { get; set; }
+
+    [StringLength(80)]
+    public string? InvoiceNumber { get; set; }
+
+    [StringLength(160)]
+    public string? InvoiceLookupCode { get; set; }
+
+    [StringLength(500)]
+    public string? InvoiceViewUrl { get; set; }
+
+    public DateTime? InvoiceIssuedAt { get; set; }
+    public DateTime? InvoiceSyncedAt { get; set; }
+
+    [StringLength(1000)]
+    public string? InvoiceRawResponse { get; set; }
+
+    [StringLength(1000)]
+    public string? InvoiceErrorMessage { get; set; }
+
     public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
     public ICollection<ReturnWarrantyRequest> ReturnWarrantyRequests { get; set; } = new List<ReturnWarrantyRequest>();
     public ShippingInfo? ShippingInfo { get; set; }
@@ -70,13 +103,14 @@ public class Order
 
 public static class OrderStatuses
 {
+    public const string AwaitingPayment = "Chờ thanh toán";
     public const string Pending = "Chờ xác nhận";
     public const string Confirmed = "Đã xác nhận";
     public const string Shipping = "Đang giao";
     public const string Delivered = "Đã giao";
     public const string Cancelled = "Huỷ";
 
-    public static readonly string[] All = { Pending, Confirmed, Shipping, Delivered, Cancelled };
+    public static readonly string[] All = { AwaitingPayment, Pending, Confirmed, Shipping, Delivered, Cancelled };
 }
 
 public static class RefundStatuses
@@ -86,4 +120,14 @@ public static class RefundStatuses
     public const string Refunded = "Đã hoàn tiền";
 
     public static readonly string[] All = { NotRequired, PendingManual, Refunded };
+}
+
+public static class InvoiceStatuses
+{
+    public const string NotIssued = "Chưa xuất";
+    public const string Issued = "Đã xuất";
+    public const string Synced = "Đã đồng bộ";
+    public const string PaymentConfirmed = "Đã xác nhận thanh toán";
+    public const string Cancelled = "Đã huỷ";
+    public const string Error = "Lỗi";
 }

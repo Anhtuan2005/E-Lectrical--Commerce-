@@ -1,6 +1,7 @@
+using MailKit.Net.Smtp;
+using MailKit.Security;
 using Microsoft.Extensions.Options;
-using System.Net;
-using System.Net.Mail;
+using MimeKit;
 
 namespace EcommerceApp.Services;
 
@@ -23,25 +24,30 @@ public class SmtpEmailSender : IEmailSender
             return;
         }
 
-        using var message = new MailMessage
-        {
-            From = new MailAddress(_options.FromEmail, _options.FromName),
-            Subject = subject,
-            Body = htmlBody,
-            IsBodyHtml = true
-        };
-        message.To.Add(new MailAddress(toEmail));
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress(_options.FromName, _options.FromEmail));
+        message.To.Add(MailboxAddress.Parse(toEmail));
+        message.Subject = subject;
 
-        using var client = new SmtpClient(_options.Host, _options.Port)
+        message.Body = new TextPart("html")
         {
-            EnableSsl = _options.EnableSsl
+            Text = htmlBody
         };
+
+        using var client = new SmtpClient();
+
+        var secureOption = _options.EnableSsl
+            ? SecureSocketOptions.StartTls
+            : SecureSocketOptions.Auto;
+
+        await client.ConnectAsync(_options.Host, _options.Port, secureOption);
 
         if (!string.IsNullOrWhiteSpace(_options.UserName))
         {
-            client.Credentials = new NetworkCredential(_options.UserName, _options.Password);
+            await client.AuthenticateAsync(_options.UserName, _options.Password);
         }
 
-        await client.SendMailAsync(message);
+        await client.SendAsync(message);
+        await client.DisconnectAsync(true);
     }
 }

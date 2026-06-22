@@ -355,6 +355,22 @@
   position: relative;
 }
 
+.notification-menu::after {
+  content: "";
+  position: absolute;
+  left: -12px;
+  right: -12px;
+  top: 100%;
+  height: 16px;
+  pointer-events: none;
+}
+
+.notification-menu:hover::after,
+.notification-menu:focus-within::after,
+.notification-menu.is-open::after {
+  pointer-events: auto;
+}
+
 .notification-dropdown {
   position: absolute;
   top: calc(100% + 12px);
@@ -4868,6 +4884,669 @@ progress { width: 100%; height: 8px; accent-color: var(--warning); }
   color: #b4232f;
 }
 
+.order-route-title {
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.order-route-title > div {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.order-route-title > div > span {
+  min-height: 30px;
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--accent-light);
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.order-route-expand {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 13px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 820;
+  cursor: pointer;
+  box-shadow: var(--s-sm);
+  transition: transform 180ms var(--ease), border-color 180ms var(--ease), color 180ms var(--ease);
+}
+
+.order-route-expand:hover,
+.order-route-expand:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line-soft));
+  color: var(--accent-dark);
+}
+
+.order-route-expand:active {
+  transform: translateY(1px);
+}
+
+.order-route-expand .lucide {
+  width: 17px;
+  height: 17px;
+}
+
+.order-route-map {
+  display: grid;
+  gap: 10px;
+  --route-ocean: oklch(0.965 0.018 235);
+  --route-ocean-deep: oklch(0.91 0.04 220);
+  --route-land: oklch(0.885 0.032 155);
+  --route-land-asia: oklch(0.86 0.044 150);
+}
+
+.order-route-canvas {
+  position: relative;
+  height: 330px;
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 68% 44%, oklch(0.78 0.12 205 / 0.16), transparent 23%),
+    linear-gradient(145deg, oklch(0.988 0.008 235), var(--route-ocean));
+  transition: height 220ms var(--ease);
+}
+
+.order-shipping-map-panel.is-expanded .order-route-canvas {
+  height: min(62vh, 560px);
+  min-height: 470px;
+}
+
+.order-world-route-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(90deg, oklch(0.78 0.025 235 / 0.22) 1px, transparent 1px),
+    linear-gradient(0deg, oklch(0.78 0.025 235 / 0.18) 1px, transparent 1px);
+  background-size: 74px 74px;
+  mask-image: linear-gradient(180deg, transparent, black 10%, black 92%, transparent);
+  pointer-events: none;
+}
+
+.order-world-route-canvas::after {
+  content: "";
+  position: absolute;
+  left: 33%;
+  top: 50%;
+  z-index: 2;
+  width: 28%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, oklch(0.72 0.05 225 / 0.55), transparent);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.order-route-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.76fr) minmax(0, 1.24fr);
+  min-width: 0;
+}
+
+.order-world-overview,
+.order-vietnam-zoom {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.order-world-overview {
+  border-right: 1px solid oklch(0.78 0.03 235 / 0.34);
+}
+
+.order-route-map-caption {
+  position: absolute;
+  left: 18px;
+  top: 16px;
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 5px 9px;
+  border: 1px solid oklch(0.8 0.04 235 / 0.38);
+  border-radius: 999px;
+  background: oklch(0.99 0.006 235 / 0.88);
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 820;
+  box-shadow: var(--s-sm);
+}
+
+.order-world-map {
+  position: absolute;
+  inset: 44px 18px 34px;
+  z-index: 2;
+  width: calc(100% - 36px);
+  height: calc(100% - 78px);
+}
+
+.order-map-graticule,
+.order-map-focus-ring {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.order-map-graticule {
+  stroke: oklch(0.72 0.025 235 / 0.35);
+  stroke-width: 1;
+}
+
+.order-map-land {
+  fill: var(--route-land);
+  stroke: oklch(0.72 0.04 155);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.order-map-land.is-asia {
+  fill: var(--route-land-asia);
+}
+
+.order-map-focus-ring {
+  stroke: color-mix(in srgb, var(--accent) 38%, oklch(0.92 0.02 235));
+  stroke-width: 2;
+  stroke-dasharray: 6 6;
+}
+
+.order-map-vietnam-dot {
+  fill: var(--accent);
+  stroke: var(--bg-card);
+  stroke-width: 5;
+  filter: drop-shadow(0 5px 12px color-mix(in srgb, var(--accent) 34%, transparent));
+}
+
+.order-world-focus {
+  position: absolute;
+  right: 14px;
+  bottom: 18px;
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid oklch(0.8 0.04 235 / 0.42);
+  border-radius: 999px;
+  background: oklch(0.99 0.006 235 / 0.92);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 850;
+  box-shadow: var(--s-sm);
+}
+
+.order-world-focus span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.order-vietnam-zoom {
+  background:
+    radial-gradient(circle at 54% 48%, oklch(0.99 0.01 95 / 0.62), transparent 25%),
+    radial-gradient(circle at 54% 52%, oklch(0.79 0.1 205 / 0.14), transparent 36%);
+}
+
+.order-vietnam-map {
+  position: absolute;
+  left: 50%;
+  top: 51%;
+  z-index: 3;
+  height: calc(100% - 70px);
+  max-height: 460px;
+  aspect-ratio: 260 / 420;
+  transform: translate(-50%, -50%);
+  overflow: visible;
+}
+
+.order-vn-sea-line {
+  fill: none;
+  stroke: oklch(0.72 0.06 220 / 0.38);
+  stroke-width: 18;
+  stroke-linecap: round;
+}
+
+.order-vn-land,
+.order-vn-land.is-delta {
+  fill: oklch(0.875 0.046 150);
+  stroke: oklch(0.68 0.06 150);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 18px 28px oklch(0.22 0.03 240 / 0.12));
+}
+
+.order-vn-land.is-delta {
+  fill: oklch(0.89 0.05 145);
+}
+
+.order-vietnam-route-shadow,
+.order-vietnam-route-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.order-vietnam-route-shadow {
+  stroke: oklch(0.99 0.006 235 / 0.95);
+  stroke-width: 15;
+  filter: drop-shadow(0 8px 20px oklch(0.2 0.03 250 / 0.16));
+}
+
+.order-vietnam-route-line {
+  stroke: var(--accent);
+  stroke-width: 6;
+  stroke-dasharray: 100;
+  stroke-dashoffset: calc(100 - var(--order-route-progress-num));
+}
+
+.order-vietnam-node {
+  position: absolute;
+  z-index: 5;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--ink);
+  box-shadow: var(--s-sm);
+  transform: translate(-50%, -50%);
+}
+
+.order-vietnam-node .lucide {
+  width: 16px;
+  height: 16px;
+}
+
+.order-vietnam-node.is-origin {
+  left: 50%;
+  top: 11%;
+}
+
+.order-vietnam-node.is-destination {
+  left: 50.5%;
+  top: 88.5%;
+}
+
+.order-route-truck {
+  position: absolute;
+  left: calc(50% + (1.7% * var(--order-route-progress-num) / 100));
+  top: calc(11% + (77.5% * var(--order-route-progress-num) / 100));
+  z-index: 6;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-soft);
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--accent-dark);
+  box-shadow: var(--s-md);
+  isolation: isolate;
+  transform: translate(-50%, -50%) rotate(7deg);
+}
+
+.order-route-truck::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  z-index: -1;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: inherit;
+  animation: orderRoutePulse 1.8s var(--ease) infinite;
+}
+
+.order-route-truck-icon,
+.order-route-truck-icon .lucide {
+  width: 21px;
+  height: 21px;
+}
+
+.order-zoom-scale {
+  position: absolute;
+  right: 18px;
+  bottom: 16px;
+  z-index: 8;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: oklch(0.99 0.006 235 / 0.88);
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 820;
+  box-shadow: var(--s-sm);
+}
+
+.order-route-map.is-moving .order-vietnam-route-line {
+  animation: orderRouteGlow 900ms var(--ease) infinite alternate;
+}
+
+.order-route-map.is-moving .order-route-truck-icon {
+  animation: orderRouteTruckNudge 900ms var(--ease) infinite;
+}
+
+.order-route-map.is-complete .order-route-truck {
+  color: var(--success);
+}
+
+.order-route-map.is-complete .order-vietnam-route-line {
+  stroke: var(--success);
+}
+
+.order-route-map.is-cancelled .order-vietnam-route-line {
+  stroke: var(--danger);
+}
+
+.order-route-map.is-cancelled .order-route-truck {
+  color: var(--danger);
+}
+
+.order-real-route-canvas {
+  height: 360px;
+  background: oklch(0.94 0.018 235);
+}
+
+.order-real-map {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  background: oklch(0.94 0.018 235);
+}
+
+.order-real-map .leaflet-container,
+.order-real-map.leaflet-container {
+  width: 100%;
+  height: 100%;
+  font: inherit;
+  background: oklch(0.94 0.018 235);
+}
+
+.order-real-map .leaflet-control-zoom {
+  overflow: hidden;
+  border: 0;
+  border-radius: 14px;
+  box-shadow: var(--s-md);
+}
+
+.order-real-map .leaflet-control-zoom a {
+  width: 34px;
+  height: 34px;
+  border-color: var(--line-soft);
+  background: oklch(0.99 0.006 235);
+  color: var(--ink);
+  line-height: 34px;
+}
+
+.order-real-map .leaflet-control-attribution {
+  padding: 3px 7px;
+  border-radius: 999px 0 0 0;
+  background: oklch(0.99 0.006 235 / 0.88);
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.order-real-map .leaflet-control-attribution a {
+  color: var(--accent-dark);
+}
+
+.order-map-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 500;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  align-content: center;
+  background:
+    linear-gradient(90deg, oklch(0.82 0.02 235 / 0.28) 1px, transparent 1px),
+    linear-gradient(0deg, oklch(0.82 0.02 235 / 0.24) 1px, transparent 1px),
+    oklch(0.95 0.016 235);
+  background-size: 68px 68px;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 760;
+  transition: opacity 180ms var(--ease), visibility 180ms var(--ease);
+}
+
+.order-map-loading .lucide {
+  width: 26px;
+  height: 26px;
+}
+
+.order-real-map.is-map-ready .order-map-loading {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.order-real-map.is-map-error .order-map-loading {
+  padding: 18px;
+  color: var(--danger);
+  text-align: center;
+  opacity: 1;
+  visibility: visible;
+}
+
+.order-map-status-card {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  z-index: 520;
+  min-width: 168px;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid oklch(0.78 0.035 235 / 0.5);
+  border-radius: 14px;
+  background: oklch(0.99 0.006 235 / 0.94);
+  box-shadow: var(--s-md);
+  backdrop-filter: blur(6px);
+}
+
+.order-map-status-card span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.order-map-status-card strong {
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.order-map-status-card .lucide {
+  width: 14px;
+  height: 14px;
+}
+
+.order-route-div-icon {
+  border: 0;
+  background: transparent;
+}
+
+.order-route-marker {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: oklch(0.99 0.006 235);
+  color: var(--ink);
+  box-shadow: var(--s-md);
+}
+
+.order-route-marker .lucide {
+  width: 17px;
+  height: 17px;
+}
+
+.order-route-marker.is-origin {
+  color: oklch(0.43 0.08 150);
+}
+
+.order-route-marker.is-destination {
+  color: var(--danger);
+}
+
+.order-route-marker.is-truck {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  color: var(--accent-dark);
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--accent) 20%, transparent), var(--s-md);
+}
+
+.order-route-marker.is-truck::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  z-index: -1;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  border-radius: inherit;
+  animation: orderRoutePulse 1.8s var(--ease) infinite;
+}
+
+.order-route-marker.is-truck .lucide {
+  width: 21px;
+  height: 21px;
+}
+
+.order-route-marker.is-complete {
+  color: var(--success);
+}
+
+.order-route-marker.is-cancelled {
+  color: var(--danger);
+}
+
+.order-route-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.order-route-meta b {
+  width: 8px;
+  height: 8px;
+  display: inline-block;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  vertical-align: 1px;
+}
+
+.order-route-meta strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.order-route-facts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.order-route-facts strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.order-route-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 12px;
+  border: 1px solid oklch(0.82 0.09 80);
+  border-radius: 8px;
+  background: oklch(0.97 0.035 85);
+  color: oklch(0.42 0.09 65);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.order-route-alert .lucide {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.order-route-marker.is-truck.is-estimated-arrival {
+  color: oklch(0.55 0.14 65);
+  border-color: oklch(0.78 0.1 75);
+  background: oklch(0.97 0.035 85);
+}
+
+.order-route-map > p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+@keyframes orderRoutePulse {
+  0% {
+    opacity: 0.82;
+    transform: scale(0.86);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.34);
+  }
+}
+
+@keyframes orderRouteGlow {
+  from { filter: drop-shadow(0 0 0 color-mix(in srgb, var(--accent) 0%, transparent)); }
+  to { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 42%, transparent)); }
+}
+
+@keyframes orderRouteTruckNudge {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1px);
+  }
+}
+
 .order-detail-item {
   grid-template-columns: 68px minmax(0, 1fr) auto;
   padding: 12px 0;
@@ -5014,6 +5693,83 @@ progress { width: 100%; height: 8px; accent-color: var(--warning); }
 
   .order-detail-item > strong {
     grid-column: 2;
+  }
+
+  .order-route-title {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .order-route-title > div > span,
+  .order-route-expand {
+    width: 100%;
+  }
+
+  .order-route-canvas {
+    height: 430px;
+  }
+
+  .order-shipping-map-panel.is-expanded .order-route-canvas {
+    height: 560px;
+    min-height: 0;
+  }
+
+  .order-route-stage {
+    grid-template-columns: 1fr;
+    grid-template-rows: 150px minmax(0, 1fr);
+  }
+
+  .order-world-overview {
+    border-right: 0;
+    border-bottom: 1px solid oklch(0.78 0.03 235 / 0.34);
+  }
+
+  .order-world-map {
+    inset: 36px 10px 12px;
+    width: calc(100% - 20px);
+    height: calc(100% - 48px);
+  }
+
+  .order-world-focus {
+    right: 10px;
+    bottom: 10px;
+  }
+
+  .order-vietnam-map {
+    height: calc(100% - 62px);
+  }
+
+  .order-route-map-caption {
+    left: 12px;
+    top: 10px;
+  }
+
+  .order-route-truck {
+    width: 40px;
+    height: 40px;
+  }
+
+  .order-route-truck-icon,
+  .order-route-truck-icon .lucide {
+    width: 18px;
+    height: 18px;
+  }
+
+  .order-real-route-canvas {
+    height: 430px;
+  }
+
+  .order-map-status-card {
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: 12px;
+    min-width: 0;
+  }
+
+  .order-route-marker.is-truck {
+    width: 42px;
+    height: 42px;
   }
 }
 
@@ -7900,6 +8656,8 @@ body.auth-focus .auth-mode-switch a {
 /* Forgot password uses the focus shell without the full login/register split. */
 .password-reset-focus {
   min-height: 100svh;
+  width: 100%;
+  max-width: 100%;
   overflow-x: hidden;
   background:
     radial-gradient(circle at 18% 12%, rgba(0, 113, 227, 0.24), transparent 32%),
@@ -7908,14 +8666,21 @@ body.auth-focus .auth-mode-switch a {
 }
 
 .password-reset-page {
+  width: 100%;
+  min-width: 0;
   min-height: 100svh;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: 28px;
+  box-sizing: border-box;
 }
 
 .password-reset-card {
   width: min(100%, 520px);
+  min-width: 0;
+  box-sizing: border-box;
+  justify-self: center;
   border: 1px solid rgba(0, 113, 227, 0.16);
   border-radius: 24px;
   background: #f8fbff;
@@ -7956,6 +8721,7 @@ body.auth-focus .auth-mode-switch a {
   color: #64748b;
   font-size: 16px;
   line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .password-reset-form {
@@ -7983,6 +8749,65 @@ body.auth-focus .auth-mode-switch a {
 .password-reset-form .btn-auth-submit {
   min-height: 54px;
   border-radius: 14px;
+}
+
+.password-reset-confirmation-icon {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 20px;
+  border: 1px solid oklch(0.82 0.08 145);
+  border-radius: 50%;
+  background: oklch(0.95 0.045 145);
+  color: oklch(0.48 0.14 145);
+}
+
+.password-reset-confirmation-icon svg {
+  width: 29px;
+  height: 29px;
+  stroke-width: 2;
+}
+
+.password-reset-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px 14px;
+  border: 1px solid #dbe5f3;
+  border-radius: 10px;
+  background: #eef5fc;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.password-reset-notice svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--accent);
+}
+
+.password-reset-confirmation-actions {
+  display: grid;
+  gap: 4px;
+  margin-top: 22px;
+}
+
+.password-reset-confirmation-actions .btn-auth-submit {
+  min-height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  text-decoration: none;
+}
+
+.password-reset-confirmation-actions .password-reset-back {
+  margin-top: 14px;
 }
 
 .password-reset-back {
@@ -8029,6 +8854,8 @@ body.auth-focus .auth-mode-switch a {
   }
 
   .password-reset-card {
+    width: 100%;
+    padding: 26px 20px;
     border-radius: 20px;
   }
 }

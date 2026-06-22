@@ -4,41 +4,33 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
-namespace EcommerceApp.Controllers;
+namespace EcommerceApp.Controllers.Admin;
 
-[Authorize]
-public class NotificationController : Controller
+[Authorize(Roles = "Admin")]
+[Route("Admin/Notification")]
+public class AdminNotificationController : Controller
 {
     private readonly IUserNotificationService _notificationService;
 
-    public NotificationController(IUserNotificationService notificationService)
+    public AdminNotificationController(IUserNotificationService notificationService)
     {
         _notificationService = notificationService;
     }
 
+    [HttpGet("")]
     public async Task<IActionResult> Index()
     {
-        if (User.IsInRole("Admin"))
-        {
-            return Redirect("/Admin/Notification");
-        }
-
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        return View(new NotificationIndexViewModel
+        return View("~/Views/Admin/Notification/Index.cshtml", new NotificationIndexViewModel
         {
             Notifications = await _notificationService.GetAllAsync(userId),
             UnreadCount = await _notificationService.GetUnreadCountAsync(userId)
         });
     }
 
-    [HttpGet]
+    [HttpGet("Go/{id:int}")]
     public async Task<IActionResult> Go(int id)
     {
-        if (User.IsInRole("Admin"))
-        {
-            return Redirect($"/Admin/Notification/Go/{id}");
-        }
-
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var notification = await _notificationService.GetAsync(id, userId);
         if (notification is null)
@@ -55,17 +47,11 @@ public class NotificationController : Controller
         return RedirectToAction(nameof(Index));
     }
 
-    [HttpPost]
+    [HttpPost("MarkAllRead")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> MarkAllRead()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        if (User.IsInRole("Admin"))
-        {
-            await _notificationService.MarkAllAsReadAsync(userId);
-            return Redirect("/Admin/Notification");
-        }
-
         await _notificationService.MarkAllAsReadAsync(userId);
         return RedirectToAction(nameof(Index));
     }

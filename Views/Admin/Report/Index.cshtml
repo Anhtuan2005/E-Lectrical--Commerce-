@@ -8,6 +8,8 @@
     var categoryValues = System.Text.Json.JsonSerializer.Serialize(Model.RevenueByCategory.Values);
     var productLabels = System.Text.Json.JsonSerializer.Serialize(Model.TopProducts.Select(product => product.ProductName));
     var productSold = System.Text.Json.JsonSerializer.Serialize(Model.TopProducts.Select(product => product.QuantitySold));
+    var currentRevenue = System.Text.Json.JsonSerializer.Serialize(Model.CurrentPeriodRevenue);
+    var previousRevenue = System.Text.Json.JsonSerializer.Serialize(Model.PreviousPeriodRevenue);
 }
 
 <section class="metric-grid" aria-label="Tổng quan báo cáo">
@@ -28,6 +30,7 @@
                     <option value="7" selected="@(Model.Period == "7")">7 ngày</option>
                     <option value="30" selected="@(Model.Period == "30")">30 ngày</option>
                     <option value="90" selected="@(Model.Period == "90")">3 tháng</option>
+                    <option value="365" selected="@(Model.Period == "365")">1 năm</option>
                     <option value="custom" selected="@(Model.Period == "custom")">Tùy chọn</option>
                 </select>
                 <input type="date" name="fromDate" value="@Model.FromDate?.ToString("yyyy-MM-dd")" aria-label="Từ ngày" />
@@ -116,8 +119,8 @@
             categoryValues: @Html.Raw(categoryValues),
             productLabels: @Html.Raw(productLabels),
             productSold: @Html.Raw(productSold),
-            currentRevenue: @Model.CurrentPeriodRevenue,
-            previousRevenue: @Model.PreviousPeriodRevenue
+            currentRevenue: @Html.Raw(currentRevenue),
+            previousRevenue: @Html.Raw(previousRevenue)
         };
     </script>
 }

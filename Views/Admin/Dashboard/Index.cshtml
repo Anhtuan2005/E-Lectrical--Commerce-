@@ -6,65 +6,259 @@
     var values = System.Text.Json.JsonSerializer.Serialize(Model.RevenuePoints.Select(point => point.Revenue));
 }
 
-<section class="metric-grid" aria-label="Chỉ số vận hành">
-    <article><span>Doanh thu hôm nay</span><strong>@Model.TodayRevenue.ToString("N0") ₫</strong></article>
-    <article><span>Doanh thu tuần</span><strong>@Model.WeekRevenue.ToString("N0") ₫</strong></article>
-    <article><span>Doanh thu tháng</span><strong>@Model.MonthRevenue.ToString("N0") ₫</strong></article>
-    <article><span>Tổng đơn hàng</span><strong>@Model.TotalOrders</strong></article>
+<section class="dashboard-section">
+    <div class="dashboard-section-head">
+        <div>
+            <span>Tổng quan</span>
+            <h2>Kết quả kinh doanh</h2>
+        </div>
+        <a class="adm-ghost" href="/Admin/Report"><i class="bi bi-graph-up-arrow"></i> Báo cáo chi tiết</a>
+    </div>
+
+    <div class="metric-grid dashboard-metric-grid" aria-label="Chỉ số doanh thu">
+        @foreach (var metric in Model.PeriodMetrics)
+        {
+            <article class="dashboard-period-card">
+                <span>@metric.Label</span>
+                <strong>@metric.Revenue.ToString("N0") đ</strong>
+                <small>@metric.Orders đơn · AOV @metric.AverageOrderValue.ToString("N0") đ</small>
+            </article>
+        }
+    </div>
 </section>
 
-<section class="admin-grid">
-    <div class="admin-panel chart-panel">
-        <div class="panel-head">
-            <h2>Doanh thu 7 ngày</h2>
-            <a class="admin-button secondary" href="/Admin/Report"><i class="bi bi-graph-up-arrow"></i> Báo cáo</a>
+<section class="dashboard-section">
+    <div class="dashboard-section-head">
+        <div>
+            <span>Vận hành</span>
+            <h2>Đơn hàng và việc cần xử lý</h2>
         </div>
-        <canvas id="revenueChart" height="130"></canvas>
     </div>
-    <div class="admin-panel">
-        <div class="panel-head"><h2>Đơn theo trạng thái</h2></div>
-        <div class="status-list">
-            @foreach (var status in OrderStatuses.All)
+
+    <div class="dashboard-main-grid">
+        <div class="admin-panel chart-panel dashboard-chart-panel">
+            <div class="panel-head">
+                <div>
+                    <h2>Doanh thu 7 ngày</h2>
+                    <p>Theo các đơn đã thanh toán hoặc đã giao.</p>
+                </div>
+            </div>
+            <canvas id="revenueChart" height="130"></canvas>
+        </div>
+
+        <aside class="admin-panel dashboard-ops-panel">
+            <div class="panel-head">
+                <div>
+                    <h2>Hàng chờ xử lý</h2>
+                    <p>Các lối tắt cho việc cần làm ngay.</p>
+                </div>
+            </div>
+
+            <div class="dashboard-task-list" aria-label="Việc cần xử lý">
+                <a href="/Admin/Order?status=@Uri.EscapeDataString(OrderStatuses.Pending)">
+                    <i class="bi bi-check2-circle"></i>
+                    <span>Chờ xác nhận</span>
+                    <strong>@Model.PendingOrdersCount</strong>
+                </a>
+                <a href="/Admin/Order?status=@Uri.EscapeDataString(OrderStatuses.AwaitingPayment)">
+                    <i class="bi bi-credit-card-2-front"></i>
+                    <span>Chờ thanh toán</span>
+                    <strong>@Model.AwaitingPaymentCount</strong>
+                </a>
+                <a href="/Admin/Order">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                    <span>Cần hoàn tiền</span>
+                    <strong>@Model.ManualRefundCount</strong>
+                </a>
+                <a href="/Admin/Product">
+                    <i class="bi bi-box-seam"></i>
+                    <span>Sắp hết hàng</span>
+                    <strong>@Model.LowStockCount</strong>
+                </a>
+                <a href="#price-review">
+                    <i class="bi bi-tags"></i>
+                    <span>Xem lại giá</span>
+                    <strong>@Model.PriceReviewCount</strong>
+                </a>
+            </div>
+
+            <div class="dashboard-status-block">
+                <h3>Đơn theo trạng thái</h3>
+                <div class="dashboard-status-grid">
+                    @foreach (var status in OrderStatuses.All)
+                    {
+                        <a href="/Admin/Order?status=@Uri.EscapeDataString(status)">
+                            <span>@status</span>
+                            <strong>@(Model.OrdersByStatus.GetValueOrDefault(status))</strong>
+                        </a>
+                    }
+                </div>
+            </div>
+        </aside>
+    </div>
+</section>
+
+<section class="dashboard-section">
+    <div class="dashboard-section-head">
+        <div>
+            <span>Hiệu suất sản phẩm</span>
+            <h2>Lượt xem và bán ra</h2>
+        </div>
+    </div>
+
+    <div class="dashboard-two-column-grid">
+        <div class="admin-panel dashboard-list-panel">
+            <div class="panel-head">
+                <div>
+                    <h2>Sản phẩm được xem nhiều</h2>
+                    <p>30 ngày gần nhất, không tính lượt xem của admin.</p>
+                </div>
+            </div>
+            @if (Model.TopViewedProducts.Any())
             {
-                <div><span>@status</span><strong>@(Model.OrdersByStatus.GetValueOrDefault(status))</strong></div>
+                <div class="dashboard-data-list">
+                    <div class="dashboard-data-head is-viewed">
+                        <span>Sản phẩm</span>
+                        <span>Lượt xem</span>
+                        <span>Phiên</span>
+                        <span>Đã bán</span>
+                        <span>Chuyển đổi</span>
+                    </div>
+                    @foreach (var product in Model.TopViewedProducts)
+                    {
+                        <a class="dashboard-data-row is-viewed" href="/Admin/Product/Edit/@product.ProductId">
+                            <span>
+                                <strong>@product.ProductName</strong>
+                                <small>@product.Revenue.ToString("N0") đ doanh thu</small>
+                            </span>
+                            <b>@product.ViewCount</b>
+                            <b>@product.UniqueSessions</b>
+                            <b>@product.SoldQuantity</b>
+                            <b>@product.ViewToSaleRate.ToString("0.##")%</b>
+                        </a>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">Chưa có dữ liệu lượt xem sản phẩm.</div>
+            }
+        </div>
+
+        <div class="admin-panel dashboard-list-panel">
+            <div class="panel-head">
+                <div>
+                    <h2>Top sản phẩm bán chạy</h2>
+                    <p>Xếp theo số lượng đã bán.</p>
+                </div>
+            </div>
+            @if (Model.TopProducts.Any())
+            {
+                <div class="dashboard-data-list">
+                    <div class="dashboard-data-head is-sold">
+                        <span>Sản phẩm</span>
+                        <span>Số lượng</span>
+                        <span>Doanh thu</span>
+                    </div>
+                    @foreach (var product in Model.TopProducts)
+                    {
+                        <div class="dashboard-data-row is-sold">
+                            <span><strong>@product.ProductName</strong></span>
+                            <b>@product.QuantitySold</b>
+                            <b>@product.Revenue.ToString("N0") đ</b>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">Chưa có dữ liệu bán hàng.</div>
             }
         </div>
     </div>
 </section>
 
-<section class="admin-grid">
-    <div class="admin-panel">
-        <div class="panel-head"><h2>Hàng sắp hết</h2></div>
-        <table class="admin-table">
-            <thead><tr><th>Sản phẩm</th><th>Danh mục</th><th>Tồn kho</th><th></th></tr></thead>
-            <tbody>
-                @foreach (var product in Model.LowStockProducts)
-                {
-                    <tr>
-                        <td><strong>@product.Name</strong></td>
-                        <td>@product.Category?.Name</td>
-                        <td><span class="adm-pill warning">@product.Stock</span></td>
-                        <td class="actions-cell"><a class="adm-ghost" href="/Admin/Product/Edit/@product.Id"><i class="bi bi-pencil-square"></i> Cập nhật</a></td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+<section class="dashboard-section">
+    <div class="dashboard-section-head">
+        <div>
+            <span>Hàng hoá & giá</span>
+            <h2>Tồn kho, ưu đãi và điều chỉnh giá</h2>
+        </div>
     </div>
-    <div class="admin-panel">
-        <div class="panel-head"><h2>Top sản phẩm bán chạy</h2></div>
-        <table class="admin-table">
-            <thead><tr><th>Sản phẩm</th><th>Số lượng</th><th>Doanh thu</th></tr></thead>
-            <tbody>
-                @foreach (var product in Model.TopProducts)
-                {
-                    <tr>
-                        <td><strong>@product.ProductName</strong></td>
-                        <td>@product.QuantitySold</td>
-                        <td>@product.Revenue.ToString("N0") ₫</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+
+    <div class="dashboard-two-column-grid dashboard-inventory-grid">
+        <div class="admin-panel dashboard-list-panel" id="price-review">
+            <div class="panel-head">
+                <div>
+                    <h2>Cần xem lại giá/ưu đãi</h2>
+                    <p>Gợi ý từ tuổi hàng, tồn kho, lượt xem và lượng bán 30 ngày.</p>
+                </div>
+            </div>
+            @if (Model.PriceReviewProducts.Any())
+            {
+                <div class="dashboard-data-list">
+                    <div class="dashboard-data-head is-price">
+                        <span>Sản phẩm</span>
+                        <span>Tồn & tuổi</span>
+                        <span>30 ngày</span>
+                        <span>Lý do</span>
+                        <span></span>
+                    </div>
+                    @foreach (var product in Model.PriceReviewProducts)
+                    {
+                        <div class="dashboard-data-row is-price">
+                            <span>
+                                <strong>@product.ProductName</strong>
+                                <small>@(product.CategoryName ?? "Chưa phân loại") · @product.Price.ToString("N0") đ</small>
+                                @if (product.DiscountPercent > 0)
+                                {
+                                    <em>-@product.DiscountPercent%</em>
+                                }
+                            </span>
+                            <span>
+                                <strong>@product.Stock tồn</strong>
+                                <small>@product.AgeDays ngày · @product.InventoryValue.ToString("N0") đ</small>
+                            </span>
+                            <b>@product.ViewsLast30Days / @product.SoldLast30Days</b>
+                            <span class="dashboard-reason">@product.Reason</span>
+                            <a class="adm-ghost" href="/Admin/Product/Edit/@product.ProductId"><i class="bi bi-pencil-square"></i> Sửa</a>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">Chưa có sản phẩm nào cần xem lại giá.</div>
+            }
+        </div>
+
+        <div class="admin-panel dashboard-list-panel">
+            <div class="panel-head">
+                <div>
+                    <h2>Hàng sắp hết</h2>
+                    <p>Các sản phẩm còn từ 5 món trở xuống.</p>
+                </div>
+            </div>
+            @if (Model.LowStockProducts.Any())
+            {
+                <div class="dashboard-stock-list">
+                    @foreach (var product in Model.LowStockProducts)
+                    {
+                        <a class="dashboard-stock-row" href="/Admin/Product/Edit/@product.Id">
+                            <span>
+                                <strong>@product.Name</strong>
+                                <small>@(product.Category?.Name ?? "Chưa phân loại")</small>
+                            </span>
+                            <b>@product.Stock</b>
+                        </a>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">Tồn kho đang ổn.</div>
+            }
+        </div>
     </div>
 </section>
 

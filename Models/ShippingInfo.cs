@@ -28,6 +28,8 @@ public static class ShippingStatuses
     public const string InTransit = "Đang vận chuyển";
     public const string Delivered = "Đã giao";
     public const string Delayed = "Chậm trễ";
+    public const string Returned = "Hoàn hàng";
+    public const string Cancelled = "Đã huỷ vận đơn";
 
-    public static readonly string[] All = { NotAssigned, WaitingPickup, InTransit, Delivered, Delayed };
+    public static readonly string[] All = { NotAssigned, WaitingPickup, InTransit, Delivered, Delayed, Returned, Cancelled };
 }

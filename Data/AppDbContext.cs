@@ -26,6 +26,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Banner> Banners => Set<Banner>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
     public DbSet<ProductSearchTerm> ProductSearchTerms => Set<ProductSearchTerm>();
+    public DbSet<ProductInteraction> ProductInteractions => Set<ProductInteraction>();
     public DbSet<StockLog> StockLogs => Set<StockLog>();
     public DbSet<CustomerSegment> CustomerSegments => Set<CustomerSegment>();
     public DbSet<CustomerSegmentMember> CustomerSegmentMembers => Set<CustomerSegmentMember>();
@@ -35,6 +36,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ReturnWarrantyRequest> ReturnWarrantyRequests => Set<ReturnWarrantyRequest>();
     public DbSet<ReturnWarrantyRequestItem> ReturnWarrantyRequestItems => Set<ReturnWarrantyRequestItem>();
     public DbSet<ReturnWarrantyRequestImage> ReturnWarrantyRequestImages => Set<ReturnWarrantyRequestImage>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -47,6 +49,12 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
         builder.Entity<Product>()
             .HasQueryFilter(product => !product.IsDeleted);
+
+        builder.Entity<CartItem>()
+            .HasQueryFilter(item => !item.Product!.IsDeleted);
+
+        builder.Entity<CrossSellOffer>()
+            .HasQueryFilter(offer => !offer.AnchorProduct!.IsDeleted && !offer.AddOnProduct!.IsDeleted);
 
         builder.Entity<Product>()
             .Property(product => product.Price)
@@ -85,6 +93,27 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasForeignKey(term => term.ProductId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.Entity<ProductInteraction>()
+            .HasIndex(interaction => new { interaction.ProductId, interaction.CreatedAt });
+
+        builder.Entity<ProductInteraction>()
+            .HasIndex(interaction => new { interaction.EventType, interaction.CreatedAt });
+
+        builder.Entity<ProductInteraction>()
+            .HasIndex(interaction => interaction.UserId);
+
+        builder.Entity<ProductInteraction>()
+            .HasOne(interaction => interaction.Product)
+            .WithMany(product => product.Interactions)
+            .HasForeignKey(interaction => interaction.ProductId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<ProductInteraction>()
+            .HasOne(interaction => interaction.User)
+            .WithMany()
+            .HasForeignKey(interaction => interaction.UserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.Entity<StockLog>()
             .HasOne(log => log.Product)
             .WithMany()
@@ -113,6 +142,14 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .Property(order => order.RefundStatus)
             .HasMaxLength(40)
             .HasDefaultValue(RefundStatuses.NotRequired);
+
+        builder.Entity<Order>()
+            .Property(order => order.InvoiceStatus)
+            .HasMaxLength(40)
+            .HasDefaultValue(InvoiceStatuses.NotIssued);
+
+        builder.Entity<Order>()
+            .HasIndex(order => order.InvoiceFkey);
 
         builder.Entity<OrderItem>()
             .Property(item => item.UnitPrice)
@@ -379,6 +416,19 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasOne(image => image.ReturnWarrantyRequest)
             .WithMany(request => request.Images)
             .HasForeignKey(image => image.ReturnWarrantyRequestId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<PasswordResetToken>()
+            .Property(token => token.CreatedAt)
+            .HasDefaultValueSql("SYSUTCDATETIME()");
+
+        builder.Entity<PasswordResetToken>()
+            .HasIndex(token => token.TokenHash);
+
+        builder.Entity<PasswordResetToken>()
+            .HasOne(token => token.User)
+            .WithMany()
+            .HasForeignKey(token => token.UserId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

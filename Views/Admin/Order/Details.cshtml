@@ -2,6 +2,7 @@
 @{
     Layout = "_AdminLayout";
     ViewData["Title"] = $"Đơn hàng #{Model.Id}";
+    var hasInvoice = !string.IsNullOrWhiteSpace(Model.InvoiceFkey) && Model.InvoiceStatus != InvoiceStatuses.NotIssued;
 }
 
 <section class="admin-grid">
@@ -74,6 +75,44 @@
             <input type="date" name="estimatedDelivery" value="@Model.ShippingInfo?.EstimatedDelivery?.ToString("yyyy-MM-dd")" />
             <button class="admin-button" type="submit">Lưu vận chuyển</button>
         </form>
+    </div>
+    <div class="admin-panel">
+        <div class="panel-head">
+            <h2>Hóa đơn nội bộ</h2>
+            <span class="admin-pill @(Model.InvoiceStatus == InvoiceStatuses.Error ? "warning" : Model.InvoiceStatus == InvoiceStatuses.Cancelled ? "off" : Model.InvoiceStatus == InvoiceStatuses.NotIssued ? "off" : "success")">@Model.InvoiceStatus</span>
+        </div>
+        <dl class="detail-list">
+            <dt>Loại hóa đơn</dt><dd>@(Model.InvoiceProvider ?? "Hóa đơn mô phỏng")</dd>
+            <dt>Mã hóa đơn</dt><dd>@(Model.InvoiceFkey ?? $"LOCAL-DH{Model.Id:D6}")</dd>
+            <dt>Số hóa đơn</dt><dd>@(Model.InvoiceNumber ?? "Chưa có")</dd>
+            <dt>Mã tra cứu</dt><dd>@(Model.InvoiceLookupCode ?? "Chưa có")</dd>
+            @if (Model.InvoiceIssuedAt.HasValue)
+            {
+                <dt>Đã xuất lúc</dt><dd>@Model.InvoiceIssuedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd>
+            }
+            @if (Model.InvoiceSyncedAt.HasValue)
+            {
+                <dt>Cập nhật lúc</dt><dd>@Model.InvoiceSyncedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.InvoiceErrorMessage))
+            {
+                <dt>Lỗi gần nhất</dt><dd>@Model.InvoiceErrorMessage</dd>
+            }
+        </dl>
+        <div class="table-actions">
+            <form asp-action="IssueInvoice" method="post">
+                <input type="hidden" name="id" value="@Model.Id" />
+                <button class="admin-button" type="submit" disabled="@(hasInvoice && Model.InvoiceStatus != InvoiceStatuses.Error)">Xuất hóa đơn PDF</button>
+            </form>
+            <form asp-action="DownloadInvoicePdf" method="post">
+                <input type="hidden" name="id" value="@Model.Id" />
+                <button class="admin-button secondary" type="submit" disabled="@(!hasInvoice || Model.InvoiceStatus == InvoiceStatuses.Cancelled)">Tải lại PDF</button>
+            </form>
+            <form asp-action="CancelInvoice" method="post" data-confirm="Huỷ hóa đơn nội bộ của đơn #@Model.Id?">
+                <input type="hidden" name="id" value="@Model.Id" />
+                <button class="admin-button danger" type="submit" disabled="@(!hasInvoice || Model.InvoiceStatus == InvoiceStatuses.Cancelled)">Huỷ hóa đơn</button>
+            </form>
+        </div>
     </div>
 </section>
 

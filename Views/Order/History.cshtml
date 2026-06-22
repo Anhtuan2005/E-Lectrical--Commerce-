@@ -114,7 +114,15 @@
                             {
                                 <a class="btn-ghost" asp-controller="ReturnWarranty" asp-action="Create" asp-route-orderId="@order.Id">Yêu cầu hỗ trợ</a>
                             }
-                            @if (order.Status == OrderStatuses.Pending)
+                            @if (!isAdminViewer && string.Equals(order.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase) && !order.IsPaid && (order.Status == OrderStatuses.AwaitingPayment || order.Status == OrderStatuses.Pending))
+                            {
+                                <form asp-controller="Payment" asp-action="VnpayCreate" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="orderId" value="@order.Id" />
+                                    <button class="btn-primary" type="submit">Thanh toán VNPAY</button>
+                                </form>
+                            }
+                            @if (order.Status == OrderStatuses.AwaitingPayment || order.Status == OrderStatuses.Pending)
                             {
                                 <form asp-action="Cancel" method="post">
                                     @Html.AntiForgeryToken()
@@ -144,6 +152,7 @@
 @functions {
     private static string StatusClass(string status)
     {
+        if (status == OrderStatuses.AwaitingPayment) return "pending";
         if (status == OrderStatuses.Pending) return "pending";
         if (status == OrderStatuses.Confirmed) return "processing";
         if (status == OrderStatuses.Shipping) return "shipping";

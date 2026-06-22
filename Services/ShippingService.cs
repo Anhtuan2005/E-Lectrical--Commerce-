@@ -7,6 +7,8 @@ namespace EcommerceApp.Services;
 
 public class ShippingService : IShippingService
 {
+    private const string GhnCarrierName = "Giao Hàng Nhanh";
+
     private readonly AppDbContext _db;
     private readonly IOrderEmailService _orderEmailService;
     private readonly IUserNotificationService _notificationService;
@@ -116,14 +118,15 @@ public class ShippingService : IShippingService
 
     public async Task<ShippingDashboardViewModel> GetDashboardAsync()
     {
-        var actionNeeded = await GetActionNeededOrdersAsync();
+        var actionNeeded = (await GetActionNeededOrdersAsync()).ToList();
 
         return new ShippingDashboardViewModel
         {
             OrdersByShippingStatus = await _db.ShippingInfos.GroupBy(info => info.Status).ToDictionaryAsync(group => group.Key, group => group.Count()),
             MissingTrackingCount = actionNeeded.Count(order => order.ShippingInfo is null || string.IsNullOrWhiteSpace(order.ShippingInfo.TrackingCode)),
             DelayedCount = actionNeeded.Count(IsDelayed),
-            ActionNeededOrders = actionNeeded
+            ActionNeededOrders = actionNeeded,
+            GhnTrackedOrders = await GetGhnTrackedOrdersAsync()
         };
     }
 
@@ -134,12 +137,32 @@ public class ShippingService : IShippingService
             .Include(order => order.User)
             .Include(order => order.ShippingInfo)
             .Where(order =>
+                order.Status != OrderStatuses.AwaitingPayment &&
                 order.Status != OrderStatuses.Delivered &&
                 order.Status != OrderStatuses.Cancelled &&
                 (order.ShippingInfo == null ||
                  order.ShippingInfo.TrackingCode == "" ||
                  (order.ShippingInfo.EstimatedDelivery.HasValue && order.ShippingInfo.EstimatedDelivery.Value < now && order.ShippingInfo.Status != ShippingStatuses.Delivered)))
             .OrderBy(order => order.CreatedAt)
+            .ToListAsync();
+    }
+
+    private async Task<IEnumerable<Order>> GetGhnTrackedOrdersAsync()
+    {
+        return await _db.Orders
+            .Include(order => order.User)
+            .Include(order => order.ShippingInfo)
+            .Where(order =>
+                order.ShippingInfo != null &&
+                order.ShippingInfo.Carrier == GhnCarrierName &&
+                order.ShippingInfo.TrackingCode != "" &&
+                order.Status != OrderStatuses.Delivered &&
+                order.Status != OrderStatuses.Cancelled &&
+                order.ShippingInfo.Status != ShippingStatuses.Delivered &&
+                order.ShippingInfo.Status != ShippingStatuses.Cancelled)
+            .OrderBy(order => order.ShippingInfo!.EstimatedDelivery ?? DateTime.MaxValue)
+            .ThenByDescending(order => order.UpdatedAt)
+            .Take(20)
             .ToListAsync();
     }
 

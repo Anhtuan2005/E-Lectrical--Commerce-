@@ -1,0 +1,62 @@
+@model NotificationIndexViewModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Thông báo admin";
+}
+
+<section class="admin-panel admin-notification-panel">
+    <div class="panel-head admin-notification-head">
+        <div>
+            <h2>Thông báo vận hành</h2>
+            <p>@Model.UnreadCount thông báo chưa đọc, chỉ dành cho tài khoản admin.</p>
+        </div>
+        @if (Model.UnreadCount > 0)
+        {
+            <form action="/Admin/Notification/MarkAllRead" method="post">
+                @Html.AntiForgeryToken()
+                <button class="admin-button secondary" type="submit">
+                    <i class="bi bi-check2-all"></i>
+                    Đánh dấu đã đọc
+                </button>
+            </form>
+        }
+    </div>
+
+    @if (!Model.Notifications.Any())
+    {
+        <div class="empty-state">Chưa có thông báo vận hành.</div>
+    }
+    else
+    {
+        <div class="admin-notification-list">
+            @foreach (var notification in Model.Notifications)
+            {
+                <a class="admin-notification-row @(notification.IsRead ? "is-read" : "is-unread")" href="/Admin/Notification/Go/@notification.Id">
+                    <span class="admin-notification-icon @notification.Type">
+                        <i class="bi @Icon(notification.Type)"></i>
+                    </span>
+                    <span>
+                        <strong>@notification.Title</strong>
+                        <small>@notification.Message</small>
+                    </span>
+                    <time>@notification.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</time>
+                    @if (!notification.IsRead)
+                    {
+                        <em>Mới</em>
+                    }
+                </a>
+            }
+        </div>
+    }
+</section>
+
+@functions {
+    private static string Icon(string type)
+    {
+        if (type == NotificationTypes.Order) return "bi-bag-check";
+        if (type == NotificationTypes.Support) return "bi-shield-check";
+        if (type == NotificationTypes.Voucher) return "bi-ticket-perforated";
+        if (type == NotificationTypes.Wishlist) return "bi-heart";
+        return "bi-bell";
+    }
+}

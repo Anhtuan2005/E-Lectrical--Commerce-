@@ -135,6 +135,20 @@ public class ProductController : Controller
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var isAuthenticated = !string.IsNullOrWhiteSpace(userId);
         var isAdmin = User.IsInRole("Admin");
+        if (!isAdmin)
+        {
+            var referrer = Request.Headers.Referer.ToString();
+            _db.ProductInteractions.Add(new ProductInteraction
+            {
+                ProductId = id,
+                UserId = isAuthenticated ? userId : null,
+                SessionId = HttpContext.Session.Id,
+                EventType = ProductInteractionEvents.DetailView,
+                Referrer = referrer.Length > 500 ? referrer[..500] : referrer
+            });
+            await _db.SaveChangesAsync();
+        }
+
         var hasPurchased = isAuthenticated && !isAdmin && await _db.Orders
             .AnyAsync(order => order.UserId == userId && order.Status == OrderStatuses.Delivered && order.Items.Any(item => item.ProductId == id));
         var hasReviewed = isAuthenticated && await _db.Reviews.AnyAsync(review => review.UserId == userId && review.ProductId == id);

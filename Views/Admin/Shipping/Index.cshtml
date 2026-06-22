@@ -1,8 +1,97 @@
 @model ShippingDashboardViewModel
+@using EcommerceApp.Services
+@using System.Text.Json
 @{
     Layout = "_AdminLayout";
     ViewData["Title"] = "Quản lý vận chuyển";
     var statuses = ViewBag.Statuses as IEnumerable<string> ?? ShippingStatuses.All;
+    var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
+    var ghnConfigured = ViewBag.GhnConfigured as bool? ?? false;
+    GhnFeeQuote? ghnFeeQuote = null;
+    GhnShipmentDetail? ghnShipmentDetail = null;
+    if (TempData["GhnFeeQuote"] is string ghnFeeQuoteJson)
+    {
+        try
+        {
+            ghnFeeQuote = JsonSerializer.Deserialize<GhnFeeQuote>(ghnFeeQuoteJson);
+        }
+        catch (JsonException)
+        {
+            ghnFeeQuote = null;
+        }
+    }
+
+    if (TempData["GhnShipmentDetail"] is string ghnShipmentDetailJson)
+    {
+        try
+        {
+            ghnShipmentDetail = JsonSerializer.Deserialize<GhnShipmentDetail>(ghnShipmentDetailJson);
+        }
+        catch (JsonException)
+        {
+            ghnShipmentDetail = null;
+        }
+    }
+
+    var ghnDetailLines = ghnShipmentDetail?.Lines ?? Array.Empty<GhnShipmentDetailLine>();
+    var ghnDetailValues = ghnDetailLines
+        .GroupBy(line => line.Label)
+        .ToDictionary(group => group.Key, group => group.First().Value);
+    var recipientRows = new (string Label, string? Value)[]
+    {
+        ("Tên", ghnDetailValues.GetValueOrDefault("Người nhận")),
+        ("Điện thoại", ghnDetailValues.GetValueOrDefault("SĐT nhận")),
+        ("Địa chỉ", ghnDetailValues.GetValueOrDefault("Địa chỉ nhận"))
+    }.Where(row => !string.IsNullOrWhiteSpace(row.Value)).ToList();
+    var senderRows = new (string Label, string? Value)[]
+    {
+        ("Tên", ghnDetailValues.GetValueOrDefault("Người gửi")),
+        ("Điện thoại", ghnDetailValues.GetValueOrDefault("SĐT gửi")),
+        ("Địa chỉ", ghnDetailValues.GetValueOrDefault("Địa chỉ gửi"))
+    }.Where(row => !string.IsNullOrWhiteSpace(row.Value)).ToList();
+    var parcelRows = new (string Label, string? Value)[]
+    {
+        ("Nội dung hàng", ghnDetailValues.GetValueOrDefault("Nội dung hàng")),
+        ("COD", ghnDetailValues.GetValueOrDefault("COD")),
+        ("Khối lượng", ghnDetailValues.GetValueOrDefault("Khối lượng")),
+        ("Khối lượng quy đổi", ghnDetailValues.GetValueOrDefault("Khối lượng quy đổi")),
+        ("Kích thước", ghnDetailValues.GetValueOrDefault("Kích thước")),
+        ("Ghi chú", ghnDetailValues.GetValueOrDefault("Ghi chú")),
+        ("Yêu cầu giao", ghnDetailValues.GetValueOrDefault("Yêu cầu giao")),
+        ("Mã đơn nội bộ", ghnDetailValues.GetValueOrDefault("Mã đơn nội bộ"))
+    }.Where(row => !string.IsNullOrWhiteSpace(row.Value)).ToList();
+    var timelineRows = new (string Label, string? Value)[]
+    {
+        ("Ngày tạo", ghnDetailValues.GetValueOrDefault("Ngày tạo")),
+        ("Dự kiến giao", ghnDetailValues.GetValueOrDefault("Dự kiến giao")),
+        ("Cập nhật cuối", ghnDetailValues.GetValueOrDefault("Cập nhật cuối"))
+    }.Where(row => !string.IsNullOrWhiteSpace(row.Value)).ToList();
+    var knownGhnDetailLabels = new[]
+    {
+        "Trạng thái GHN",
+        "Trạng thái giao hàng",
+        "Người nhận",
+        "SĐT nhận",
+        "Địa chỉ nhận",
+        "Người gửi",
+        "SĐT gửi",
+        "Địa chỉ gửi",
+        "Nội dung hàng",
+        "COD",
+        "Khối lượng",
+        "Khối lượng quy đổi",
+        "Kích thước",
+        "Ghi chú",
+        "Yêu cầu giao",
+        "Mã đơn nội bộ",
+        "Ngày tạo",
+        "Dự kiến giao",
+        "Cập nhật cuối"
+    };
+    var otherRows = ghnDetailLines
+        .Where(line => !knownGhnDetailLabels.Contains(line.Label))
+        .ToList();
+    var ghnTrackedOrders = Model.GhnTrackedOrders.ToList();
 }
 
 <section class="metric-grid">
@@ -14,13 +103,234 @@
     }
 </section>
 
+@if (!ghnConfigured)
+{
+    <section class="admin-panel">
+        <div class="admin-alert warning">
+            <strong>GHN chưa được cấu hình</strong>
+            <span>Thêm `Ghn:Token` và `Ghn:ShopId` trong cấu hình để tạo vận đơn thật.</span>
+        </div>
+    </section>
+}
+
+<section class="admin-panel ghn-lookup-panel">
+    <div class="panel-head">
+        <div>
+            <h2>Tra cứu vận đơn GHN</h2>
+            <p>Nhập mã vận đơn để xem trạng thái, phí và thông tin giao hàng từ GHN.</p>
+        </div>
+    </div>
+    <form action="/Admin/Shipping/GhnDetail" method="get" class="ghn-lookup-form">
+        <input name="trackingCode" value="@ghnShipmentDetail?.OrderCode" placeholder="VD: LXHXV8" aria-label="Mã vận đơn GHN" autocomplete="off" />
+        <input type="hidden" name="returnUrl" value="@returnUrl" />
+        <button class="admin-button" type="submit" @(ghnConfigured ? "" : "disabled")>Xem chi tiết</button>
+    </form>
+</section>
+
+<section class="admin-panel">
+    <div class="panel-head">
+        <div>
+            <h2>Vận đơn GHN đang theo dõi</h2>
+            <p>Các mã đã tạo và chưa hoàn tất, admin có thể mở lại chi tiết hoặc đồng bộ trạng thái.</p>
+        </div>
+    </div>
+    @if (ghnTrackedOrders.Any())
+    {
+        <table class="admin-table ghn-tracking-table">
+            <thead>
+                <tr>
+                    <th>Đơn</th>
+                    <th>Mã vận đơn</th>
+                    <th>Khách hàng</th>
+                    <th>Trạng thái</th>
+                    <th>Dự kiến giao</th>
+                    <th>Phí</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var order in ghnTrackedOrders)
+                {
+                    <tr>
+                        <td>#@order.Id</td>
+                        <td><strong>@order.ShippingInfo?.TrackingCode</strong></td>
+                        <td>@order.User?.FullName</td>
+                        <td><span class="admin-pill success">@order.ShippingInfo?.Status</span></td>
+                        <td>@(order.ShippingInfo?.EstimatedDelivery?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Chưa có")</td>
+                        <td>@(order.ShippingFee > 0 ? $"{order.ShippingFee:N0}đ" : "Chưa có")</td>
+                        <td class="table-actions">
+                            <form action="/Admin/Shipping/GhnDetail" method="post">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="orderId" value="@order.Id" />
+                                <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                <button class="admin-button secondary" type="submit">Chi tiết</button>
+                            </form>
+                            <form action="/Admin/Shipping/GhnSync" method="post">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="orderId" value="@order.Id" />
+                                <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                <button class="admin-button secondary" type="submit">Đồng bộ</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <div class="empty-state">Chưa có vận đơn GHN nào đang theo dõi.</div>
+    }
+</section>
+
+@if (ghnFeeQuote is not null)
+{
+    <section class="admin-panel ghn-fee-panel">
+        <div class="panel-head">
+            <div>
+                <h2>Chi tiết phí GHN</h2>
+                <p>Đơn #@ghnFeeQuote.OrderId, chỉ là phí dự kiến trước khi tạo vận đơn.</p>
+            </div>
+            <strong>@ghnFeeQuote.Total.ToString("N0")đ</strong>
+        </div>
+        <dl class="ghn-fee-breakdown">
+            @foreach (var line in ghnFeeQuote.Lines)
+            {
+                <div class="@(line.Amount < 0 ? "is-discount" : "")">
+                    <dt>@line.Label</dt>
+                    <dd>@(line.Amount < 0 ? "-" : "")@Math.Abs(line.Amount).ToString("N0")đ</dd>
+                </div>
+            }
+        </dl>
+    </section>
+}
+
+@if (ghnShipmentDetail is not null)
+{
+    <section class="admin-panel ghn-detail-panel">
+        <div class="ghn-detail-header">
+            <div>
+                <span class="ghn-detail-eyebrow">Chi tiết vận đơn GHN</span>
+                <h2>Vận đơn @ghnShipmentDetail.OrderCode</h2>
+                <p>
+                    @(ghnShipmentDetail.OrderId.HasValue ? $"Đơn #{ghnShipmentDetail.OrderId.Value}, " : "")dữ liệu chỉ đọc từ GHN.
+                </p>
+            </div>
+            <div class="ghn-detail-meta">
+                <span><b>Mã</b>@ghnShipmentDetail.OrderCode</span>
+                @if (ghnShipmentDetail.TotalFee.HasValue)
+                {
+                    <span><b>Phí</b>@ghnShipmentDetail.TotalFee.Value.ToString("N0")đ</span>
+                }
+            </div>
+        </div>
+        <div class="ghn-status-strip">
+            @if (!string.IsNullOrWhiteSpace(ghnShipmentDetail.ShippingStatus))
+            {
+                <span class="admin-pill success">@ghnShipmentDetail.ShippingStatus</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(ghnShipmentDetail.GhnStatus))
+            {
+                <span>GHN: <b>@ghnShipmentDetail.GhnStatus</b></span>
+            }
+            @if (ghnShipmentDetail.ExpectedDelivery.HasValue)
+            {
+                <span>Dự kiến: <b>@ghnShipmentDetail.ExpectedDelivery.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</b></span>
+            }
+        </div>
+        <div class="ghn-detail-layout">
+            <div class="ghn-detail-column">
+                @if (recipientRows.Any())
+                {
+                    <section class="ghn-detail-section">
+                        <h3>Người nhận</h3>
+                        <dl class="ghn-detail-fields">
+                            @foreach (var row in recipientRows)
+                            {
+                                <dt>@row.Label</dt>
+                                <dd>@row.Value</dd>
+                            }
+                        </dl>
+                    </section>
+                }
+                @if (senderRows.Any())
+                {
+                    <section class="ghn-detail-section">
+                        <h3>Người gửi</h3>
+                        <dl class="ghn-detail-fields">
+                            @foreach (var row in senderRows)
+                            {
+                                <dt>@row.Label</dt>
+                                <dd>@row.Value</dd>
+                            }
+                        </dl>
+                    </section>
+                }
+            </div>
+            <div class="ghn-detail-column">
+                @if (parcelRows.Any())
+                {
+                    <section class="ghn-detail-section">
+                        <h3>Kiện hàng & phí</h3>
+                        <dl class="ghn-detail-fields">
+                            @foreach (var row in parcelRows)
+                            {
+                                <dt>@row.Label</dt>
+                                <dd>@row.Value</dd>
+                            }
+                        </dl>
+                    </section>
+                }
+                @if (timelineRows.Any())
+                {
+                    <section class="ghn-detail-section">
+                        <h3>Mốc xử lý</h3>
+                        <dl class="ghn-detail-fields">
+                            @foreach (var row in timelineRows)
+                            {
+                                <dt>@row.Label</dt>
+                                <dd>@row.Value</dd>
+                            }
+                        </dl>
+                    </section>
+                }
+                @if (otherRows.Any())
+                {
+                    <section class="ghn-detail-section">
+                        <h3>Thông tin khác</h3>
+                        <dl class="ghn-detail-fields">
+                            @foreach (var row in otherRows)
+                            {
+                                <dt>@row.Label</dt>
+                                <dd>@row.Value</dd>
+                            }
+                        </dl>
+                    </section>
+                }
+            </div>
+        </div>
+    </section>
+}
+
 <section class="admin-panel">
     <div class="panel-head"><h2>Đơn cần xử lý</h2></div>
     <table class="admin-table admin-shipping-table">
-        <thead><tr><th>Mã</th><th>Khách hàng</th><th>Trạng thái đơn</th><th>Vận chuyển</th><th>Mã vận đơn</th><th>Trạng thái giao</th></tr></thead>
+        <thead>
+            <tr>
+                <th>Mã</th>
+                <th>Khách hàng</th>
+                <th>Trạng thái đơn</th>
+                <th>Vận chuyển</th>
+                <th>GHN</th>
+                <th>Mã vận đơn</th>
+                <th>Trạng thái giao</th>
+            </tr>
+        </thead>
         <tbody>
             @foreach (var order in Model.ActionNeededOrders)
             {
+                var isGhn = string.Equals(order.ShippingInfo?.Carrier, "Giao Hàng Nhanh", StringComparison.OrdinalIgnoreCase);
+                var hasGhnCode = isGhn && !string.IsNullOrWhiteSpace(order.ShippingInfo?.TrackingCode);
                 <tr>
                     <td>#@order.Id</td>
                     <td>@order.User?.FullName</td>
@@ -28,6 +338,54 @@
                     <td>
                         <strong>@(string.IsNullOrWhiteSpace(order.ShippingInfo?.Carrier) ? "Chưa gán" : order.ShippingInfo.Carrier)</strong><br />
                         <small>@(string.IsNullOrWhiteSpace(order.ShippingInfo?.TrackingCode) ? "Chưa có mã" : order.ShippingInfo.TrackingCode)</small>
+                    </td>
+                    <td>
+                        @if (hasGhnCode)
+                        {
+                            <div class="ghn-action-stack">
+                                <form action="/Admin/Shipping/GhnDetail" method="post" class="inline-form">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="orderId" value="@order.Id" />
+                                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                    <button class="admin-button secondary" type="submit">Chi tiết GHN</button>
+                                </form>
+                                <form action="/Admin/Shipping/GhnSync" method="post" class="inline-form">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="orderId" value="@order.Id" />
+                                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                    <button class="admin-button secondary" type="submit">Đồng bộ GHN</button>
+                                </form>
+                                <form action="/Admin/Shipping/GhnCancel" method="post" class="inline-form" data-confirm="Huỷ vận đơn GHN của đơn #@order.Id?">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="orderId" value="@order.Id" />
+                                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                    <button class="admin-button danger" type="submit">Huỷ GHN</button>
+                                </form>
+                            </div>
+                        }
+                        else
+                        {
+                            <form action="/Admin/Shipping/GhnCreate" method="post" class="ghn-create-form" data-ghn-address-form>
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="orderId" value="@order.Id" />
+                                <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                <select data-ghn-province aria-label="Tỉnh / thành GHN" @(ghnConfigured ? "" : "disabled")>
+                                    <option value="">Tỉnh GHN</option>
+                                </select>
+                                <select name="ToDistrictId" data-ghn-district aria-label="Quận / huyện GHN" required @(ghnConfigured ? "" : "disabled")>
+                                    <option value="">Quận GHN</option>
+                                </select>
+                                <select name="ToWardCode" data-ghn-ward aria-label="Phường / xã GHN" required @(ghnConfigured ? "" : "disabled")>
+                                    <option value="">Phường GHN</option>
+                                </select>
+                                <input name="Weight" type="number" min="1" value="2000" aria-label="Cân nặng gram" />
+                                <input name="Length" type="number" min="1" value="30" aria-label="Dài cm" />
+                                <input name="Width" type="number" min="1" value="25" aria-label="Rộng cm" />
+                                <input name="Height" type="number" min="1" value="15" aria-label="Cao cm" />
+                                <button class="admin-button secondary" type="submit" formaction="/Admin/Shipping/GhnFee" @(ghnConfigured ? "" : "disabled")>Tính phí</button>
+                                <button class="admin-button" type="submit" @(ghnConfigured ? "" : "disabled")>Tạo GHN</button>
+                            </form>
+                        }
                     </td>
                     <td>
                         <form action="/Admin/Shipping/UpdateTracking" method="post" class="inline-tracking-form">

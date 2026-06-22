@@ -50,7 +50,7 @@
                 <strong>@ViewData["Title"]</strong>
             </div>
             <div class="adm-header-actions">
-                <a class="adm-ghost adm-notification-link" asp-controller="Notification" asp-action="Index">
+                <a class="adm-ghost adm-notification-link" href="/Admin/Notification">
                     <i class="bi bi-bell"></i>
                     Thông báo
                     <em id="admin-notification-badge">@(adminUnreadCount > 0 ? adminUnreadCount.ToString() : string.Empty)</em>

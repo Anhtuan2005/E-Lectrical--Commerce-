@@ -78,6 +78,7 @@ public class OrderStatusTabViewModel
 public static class OrderStatusFilters
 {
     public const string All = "all";
+    public const string AwaitingPayment = "awaiting-payment";
     public const string Pending = "pending";
     public const string Processing = "processing";
     public const string Shipping = "shipping";
@@ -87,6 +88,7 @@ public static class OrderStatusFilters
     public static readonly IReadOnlyList<(string Key, string Label, string? Status)> Tabs = new[]
     {
         (All, "Tất cả", (string?)null),
+        (AwaitingPayment, "Chờ thanh toán", OrderStatuses.AwaitingPayment),
         (Pending, "Chờ xác nhận", OrderStatuses.Pending),
         (Processing, "Đang xử lý", OrderStatuses.Confirmed),
         (Shipping, "Đang giao", OrderStatuses.Shipping),
@@ -113,6 +115,11 @@ public static class OrderStatusFilters
 
     public static string ToDisplayLabel(string status)
     {
+        if (status == OrderStatuses.AwaitingPayment)
+        {
+            return "Chờ thanh toán";
+        }
+
         if (status == OrderStatuses.Confirmed)
         {
             return "Đang xử lý";
@@ -133,6 +140,7 @@ public static class OrderStatusFilters
 
     public static int StepIndex(string status)
     {
+        if (status == OrderStatuses.AwaitingPayment) return -1;
         if (status == OrderStatuses.Pending) return 0;
         if (status == OrderStatuses.Confirmed) return 1;
         if (status == OrderStatuses.Shipping) return 2;

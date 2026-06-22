@@ -8,6 +8,32 @@
     var isAdminViewer = User.IsInRole("Admin");
     var latestRequest = Model.ReturnWarrantyRequests.OrderByDescending(request => request.CreatedAt).FirstOrDefault();
     var canCreateSupportRequest = !isAdminViewer && Model.Status == OrderStatuses.Delivered;
+    var shippingStatus = Model.ShippingInfo?.Status ?? string.Empty;
+    var hasShippingRoute = Model.ShippingInfo is not null &&
+        (!string.IsNullOrWhiteSpace(Model.ShippingInfo.TrackingCode) || Model.Status == OrderStatuses.Shipping || Model.Status == OrderStatuses.Delivered);
+    var actualShippingStage = shippingStatus switch
+    {
+        _ when Model.Status == OrderStatuses.Cancelled || shippingStatus == ShippingStatuses.Cancelled => "Đã huỷ",
+        _ when shippingStatus == ShippingStatuses.WaitingPickup => "Chờ lấy hàng",
+        _ when shippingStatus == ShippingStatuses.InTransit => "Đang giao",
+        _ when shippingStatus == ShippingStatuses.Delayed => "Chậm trễ",
+        _ when shippingStatus == ShippingStatuses.Returned => "Đang hoàn hàng",
+        _ when shippingStatus == ShippingStatuses.Delivered || Model.Status == OrderStatuses.Delivered => "Đã giao",
+        _ when Model.Status == OrderStatuses.Shipping => "Đang giao",
+        _ => "Đang cập nhật"
+    };
+    var routeProgress = ShippingRouteProgressCalculator.Calculate(Model, DateTime.UtcNow);
+    var isActuallyDelivered = Model.Status == OrderStatuses.Delivered || shippingStatus == ShippingStatuses.Delivered;
+    var isCancelled = Model.Status == OrderStatuses.Cancelled || shippingStatus == ShippingStatuses.Cancelled;
+    var userRouteMapClass = isActuallyDelivered
+        ? " is-complete"
+        : isCancelled
+            ? " is-cancelled"
+            : routeProgress.Percent >= 100
+                ? " is-estimated-arrival"
+                : routeProgress.Percent > 0
+                    ? " is-moving"
+                    : string.Empty;
 }
 
 <section class="order-detail-page">
@@ -56,6 +82,61 @@
                 }
             </section>
 
+            @if (hasShippingRoute)
+            {
+                <section class="order-panel order-shipping-map-panel">
+                    <div class="panel-title order-route-title">
+                        <div>
+                            <h2>Theo dõi giao hàng</h2>
+                            <span>GHN: @actualShippingStage</span>
+                        </div>
+                        <button class="order-route-expand" type="button" data-order-route-expand aria-expanded="false">
+                            <i data-lucide="maximize-2" aria-hidden="true"></i>
+                            <span>Xem rõ hơn</span>
+                        </button>
+                    </div>
+                    <div class="order-route-map@(userRouteMapClass)" aria-label="Bản đồ mô phỏng giao hàng tại Việt Nam" style="--order-route-progress: @routeProgress.Percent%; --order-route-progress-num: @routeProgress.Percent;">
+                        <div class="order-route-canvas order-real-route-canvas">
+                            <div class="order-real-map"
+                                 data-order-real-map
+                                 data-route-progress="@routeProgress.Percent"
+                                 data-route-stage="@routeProgress.Stage"
+                                 data-route-tracking="@Model.ShippingInfo?.TrackingCode">
+                                <div class="order-map-loading">
+                                    <i data-lucide="map" aria-hidden="true"></i>
+                                    <span>Đang tải bản đồ...</span>
+                                </div>
+                            </div>
+                            <div class="order-map-status-card">
+                                <span><i data-lucide="route" aria-hidden="true"></i> Lộ trình mô phỏng</span>
+                                <strong>@routeProgress.Stage</strong>
+                            </div>
+                        </div>
+                        <div class="order-route-meta">
+                            <span><b></b>Mô phỏng theo 4 chặng thời gian</span>
+                            <strong>@routeProgress.Percent% · @routeProgress.Step/4 chặng</strong>
+                        </div>
+                        <div class="order-route-facts">
+                            @if (!string.IsNullOrWhiteSpace(Model.ShippingInfo?.TrackingCode))
+                            {
+                                <span>Mã vận đơn <strong>@Model.ShippingInfo.TrackingCode</strong></span>
+                            }
+                            @if (Model.ShippingInfo?.EstimatedDelivery is not null)
+                            {
+                                <span>Dự kiến giao <strong>@Model.ShippingInfo.EstimatedDelivery.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong></span>
+                            }
+                        </div>
+                        @if (routeProgress.IsOverdue && !isActuallyDelivered)
+                        {
+                            <div class="order-route-alert" role="status">
+                                <i data-lucide="triangle-alert" aria-hidden="true"></i>
+                                <span><strong>@routeProgress.OverdueLabel.</strong> Xe mô phỏng đã đến điểm cuối, GHN chưa xác nhận giao thành công.</span>
+                            </div>
+                        }
+                    </div>
+                </section>
+            }
+
             <section class="order-panel">
                 <div class="panel-title">
                     <h2>Sản phẩm</h2>
@@ -93,6 +174,14 @@
                     <div><dt>Địa chỉ</dt><dd>@Model.ShippingAddress</dd></div>
                     <div><dt>Đơn vị vận chuyển</dt><dd>@(Model.ShippingInfo?.Carrier ?? "Chưa gán")</dd></div>
                     <div><dt>Mã vận đơn</dt><dd>@(Model.ShippingInfo?.TrackingCode ?? "Chưa có")</dd></div>
+                    @if (!string.IsNullOrWhiteSpace(Model.ShippingInfo?.Status))
+                    {
+                        <div><dt>Trạng thái giao</dt><dd>@Model.ShippingInfo.Status</dd></div>
+                    }
+                    @if (Model.ShippingInfo?.EstimatedDelivery is not null)
+                    {
+                        <div><dt>Dự kiến giao</dt><dd>@Model.ShippingInfo.EstimatedDelivery.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd></div>
+                    }
                 </dl>
             </section>
 
@@ -173,7 +262,7 @@
                             <button class="btn-primary" type="submit">Mua lại</button>
                         </form>
                     }
-                    @if (!isAdminViewer && string.Equals(Model.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase) && !Model.IsPaid && Model.Status == OrderStatuses.Pending)
+                    @if (!isAdminViewer && string.Equals(Model.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase) && !Model.IsPaid && (Model.Status == OrderStatuses.AwaitingPayment || Model.Status == OrderStatuses.Pending))
                     {
                         <form asp-controller="Payment" asp-action="VnpayCreate" method="post">
                             @Html.AntiForgeryToken()
@@ -181,7 +270,7 @@
                             <button class="btn-primary" type="submit">Thanh toán lại VNPAY</button>
                         </form>
                     }
-                    @if (Model.Status == OrderStatuses.Pending)
+                    @if (Model.Status == OrderStatuses.AwaitingPayment || Model.Status == OrderStatuses.Pending)
                     {
                         <form asp-action="Cancel" method="post">
                             @Html.AntiForgeryToken()
@@ -198,6 +287,7 @@
 @functions {
     private static string StatusClass(string status)
     {
+        if (status == OrderStatuses.AwaitingPayment) return "pending";
         if (status == OrderStatuses.Pending) return "pending";
         if (status == OrderStatuses.Confirmed) return "processing";
         if (status == OrderStatuses.Shipping) return "shipping";

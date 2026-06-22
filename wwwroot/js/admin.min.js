@@ -1,11 +1,13 @@
 document.addEventListener("DOMContentLoaded", function () {
   initAdminConfirm();
+  initAdminToasts();
   initAdminNav();
   initAdminBulkOrders();
   initDashboardChart();
   initReportCharts();
   initBannerSort();
   initOrderNotifications();
+  initGhnAddressForms();
 });
 
 function initAdminConfirm() {
@@ -16,6 +18,27 @@ function initAdminConfirm() {
       }
     });
   });
+}
+
+function initAdminToasts() {
+  document.querySelectorAll(".adm-toast").forEach(scheduleAdminToastDismiss);
+}
+
+function scheduleAdminToastDismiss(toast) {
+  if (!toast || toast.dataset.dismissBound === "true" || toast.dataset.dismiss === "manual") return;
+  toast.dataset.dismissBound = "true";
+  var delay = Number(toast.dataset.dismissMs) || 4200;
+  setTimeout(function () {
+    dismissAdminToast(toast);
+  }, delay);
+}
+
+function dismissAdminToast(toast) {
+  if (!toast || !toast.isConnected || toast.classList.contains("is-leaving")) return;
+  toast.classList.add("is-leaving");
+  setTimeout(function () {
+    toast.remove();
+  }, 240);
 }
 
 function initAdminBulkOrders() {
@@ -291,6 +314,104 @@ function initOrderNotifications() {
     });
 }
 
+function initGhnAddressForms() {
+  var forms = [].slice.call(document.querySelectorAll("[data-ghn-address-form]"));
+  if (!forms.length) return;
+
+  var provincePromise;
+  var districtPromises = {};
+  var wardPromises = {};
+
+  function setSelect(select, placeholder, items, disabled) {
+    select.innerHTML = "";
+    var placeholderOption = document.createElement("option");
+    placeholderOption.value = "";
+    placeholderOption.textContent = placeholder;
+    select.appendChild(placeholderOption);
+    (items || []).forEach(function (item) {
+      var option = document.createElement("option");
+      option.value = item.code;
+      option.textContent = item.name;
+      select.appendChild(option);
+    });
+    select.disabled = Boolean(disabled);
+  }
+
+  function fetchGhnOptions(url) {
+    return fetch(url, { headers: { Accept: "application/json" } })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (!data.success) throw new Error(data.message || "Không tải được dữ liệu GHN.");
+        return data.items || [];
+      });
+  }
+
+  function loadProvinces() {
+    if (!provincePromise) {
+      provincePromise = fetchGhnOptions("/Admin/Shipping/GhnProvinces");
+    }
+    return provincePromise;
+  }
+
+  function loadDistricts(provinceId) {
+    if (!provinceId) return Promise.resolve([]);
+    if (!districtPromises[provinceId]) {
+      districtPromises[provinceId] = fetchGhnOptions("/Admin/Shipping/GhnDistricts?provinceId=" + encodeURIComponent(provinceId));
+    }
+    return districtPromises[provinceId];
+  }
+
+  function loadWards(districtId) {
+    if (!districtId) return Promise.resolve([]);
+    if (!wardPromises[districtId]) {
+      wardPromises[districtId] = fetchGhnOptions("/Admin/Shipping/GhnWards?districtId=" + encodeURIComponent(districtId));
+    }
+    return wardPromises[districtId];
+  }
+
+  forms.forEach(function (form) {
+    var province = form.querySelector("[data-ghn-province]");
+    var district = form.querySelector("[data-ghn-district]");
+    var ward = form.querySelector("[data-ghn-ward]");
+    if (!province || !district || !ward || province.disabled) return;
+
+    setSelect(province, "Đang tải tỉnh...", [], true);
+    setSelect(district, "Chọn tỉnh trước", [], true);
+    setSelect(ward, "Chọn quận trước", [], true);
+
+    loadProvinces()
+      .then(function (items) {
+        setSelect(province, "Tỉnh GHN", items, false);
+      })
+      .catch(function (error) {
+        setSelect(province, error.message || "Không tải được GHN", [], true);
+      });
+
+    province.addEventListener("change", function () {
+      setSelect(district, province.value ? "Đang tải quận..." : "Chọn tỉnh trước", [], true);
+      setSelect(ward, "Chọn quận trước", [], true);
+      loadDistricts(province.value)
+        .then(function (items) {
+          setSelect(district, "Quận GHN", items, false);
+        })
+        .catch(function (error) {
+          setSelect(district, error.message || "Không tải được quận", [], true);
+        });
+    });
+
+    district.addEventListener("change", function () {
+      setSelect(ward, district.value ? "Đang tải phường..." : "Chọn quận trước", [], true);
+      loadWards(district.value)
+        .then(function (items) {
+          setSelect(ward, "Phường GHN", items, false);
+        })
+        .catch(function (error) {
+          setSelect(ward, error.message || "Không tải được phường", [], true);
+        });
+    });
+  });
+}
+
 function showAdminToast(message, type, url) {
   var stack = document.getElementById("admin-toast-stack");
   if (!stack) return;
@@ -299,5 +420,6 @@ function showAdminToast(message, type, url) {
   if (url) toast.href = url;
   toast.textContent = message;
   stack.appendChild(toast);
-  setTimeout(function () { toast.remove(); }, 3200);
+  toast.dataset.dismissMs = "3200";
+  scheduleAdminToastDismiss(toast);
 }

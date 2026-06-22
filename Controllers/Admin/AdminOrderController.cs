@@ -14,13 +14,20 @@ public class AdminOrderController : Controller
 {
     private readonly IOrderService _orderService;
     private readonly IShippingService _shippingService;
+    private readonly IInvoiceService _invoiceService;
     private readonly AppDbContext _db;
     private readonly ILogger<AdminOrderController> _logger;
 
-    public AdminOrderController(IOrderService orderService, IShippingService shippingService, AppDbContext db, ILogger<AdminOrderController> logger)
+    public AdminOrderController(
+        IOrderService orderService,
+        IShippingService shippingService,
+        IInvoiceService invoiceService,
+        AppDbContext db,
+        ILogger<AdminOrderController> logger)
     {
         _orderService = orderService;
         _shippingService = shippingService;
+        _invoiceService = invoiceService;
         _db = db;
         _logger = logger;
     }
@@ -84,6 +91,51 @@ public class AdminOrderController : Controller
         return RedirectToAction(nameof(Details), new { id });
     }
 
+    [HttpPost("IssueInvoice")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> IssueInvoice(int id)
+    {
+        var result = await _invoiceService.IssueInvoiceAsync(id);
+        if (!result.Success)
+        {
+            TempData["Error"] = result.Message;
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        var file = await _invoiceService.DownloadPdfAsync(id);
+        if (!file.Success || file.Content is null)
+        {
+            TempData["Success"] = result.Message;
+            TempData["Error"] = file.Message;
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        return File(file.Content, "application/pdf", file.FileName ?? $"hoa-don-{id}.pdf");
+    }
+
+    [HttpPost("CancelInvoice")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CancelInvoice(int id)
+    {
+        var result = await _invoiceService.CancelInvoiceAsync(id);
+        TempData[result.Success ? "Success" : "Error"] = result.Message;
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost("DownloadInvoicePdf")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DownloadInvoicePdf(int id)
+    {
+        var result = await _invoiceService.DownloadPdfAsync(id);
+        if (!result.Success || result.Content is null)
+        {
+            TempData["Error"] = result.Message;
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        return File(result.Content, "application/pdf", result.FileName ?? $"hoa-don-{id}.pdf");
+    }
+
     [HttpGet("Print/{id:int}")]
     public async Task<IActionResult> Print(int id)
     {
@@ -109,7 +161,9 @@ public class AdminOrderController : Controller
     public async Task<IActionResult> NewCount(long since)
     {
         var sinceDate = DateTimeOffset.FromUnixTimeMilliseconds(since).UtcDateTime;
-        var count = await _db.Orders.CountAsync(order => order.CreatedAt > sinceDate);
+        var count = await _db.Orders.CountAsync(order =>
+            (order.CreatedAt > sinceDate && order.Status != OrderStatuses.AwaitingPayment) ||
+            (order.PaymentMethod == "VNPAY" && order.IsPaid && order.Status == OrderStatuses.Pending && order.PaidAt > sinceDate));
         return Json(new { count });
     }
 }

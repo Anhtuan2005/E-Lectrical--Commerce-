@@ -1,5 +1,6 @@
 using EcommerceApp.Data;
 using EcommerceApp.Models;
+using EcommerceApp.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,10 +12,12 @@ namespace EcommerceApp.Controllers;
 public class WishlistController : Controller
 {
     private readonly AppDbContext _db;
+    private readonly IProductInteractionService _productInteractionService;
 
-    public WishlistController(AppDbContext db)
+    public WishlistController(AppDbContext db, IProductInteractionService productInteractionService)
     {
         _db = db;
+        _productInteractionService = productInteractionService;
     }
 
     [HttpGet]
@@ -49,6 +52,10 @@ public class WishlistController : Controller
         }
 
         await _db.SaveChangesAsync();
+        await _productInteractionService.TrackAsync(
+            productId,
+            isWishlisted ? ProductInteractionEvents.WishlistAdd : ProductInteractionEvents.WishlistRemove,
+            HttpContext);
         var count = await _db.WishlistItems.CountAsync(row => row.UserId == userId);
 
         return Json(new

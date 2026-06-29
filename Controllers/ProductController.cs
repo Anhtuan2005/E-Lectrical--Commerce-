@@ -13,13 +13,15 @@ public class ProductController : Controller
     private readonly IProductService _productService;
     private readonly ICartService _cartService;
     private readonly IProductSpecService _productSpecService;
+    private readonly IProductInteractionService _productInteractionService;
     private readonly AppDbContext _db;
 
-    public ProductController(IProductService productService, ICartService cartService, IProductSpecService productSpecService, AppDbContext db)
+    public ProductController(IProductService productService, ICartService cartService, IProductSpecService productSpecService, IProductInteractionService productInteractionService, AppDbContext db)
     {
         _productService = productService;
         _cartService = cartService;
         _productSpecService = productSpecService;
+        _productInteractionService = productInteractionService;
         _db = db;
     }
 
@@ -135,19 +137,7 @@ public class ProductController : Controller
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var isAuthenticated = !string.IsNullOrWhiteSpace(userId);
         var isAdmin = User.IsInRole("Admin");
-        if (!isAdmin)
-        {
-            var referrer = Request.Headers.Referer.ToString();
-            _db.ProductInteractions.Add(new ProductInteraction
-            {
-                ProductId = id,
-                UserId = isAuthenticated ? userId : null,
-                SessionId = HttpContext.Session.Id,
-                EventType = ProductInteractionEvents.DetailView,
-                Referrer = referrer.Length > 500 ? referrer[..500] : referrer
-            });
-            await _db.SaveChangesAsync();
-        }
+        await _productInteractionService.TrackAsync(id, ProductInteractionEvents.DetailView, HttpContext);
 
         var hasPurchased = isAuthenticated && !isAdmin && await _db.Orders
             .AnyAsync(order => order.UserId == userId && order.Status == OrderStatuses.Delivered && order.Items.Any(item => item.ProductId == id));
@@ -172,6 +162,14 @@ public class ProductController : Controller
         return View(model);
     }
 
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Track(int productId, string eventType)
+    {
+        await _productInteractionService.TrackAsync(productId, eventType, HttpContext);
+        return NoContent();
+    }
+
 
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -186,6 +184,7 @@ public class ProductController : Controller
         try
         {
             await _cartService.AddAsync(productId, quantity, User.FindFirstValue(ClaimTypes.NameIdentifier), HttpContext.Session.Id);
+            await _productInteractionService.TrackAsync(productId, ProductInteractionEvents.AddToCart, HttpContext);
             TempData["Success"] = "ÄÃ£ thÃªm sáº£n pháº©m vÃ o giá» hÃ ng.";
         }
         catch (InvalidOperationException ex)

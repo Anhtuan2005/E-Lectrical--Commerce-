@@ -2,6 +2,11 @@
 @{
     Layout = "_AdminLayout";
     ViewData["Title"] = Model.Id == 0 ? "Thêm sản phẩm" : "Sửa sản phẩm";
+    var previewImages = SplitImageUrls(Model.ImageUrls).ToList();
+    if (!previewImages.Any() && !string.IsNullOrWhiteSpace(Model.ImageUrl))
+    {
+        previewImages.Add(Model.ImageUrl.Trim());
+    }
 }
 
 <section class="admin-panel narrow">
@@ -10,18 +15,23 @@
         <label>Tên sản phẩm</label>
         <input asp-for="Name" />
         <span asp-validation-for="Name"></span>
+
         <label>Mô tả</label>
         <textarea asp-for="Description" rows="5"></textarea>
         <span asp-validation-for="Description"></span>
+
         <label>Giá</label>
         <input asp-for="Price" type="number" min="0" />
         <span asp-validation-for="Price"></span>
+
         <label>Tồn kho</label>
         <input asp-for="Stock" type="number" min="0" />
         <span asp-validation-for="Stock"></span>
+
         <label>Giảm giá (%)</label>
         <input asp-for="DiscountPercent" type="number" min="0" max="100" />
         <span asp-validation-for="DiscountPercent"></span>
+
         <label>Danh mục</label>
         <select asp-for="CategoryId">
             @foreach (var category in Model.Categories)
@@ -29,18 +39,33 @@
                 <option value="@category.Id">@category.Name</option>
             }
         </select>
-        <label>URL ảnh hiện có</label>
-        <input asp-for="ImageUrl" />
-        @if (!string.IsNullOrWhiteSpace(Model.ImageUrl))
+
+        <label>Thư viện ảnh</label>
+        <textarea asp-for="ImageUrls" rows="6" placeholder="Mỗi dòng một URL ảnh. Dòng đầu là ảnh chính."></textarea>
+        <span asp-validation-for="ImageUrls"></span>
+        <small class="form-hint">Có thể dùng URL ảnh ngoài hoặc upload ảnh mới bên dưới. Hệ thống tự bỏ URL trùng.</small>
+
+        @if (previewImages.Any())
         {
-            <img class="admin-image-preview"
-                 src="@Model.ImageUrl"
-                 alt="Ảnh hiện tại của @Model.Name"
-                 loading="lazy"
-                 decoding="async" />
+            <div class="admin-image-gallery" aria-label="Ảnh hiện tại của sản phẩm">
+                @foreach (var image in previewImages.Select((url, index) => new { url, index }))
+                {
+                    <figure>
+                        <img src="@image.url"
+                             alt="Ảnh @(image.index + 1) của @Model.Name"
+                             loading="lazy"
+                             decoding="async" />
+                        <figcaption>@(image.index == 0 ? "Ảnh chính" : $"Ảnh {image.index + 1}")</figcaption>
+                    </figure>
+                }
+            </div>
         }
+
         <label>Tải ảnh mới</label>
-        <input type="file" name="imageFile" accept="image/*" />
+        <input type="file" name="imageFiles" accept="image/*" multiple />
+        <span class="field-validation-valid" data-valmsg-for="imageFiles" data-valmsg-replace="true"></span>
+        <small class="form-hint">Chọn tối đa 8 ảnh. Ảnh upload sẽ được nén WebP và nối vào cuối thư viện.</small>
+
         <label class="check-row"><input asp-for="IsFeatured" /> Sản phẩm nổi bật</label>
         <button class="admin-button" type="submit">Lưu sản phẩm</button>
     </form>
@@ -71,4 +96,16 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
     <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
+}
+
+@functions {
+    private static IEnumerable<string> SplitImageUrls(string? imageUrls)
+    {
+        return string.IsNullOrWhiteSpace(imageUrls)
+            ? Enumerable.Empty<string>()
+            : imageUrls.Split(new[] { "\r\n", "\n", "\r", "," }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(url => url.Trim())
+                .Where(url => !string.IsNullOrWhiteSpace(url))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+    }
 }

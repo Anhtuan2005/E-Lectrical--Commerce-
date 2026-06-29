@@ -628,7 +628,7 @@ input[type="checkbox"] {
 
 .dashboard-data-head.is-viewed,
 .dashboard-data-row.is-viewed {
-  grid-template-columns: minmax(150px, 1.5fr) minmax(60px, 0.45fr) minmax(55px, 0.42fr) minmax(60px, 0.48fr) minmax(72px, 0.55fr);
+  grid-template-columns: minmax(150px, 1.5fr) minmax(52px, 0.36fr) minmax(52px, 0.36fr) minmax(52px, 0.36fr) minmax(58px, 0.42fr) minmax(72px, 0.55fr);
 }
 
 .dashboard-data-head.is-sold,
@@ -1673,6 +1673,13 @@ input[type="checkbox"] {
   font-size: 13px;
 }
 
+.stack-form .form-hint {
+  margin-top: -4px;
+  color: var(--adm-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .check-row {
   display: inline-flex;
   align-items: center;
@@ -1778,6 +1785,36 @@ input[type="checkbox"] {
 .admin-image-preview.wide {
   width: min(100%, 520px);
   aspect-ratio: 16 / 7;
+}
+
+.admin-image-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 12px;
+  margin: 4px 0 6px;
+}
+
+.admin-image-gallery figure {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--adm-radius-sm);
+  background: var(--adm-surface-muted);
+}
+
+.admin-image-gallery img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  display: block;
+  object-fit: cover;
+}
+
+.admin-image-gallery figcaption {
+  padding: 7px 9px;
+  color: var(--adm-muted);
+  font-size: 12px;
+  font-weight: 760;
 }
 
 .drag-row { cursor: grab; }

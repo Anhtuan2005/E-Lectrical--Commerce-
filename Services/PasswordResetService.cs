@@ -60,10 +60,14 @@ public class PasswordResetService : IPasswordResetService
         var frontendUrl = _emailOptions.FrontendUrl?.TrimEnd('/');
         var resetLink = $"{frontendUrl}/Account/ResetPassword?token={rawToken}";
 
+        var recipientEmail = user.Email!;
         var htmlBody = ResetPasswordEmailTemplate.Build(resetLink, user.FullName);
-        await _emailSender.SendAsync(user.Email!, "Đặt lại mật khẩu – Techvora", htmlBody);
+        await _emailSender.SendAsync(recipientEmail, "Đặt lại mật khẩu – Techvora", htmlBody);
 
-        _logger.LogInformation("Password reset email sent for user {UserId}.", user.Id);
+        _logger.LogInformation(
+            "Password reset email sent to {MaskedEmail} for user {UserId}.",
+            MaskEmail(recipientEmail),
+            user.Id);
     }
 
     public async Task<(bool Success, string? Error)> ResetPasswordAsync(string rawToken, string newPassword)
@@ -122,5 +126,24 @@ public class PasswordResetService : IPasswordResetService
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawToken));
         return BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
+    }
+
+    private static string MaskEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return "***";
+        }
+
+        var atIndex = email.IndexOf('@');
+        if (atIndex <= 0 || atIndex == email.Length - 1)
+        {
+            return "***";
+        }
+
+        var local = email[..atIndex];
+        var domain = email[(atIndex + 1)..];
+        var visible = local.Length <= 2 ? local[..1] : local[..2];
+        return $"{visible}***@{domain}";
     }
 }

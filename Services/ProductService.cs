@@ -154,7 +154,7 @@ public class ProductService : IProductService
             .FirstOrDefaultAsync(product => product.Id == id);
     }
 
-    public async Task<Product> CreateProductAsync(ProductFormViewModel model, string? imageUrl)
+    public async Task<Product> CreateProductAsync(ProductFormViewModel model, IEnumerable<string?> imageUrls)
     {
         var product = new Product
         {
@@ -166,11 +166,8 @@ public class ProductService : IProductService
             CategoryId = model.CategoryId,
             IsFeatured = model.IsFeatured
         };
-        var primaryImageUrl = NormalizeImageUrl(imageUrl) ?? NormalizeImageUrl(model.ImageUrl);
-        if (primaryImageUrl is not null)
-        {
-            product.Images.Add(new ProductImage { ImageUrl = primaryImageUrl, SortOrder = 0 });
-        }
+
+        ReplaceProductImages(product, BuildImageUrls(model, imageUrls), removeExisting: false);
 
         _db.Products.Add(product);
         await _db.SaveChangesAsync();
@@ -179,7 +176,7 @@ public class ProductService : IProductService
         return product;
     }
 
-    public async Task UpdateProductAsync(ProductFormViewModel model, string? imageUrl)
+    public async Task UpdateProductAsync(ProductFormViewModel model, IEnumerable<string?> imageUrls)
     {
         var product = await _db.Products
             .Include(row => row.Images)
@@ -196,22 +193,11 @@ public class ProductService : IProductService
         product.DiscountPercent = model.DiscountPercent;
         product.CategoryId = model.CategoryId;
         product.IsFeatured = model.IsFeatured;
-        var primaryImageUrl = NormalizeImageUrl(imageUrl) ?? NormalizeImageUrl(model.ImageUrl);
-        if (primaryImageUrl is not null)
+
+        var normalizedImageUrls = BuildImageUrls(model, imageUrls);
+        if (normalizedImageUrls.Count > 0)
         {
-            var primaryImage = product.Images
-                .OrderBy(row => row.SortOrder)
-                .ThenBy(row => row.Id)
-                .FirstOrDefault();
-            if (primaryImage is null)
-            {
-                product.Images.Add(new ProductImage { ImageUrl = primaryImageUrl, SortOrder = 0 });
-            }
-            else
-            {
-                primaryImage.ImageUrl = primaryImageUrl;
-                primaryImage.SortOrder = 0;
-            }
+            ReplaceProductImages(product, normalizedImageUrls, removeExisting: true);
         }
 
         await _db.SaveChangesAsync();
@@ -228,6 +214,57 @@ public class ProductService : IProductService
 
         product.IsDeleted = true;
         await _db.SaveChangesAsync();
+    }
+
+    private static List<string> BuildImageUrls(ProductFormViewModel model, IEnumerable<string?> uploadedImageUrls)
+    {
+        var urls = new List<string>();
+        AddImageUrls(urls, SplitImageUrls(model.ImageUrls));
+        AddImageUrl(urls, model.ImageUrl);
+        AddImageUrls(urls, uploadedImageUrls);
+        return urls;
+    }
+
+    private static IEnumerable<string?> SplitImageUrls(string? imageUrls)
+    {
+        return string.IsNullOrWhiteSpace(imageUrls)
+            ? Enumerable.Empty<string?>()
+            : imageUrls.Split(new[] { "\r\n", "\n", "\r", "," }, StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    private void ReplaceProductImages(Product product, IReadOnlyList<string> imageUrls, bool removeExisting)
+    {
+        if (removeExisting)
+        {
+            _db.ProductImages.RemoveRange(product.Images);
+        }
+
+        product.Images.Clear();
+        for (var index = 0; index < imageUrls.Count; index++)
+        {
+            product.Images.Add(new ProductImage
+            {
+                ImageUrl = imageUrls[index],
+                SortOrder = index
+            });
+        }
+    }
+
+    private static void AddImageUrls(List<string> urls, IEnumerable<string?> imageUrls)
+    {
+        foreach (var imageUrl in imageUrls)
+        {
+            AddImageUrl(urls, imageUrl);
+        }
+    }
+
+    private static void AddImageUrl(List<string> urls, string? imageUrl)
+    {
+        var normalized = NormalizeImageUrl(imageUrl);
+        if (normalized is not null && !urls.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+        {
+            urls.Add(normalized);
+        }
     }
 
     private static string? NormalizeImageUrl(string? imageUrl)

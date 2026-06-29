@@ -111,7 +111,7 @@
             <div class="panel-head">
                 <div>
                     <h2>Sản phẩm được xem nhiều</h2>
-                    <p>30 ngày gần nhất, không tính lượt xem của admin.</p>
+                    <p>30 ngày gần nhất, không tính thao tác của admin.</p>
                 </div>
             </div>
             @if (Model.TopViewedProducts.Any())
@@ -119,8 +119,9 @@
                 <div class="dashboard-data-list">
                     <div class="dashboard-data-head is-viewed">
                         <span>Sản phẩm</span>
-                        <span>Lượt xem</span>
-                        <span>Phiên</span>
+                        <span>Xem</span>
+                        <span>Click</span>
+                        <span>Giỏ</span>
                         <span>Đã bán</span>
                         <span>Chuyển đổi</span>
                     </div>
@@ -132,7 +133,8 @@
                                 <small>@product.Revenue.ToString("N0") đ doanh thu</small>
                             </span>
                             <b>@product.ViewCount</b>
-                            <b>@product.UniqueSessions</b>
+                            <b>@product.ClickCount</b>
+                            <b>@product.AddToCartCount</b>
                             <b>@product.SoldQuantity</b>
                             <b>@product.ViewToSaleRate.ToString("0.##")%</b>
                         </a>

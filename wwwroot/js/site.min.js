@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", function () {
   initHeroSlider();
   initCountdown();
   initReveal();
+  initProductInteractionTracking();
   initWishlist();
   initProductCompare();
   initCartOfferModal();
@@ -47,6 +48,31 @@ function refreshIcons() {
 function antiForgeryToken() {
   var token = document.querySelector("[name=__RequestVerificationToken]");
   return token ? token.value : "";
+}
+
+function trackProductInteraction(productId, eventType) {
+  if (!productId || !eventType) return;
+  var body = new URLSearchParams();
+  body.append("productId", productId);
+  body.append("eventType", eventType);
+
+  fetch("/Product/Track", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "RequestVerificationToken": antiForgeryToken()
+    },
+    body: body.toString(),
+    keepalive: true
+  }).catch(function () {});
+}
+
+function initProductInteractionTracking() {
+  document.addEventListener("click", function (event) {
+    var link = event.target.closest("[data-product-click]");
+    if (!link) return;
+    trackProductInteraction(link.dataset.productClick, "product_click");
+  });
 }
 
 function postCartAdd(productId, quantity) {
@@ -102,16 +128,21 @@ function initCartOfferModal() {
 
   function render(suggestions) {
     list.innerHTML = suggestions.map(function (suggestion) {
+      var hasDiscount = suggestion.hasDiscount === true;
+      var badge = suggestion.badgeText || (hasDiscount ? "-" + suggestion.discountPercent + "%" : "Gợi ý");
+      var price = hasDiscount
+        ? '<span><del>' + escapeHtml(suggestion.originalPrice) + '</del><b>' + escapeHtml(suggestion.offerPrice) + '</b></span>'
+        : '<span><b>' + escapeHtml(suggestion.originalPrice) + '</b></span>';
       return [
         '<article class="cart-offer-item">',
         '  <div class="cart-offer-media">',
         '    <img src="' + escapeHtml(suggestion.imageUrl || "/images/placeholder.svg") + '" alt="' + escapeHtml(suggestion.productName) + '" loading="lazy" decoding="async" />',
-        '    <span>-' + escapeHtml(suggestion.discountPercent) + '%</span>',
+        '    <span>' + escapeHtml(badge) + '</span>',
         '  </div>',
         '  <div class="cart-offer-copy">',
         '    <strong>' + escapeHtml(suggestion.productName) + '</strong>',
-        '    <small>Kèm ' + escapeHtml(suggestion.anchorProductName) + '</small>',
-        '    <span><del>' + escapeHtml(suggestion.originalPrice) + '</del><b>' + escapeHtml(suggestion.offerPrice) + '</b></span>',
+        '    <small>' + escapeHtml(suggestion.contextText || ("Kèm " + suggestion.anchorProductName)) + '</small>',
+        '    ' + price,
         '  </div>',
         '  <button class="cart-offer-add" type="button" data-cart-offer-add="' + escapeHtml(suggestion.productId) + '">',
         '    <i data-lucide="plus" aria-hidden="true"></i>',
@@ -1621,7 +1652,7 @@ function initSearchAutocomplete() {
         .then(function (response) { return response.json(); })
         .then(function (items) {
           suggestions.innerHTML = items.map(function (item) {
-            return '<a href="' + escapeHtml(item.url || ("/Product/Detail/" + item.id)) + '"><img src="' + escapeHtml(item.imageUrl || "/images/placeholder.svg") + '" alt="" loading="lazy" decoding="async"><span>' + escapeHtml(item.name) + '<small>' + escapeHtml(item.category || "Sản phẩm") + '</small></span><strong>' + escapeHtml(item.price) + "</strong></a>";
+            return '<a data-product-click="' + escapeHtml(item.id) + '" href="' + escapeHtml(item.url || ("/Product/Detail/" + item.id)) + '"><img src="' + escapeHtml(item.imageUrl || "/images/placeholder.svg") + '" alt="" loading="lazy" decoding="async"><span>' + escapeHtml(item.name) + '<small>' + escapeHtml(item.category || "Sản phẩm") + '</small></span><strong>' + escapeHtml(item.price) + "</strong></a>";
           }).join("");
           suggestions.classList.toggle("show", items.length > 0);
         })

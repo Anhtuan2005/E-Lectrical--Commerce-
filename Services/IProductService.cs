@@ -11,7 +11,7 @@ public interface IProductService
     Task<IEnumerable<Product>> GetRelatedProductsAsync(int productId, int categoryId, int take = 8);
     Task<IEnumerable<Category>> GetCategoriesAsync();
     Task<Product?> GetProductAsync(int id);
-    Task<Product> CreateProductAsync(ProductFormViewModel model, string? imageUrl);
-    Task UpdateProductAsync(ProductFormViewModel model, string? imageUrl);
+    Task<Product> CreateProductAsync(ProductFormViewModel model, IEnumerable<string?> imageUrls);
+    Task UpdateProductAsync(ProductFormViewModel model, IEnumerable<string?> imageUrls);
     Task DeleteProductAsync(int id);
 }

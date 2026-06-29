@@ -27,4 +27,8 @@ public class ProductInteraction
 public static class ProductInteractionEvents
 {
     public const string DetailView = "detail_view";
+    public const string ProductClick = "product_click";
+    public const string AddToCart = "add_to_cart";
+    public const string WishlistAdd = "wishlist_add";
+    public const string WishlistRemove = "wishlist_remove";
 }

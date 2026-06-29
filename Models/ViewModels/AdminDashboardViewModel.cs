@@ -41,6 +41,9 @@ public class ProductEngagementViewModel
     public int ProductId { get; set; }
     public string ProductName { get; set; } = string.Empty;
     public int ViewCount { get; set; }
+    public int ClickCount { get; set; }
+    public int AddToCartCount { get; set; }
+    public int WishlistCount { get; set; }
     public int UniqueSessions { get; set; }
     public int SoldQuantity { get; set; }
     public decimal Revenue { get; set; }

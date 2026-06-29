@@ -36,6 +36,7 @@ public static class SeedData
         var categories = await EnsureCategoriesAsync(db);
         await EnsureProductsAsync(db, categories);
         await EnsurePcBuildProductsAsync(db);
+        await EnsureProductGalleryImagesAsync(db);
         await EnsureCrossSellOffersAsync(db);
         await ProductSearchIndex.RebuildAsync(db);
         await EnsureBannersAsync(db);
@@ -214,6 +215,145 @@ END");
         }
 
         await db.SaveChangesAsync();
+    }
+
+    private static async Task EnsureProductGalleryImagesAsync(AppDbContext db)
+    {
+        var products = await db.Products
+            .IgnoreQueryFilters()
+            .Include(product => product.Category)
+            .Include(product => product.Images)
+            .ToListAsync();
+
+        foreach (var product in products)
+        {
+            var imageUrls = product.Images
+                .OrderBy(image => image.SortOrder)
+                .ThenBy(image => image.Id)
+                .Select(image => image.ImageUrl)
+                .Where(url => !string.IsNullOrWhiteSpace(url))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (imageUrls.Count >= 3)
+            {
+                continue;
+            }
+
+            foreach (var imageUrl in GetFallbackGalleryImages(product))
+            {
+                if (imageUrls.Count >= 3)
+                {
+                    break;
+                }
+
+                if (string.IsNullOrWhiteSpace(imageUrl) || imageUrls.Contains(imageUrl, StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                product.Images.Add(new ProductImage
+                {
+                    ImageUrl = imageUrl,
+                    SortOrder = imageUrls.Count
+                });
+                imageUrls.Add(imageUrl);
+            }
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private static IEnumerable<string> GetFallbackGalleryImages(Product product)
+    {
+        var slug = product.Category?.Slug?.ToLowerInvariant() ?? string.Empty;
+        var name = product.Name.ToLowerInvariant();
+        if (name.Contains("cpu") || slug == "cpu")
+        {
+            return new[]
+            {
+                "https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1555617981-dac3880eac6e?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=900&q=80"
+            };
+        }
+
+        return slug switch
+        {
+            "dien-thoai" => new[]
+            {
+                "https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=900&q=80"
+            },
+            "laptop" => new[]
+            {
+                "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?auto=format&fit=crop&w=900&q=80"
+            },
+            "phu-kien" => new[]
+            {
+                "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1618384887929-16ec33fab9ef?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1527814050087-3793815479db?auto=format&fit=crop&w=900&q=80"
+            },
+            "man-hinh" => new[]
+            {
+                "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1616588589676-62b3bd4ff6d2?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1547082299-de196ea013d6?auto=format&fit=crop&w=900&q=80"
+            },
+            "dong-ho-thong-minh" => new[]
+            {
+                "https://images.unsplash.com/photo-1434493789847-2f02dc6ca35d?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1557438159-51eec7a6c9e8?auto=format&fit=crop&w=900&q=80"
+            },
+            "vga" => new[]
+            {
+                "https://images.unsplash.com/photo-1591488320449-011701bb6704?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1587202372775-e229f172b9d7?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1587302912306-cf1ed9c33146?auto=format&fit=crop&w=900&q=80"
+            },
+            "ram" => new[]
+            {
+                "https://images.unsplash.com/photo-1562976540-1502c2145186?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1612198188060-c7c2a3b66eae?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1592664474496-8f55b99e7ef6?auto=format&fit=crop&w=900&q=80"
+            },
+            "ssd" => new[]
+            {
+                "https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1611175140159-8f22dfb8ce2b?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1601737487795-dab272f52420?auto=format&fit=crop&w=900&q=80"
+            },
+            "mainboard" => new[]
+            {
+                "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1562408590-e32931084e23?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1597852074816-d933c7d2b988?auto=format&fit=crop&w=900&q=80"
+            },
+            "psu" => new[]
+            {
+                "https://images.unsplash.com/photo-1624705002806-5d72df19c3ad?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1600348712270-5af9e3590f66?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1624705002806-5d72df19c3ad?auto=format&fit=crop&w=900&q=80&sat=-20"
+            },
+            "case" => new[]
+            {
+                "https://images.unsplash.com/photo-1587202372634-32705e3bf49c?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1616588589676-62b3bd4ff6d2?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1593640408182-31c70c8268f5?auto=format&fit=crop&w=900&q=80"
+            },
+            "cooling" => new[]
+            {
+                "https://images.unsplash.com/photo-1605648916361-9bc12ad6a569?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1587202372775-e229f172b9d7?auto=format&fit=crop&w=900&q=80",
+                "https://images.unsplash.com/photo-1605648916361-9bc12ad6a569?auto=format&fit=crop&w=900&q=80&sat=-20"
+            },
+            _ => new[] { product.PrimaryImageUrl }
+        };
     }
 
     private static Product P(string name, string description, decimal price, int stock, string imageUrl, int categoryId, bool featured, int daysAgo)

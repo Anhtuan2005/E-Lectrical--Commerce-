@@ -1,6 +1,7 @@
 # Build
 bin/
 obj/
+App_Data/DataProtectionKeys/
 
 .vs/
 *.user

@@ -7,6 +7,9 @@ namespace EcommerceApp.Services;
 
 public class CrossSellService : ICrossSellService
 {
+    private const int AprioriLookbackDays = 180;
+    private const decimal MinimumConfidence = 0.2m;
+
     private readonly AppDbContext _db;
 
     public CrossSellService(AppDbContext db)
@@ -42,12 +45,32 @@ public class CrossSellService : ICrossSellService
 
     public async Task<IReadOnlyList<CrossSellSuggestionViewModel>> GetSuggestionsAsync(IEnumerable<CartItem> cartItems, int take = 4, CancellationToken cancellationToken = default)
     {
-        var productIds = cartItems.Select(item => item.ProductId).ToHashSet();
+        var items = cartItems.Where(item => item.Product is not null).ToList();
+        var productIds = items.Select(item => item.ProductId).ToHashSet();
         if (!productIds.Any())
         {
             return Array.Empty<CrossSellSuggestionViewModel>();
         }
 
+        var suggestions = await GetManualOfferSuggestionsAsync(productIds, take, cancellationToken);
+        if (suggestions.Count >= take)
+        {
+            return suggestions;
+        }
+
+        var excludedIds = productIds
+            .Concat(suggestions.Select(suggestion => suggestion.ProductId))
+            .ToHashSet();
+        var aprioriSuggestions = await GetAprioriSuggestionsAsync(items, excludedIds, take - suggestions.Count, cancellationToken);
+
+        return suggestions
+            .Concat(aprioriSuggestions)
+            .Take(take)
+            .ToList();
+    }
+
+    private async Task<List<CrossSellSuggestionViewModel>> GetManualOfferSuggestionsAsync(IReadOnlySet<int> productIds, int take, CancellationToken cancellationToken)
+    {
         var offers = await ActiveOffers()
             .AsNoTracking()
             .Include(offer => offer.AnchorProduct)
@@ -62,35 +85,160 @@ public class CrossSellService : ICrossSellService
 
         if (!offers.Any())
         {
-            return Array.Empty<CrossSellSuggestionViewModel>();
+            return new List<CrossSellSuggestionViewModel>();
         }
 
-        var addOnProductIds = offers.Select(offer => offer.AddOnProductId).Distinct().ToHashSet();
         var salesByProduct = await GetSoldQuantitiesAsync(cancellationToken);
         var slowMovingProductIds = await GetSlowMovingProductIdsAsync(salesByProduct, cancellationToken);
 
         return offers
-            .Where(offer => addOnProductIds.Contains(offer.AddOnProductId) && slowMovingProductIds.Contains(offer.AddOnProductId))
+            .Where(offer => slowMovingProductIds.Contains(offer.AddOnProductId))
+            .GroupBy(offer => offer.AddOnProductId)
+            .Select(group => group
+                .OrderByDescending(offer => offer.DiscountPercent)
+                .ThenBy(offer => salesByProduct.GetValueOrDefault(offer.AddOnProductId, 0))
+                .First())
             .OrderBy(offer => salesByProduct.GetValueOrDefault(offer.AddOnProductId, 0))
             .ThenByDescending(offer => offer.DiscountPercent)
             .ThenBy(offer => offer.AddOnProduct!.Price)
             .Take(take)
             .Select(offer =>
-        {
-            var product = offer.AddOnProduct!;
-            var originalPrice = product.SalePrice;
-            return new CrossSellSuggestionViewModel
             {
-                OfferId = offer.Id,
-                ProductId = product.Id,
-                ProductName = product.Name,
-                AnchorProductName = offer.AnchorProduct?.Name ?? string.Empty,
-                ImageUrl = product.PrimaryImageUrl,
-                DiscountPercent = offer.DiscountPercent,
-                OriginalPrice = originalPrice,
-                OfferPrice = DiscountedPrice(originalPrice, offer.DiscountPercent)
-            };
-        }).ToList();
+                var product = offer.AddOnProduct!;
+                var originalPrice = product.SalePrice;
+                return new CrossSellSuggestionViewModel
+                {
+                    OfferId = offer.Id,
+                    ProductId = product.Id,
+                    ProductName = product.Name,
+                    AnchorProductName = offer.AnchorProduct?.Name ?? string.Empty,
+                    ImageUrl = product.PrimaryImageUrl,
+                    Source = "manual",
+                    DiscountPercent = offer.DiscountPercent,
+                    OriginalPrice = originalPrice,
+                    OfferPrice = DiscountedPrice(originalPrice, offer.DiscountPercent)
+                };
+            })
+            .ToList();
+    }
+
+    private async Task<IReadOnlyList<CrossSellSuggestionViewModel>> GetAprioriSuggestionsAsync(
+        IReadOnlyCollection<CartItem> cartItems,
+        HashSet<int> excludedIds,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        if (take <= 0)
+        {
+            return Array.Empty<CrossSellSuggestionViewModel>();
+        }
+
+        var cartProductIds = cartItems.Select(item => item.ProductId).Distinct().ToHashSet();
+        var anchorNames = cartItems
+            .Where(item => item.Product is not null)
+            .GroupBy(item => item.ProductId)
+            .ToDictionary(group => group.Key, group => group.First().Product!.Name);
+        var since = DateTime.UtcNow.AddDays(-AprioriLookbackDays);
+        var orderRows = await _db.OrderItems
+            .AsNoTracking()
+            .Where(item => item.Order != null
+                && item.Order.CreatedAt >= since
+                && item.Order.Status != OrderStatuses.Cancelled
+                && (item.Order.IsPaid || item.Order.Status == OrderStatuses.Delivered))
+            .Select(item => new { item.OrderId, item.ProductId })
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var baskets = orderRows
+            .GroupBy(row => row.OrderId)
+            .Select(group => group.Select(row => row.ProductId).Distinct().ToHashSet())
+            .Where(basket => basket.Count >= 2)
+            .ToList();
+        if (!baskets.Any())
+        {
+            return Array.Empty<CrossSellSuggestionViewModel>();
+        }
+
+        var minimumSupportCount = baskets.Count < 10
+            ? 1
+            : Math.Max(2, (int)Math.Ceiling(baskets.Count * 0.03m));
+        var candidates = new Dictionary<int, AprioriCandidate>();
+
+        foreach (var anchorProductId in cartProductIds)
+        {
+            var anchorSupport = baskets.Count(basket => basket.Contains(anchorProductId));
+            if (anchorSupport == 0)
+            {
+                continue;
+            }
+
+            var anchorName = anchorNames.GetValueOrDefault(anchorProductId, "sản phẩm trong giỏ");
+            foreach (var group in baskets
+                .Where(basket => basket.Contains(anchorProductId))
+                .SelectMany(basket => basket)
+                .Where(productId => productId != anchorProductId && !excludedIds.Contains(productId))
+                .GroupBy(productId => productId))
+            {
+                AddCandidate(candidates, group.Key, group.Count(), anchorSupport, anchorName, minimumSupportCount);
+            }
+        }
+
+        if (cartProductIds.Count > 1)
+        {
+            var cartSupport = baskets.Count(basket => cartProductIds.All(basket.Contains));
+            if (cartSupport > 0)
+            {
+                foreach (var group in baskets
+                    .Where(basket => cartProductIds.All(basket.Contains))
+                    .SelectMany(basket => basket)
+                    .Where(productId => !cartProductIds.Contains(productId) && !excludedIds.Contains(productId))
+                    .GroupBy(productId => productId))
+                {
+                    AddCandidate(candidates, group.Key, group.Count(), cartSupport, "giỏ hiện tại", minimumSupportCount);
+                }
+            }
+        }
+
+        var rankedCandidates = candidates.Values
+            .Where(candidate => candidate.Confidence >= MinimumConfidence)
+            .OrderByDescending(candidate => candidate.Confidence)
+            .ThenByDescending(candidate => candidate.SupportCount)
+            .Take(take * 3)
+            .ToList();
+        if (!rankedCandidates.Any())
+        {
+            return Array.Empty<CrossSellSuggestionViewModel>();
+        }
+
+        var candidateProductIds = rankedCandidates.Select(candidate => candidate.ProductId).ToHashSet();
+        var products = await _db.Products
+            .AsNoTracking()
+            .Include(product => product.Images)
+            .Where(product => candidateProductIds.Contains(product.Id) && product.Stock > 0 && !product.IsDeleted)
+            .ToDictionaryAsync(product => product.Id, cancellationToken);
+
+        return rankedCandidates
+            .Where(candidate => products.ContainsKey(candidate.ProductId))
+            .Take(take)
+            .Select(candidate =>
+            {
+                var product = products[candidate.ProductId];
+                var originalPrice = product.SalePrice;
+                return new CrossSellSuggestionViewModel
+                {
+                    ProductId = product.Id,
+                    ProductName = product.Name,
+                    AnchorProductName = candidate.AnchorProductName,
+                    ImageUrl = product.PrimaryImageUrl,
+                    Source = "apriori",
+                    ConfidencePercent = Math.Round(candidate.Confidence * 100m, 1),
+                    SupportCount = candidate.SupportCount,
+                    DiscountPercent = 0,
+                    OriginalPrice = originalPrice,
+                    OfferPrice = originalPrice
+                };
+            })
+            .ToList();
     }
 
     private async Task<Dictionary<int, int>> GetSoldQuantitiesAsync(CancellationToken cancellationToken)
@@ -152,8 +300,34 @@ public class CrossSellService : ICrossSellService
             && (offer.EndDate == null || offer.EndDate >= now));
     }
 
+    private static void AddCandidate(
+        Dictionary<int, AprioriCandidate> candidates,
+        int productId,
+        int supportCount,
+        int antecedentSupport,
+        string anchorProductName,
+        int minimumSupportCount)
+    {
+        if (supportCount < minimumSupportCount || antecedentSupport <= 0)
+        {
+            return;
+        }
+
+        var confidence = supportCount / (decimal)antecedentSupport;
+        if (candidates.TryGetValue(productId, out var existing)
+            && (existing.Confidence > confidence
+                || (existing.Confidence == confidence && existing.SupportCount >= supportCount)))
+        {
+            return;
+        }
+
+        candidates[productId] = new AprioriCandidate(productId, supportCount, confidence, anchorProductName);
+    }
+
     private static decimal DiscountedPrice(decimal price, int discountPercent)
     {
         return Math.Round(price * (100 - discountPercent) / 100m, 0);
     }
+
+    private sealed record AprioriCandidate(int ProductId, int SupportCount, decimal Confidence, string AnchorProductName);
 }

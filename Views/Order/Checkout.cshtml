@@ -122,7 +122,7 @@
         {
             <section class="checkout-cross-sell">
                 <div class="checkout-cross-sell-head">
-                    <span>Mua kèm ưu đãi</span>
+                    <span>Gợi ý mua kèm</span>
                     <strong>Thêm trước khi đặt</strong>
                 </div>
                 @foreach (var suggestion in Model.Cart.CrossSellSuggestions.Take(3))
@@ -130,14 +130,21 @@
                     <article class="cross-sell-item compact">
                         <div class="cross-sell-media">
                             <img src="@suggestion.ImageUrl" alt="@suggestion.ProductName" loading="lazy" decoding="async" />
-                            <span>-@suggestion.DiscountPercent%</span>
+                            <span>@suggestion.BadgeText</span>
                         </div>
                         <div class="cross-sell-copy">
                             <strong>@suggestion.ProductName</strong>
-                            <small>Kèm @suggestion.AnchorProductName</small>
+                            <small>@suggestion.ContextText</small>
                             <span class="cross-sell-price">
-                                <del>@suggestion.OriginalPrice.ToString("N0") ₫</del>
-                                <b>@suggestion.OfferPrice.ToString("N0") ₫</b>
+                                @if (suggestion.HasDiscount)
+                                {
+                                    <del>@suggestion.OriginalPrice.ToString("N0") ₫</del>
+                                    <b>@suggestion.OfferPrice.ToString("N0") ₫</b>
+                                }
+                                else
+                                {
+                                    <b>@suggestion.OriginalPrice.ToString("N0") ₫</b>
+                                }
                             </span>
                         </div>
                         <button class="cross-sell-add" type="button" data-cart-product="@suggestion.ProductId" data-cart-reload="true">

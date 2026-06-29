@@ -622,23 +622,28 @@ public class OrderService : IOrderService
             .ToListAsync();
         var salesLast30 = salesLast30Rows.ToDictionary(row => row.ProductId);
 
-        var viewRows = await _db.ProductInteractions
+        var interactionRows = await _db.ProductInteractions
             .AsNoTracking()
-            .Where(interaction => interaction.EventType == ProductInteractionEvents.DetailView && interaction.CreatedAt >= startOfEngagementWindow)
+            .Where(interaction => interaction.CreatedAt >= startOfEngagementWindow)
             .GroupBy(interaction => new { interaction.ProductId, ProductName = interaction.Product!.Name })
             .Select(group => new
             {
                 group.Key.ProductId,
                 group.Key.ProductName,
-                ViewCount = group.Count(),
+                ViewCount = group.Count(interaction => interaction.EventType == ProductInteractionEvents.DetailView),
+                ClickCount = group.Count(interaction => interaction.EventType == ProductInteractionEvents.ProductClick),
+                AddToCartCount = group.Count(interaction => interaction.EventType == ProductInteractionEvents.AddToCart),
+                WishlistCount = group.Count(interaction => interaction.EventType == ProductInteractionEvents.WishlistAdd),
                 UniqueSessions = group.Select(interaction => interaction.SessionId).Distinct().Count()
             })
-            .OrderByDescending(row => row.ViewCount)
-            .Take(10)
             .ToListAsync();
-        var viewsLast30 = viewRows.ToDictionary(row => row.ProductId, row => row.ViewCount);
+        var viewsLast30 = interactionRows.ToDictionary(row => row.ProductId, row => row.ViewCount);
 
-        var topViewedProducts = viewRows
+        var topViewedProducts = interactionRows
+            .OrderByDescending(row => row.ViewCount)
+            .ThenByDescending(row => row.ClickCount)
+            .ThenByDescending(row => row.AddToCartCount)
+            .Take(10)
             .Select(row =>
             {
                 salesLast30.TryGetValue(row.ProductId, out var sale);
@@ -647,6 +652,9 @@ public class OrderService : IOrderService
                     ProductId = row.ProductId,
                     ProductName = row.ProductName,
                     ViewCount = row.ViewCount,
+                    ClickCount = row.ClickCount,
+                    AddToCartCount = row.AddToCartCount,
+                    WishlistCount = row.WishlistCount,
                     UniqueSessions = row.UniqueSessions,
                     SoldQuantity = sale?.Quantity ?? 0,
                     Revenue = sale?.Revenue ?? 0

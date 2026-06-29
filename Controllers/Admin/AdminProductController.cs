@@ -39,7 +39,7 @@ public class AdminProductController : Controller
 
     [HttpPost("Create")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(ProductFormViewModel model, IFormFile? imageFile)
+    public async Task<IActionResult> Create(ProductFormViewModel model, IFormFile? imageFile, List<IFormFile>? imageFiles)
     {
         model.Categories = await _productService.GetCategoriesAsync();
         if (!ModelState.IsValid)
@@ -47,18 +47,18 @@ public class AdminProductController : Controller
             return View("~/Views/Admin/Product/Form.cshtml", model);
         }
 
-        string? imageUrl;
+        List<string> imageUrls;
         try
         {
-            imageUrl = await _imageStorage.SaveAsWebpAsync(imageFile, "products", 1600, 1600, 82);
+            imageUrls = await SaveProductImagesAsync(imageFile, imageFiles);
         }
         catch (InvalidOperationException ex)
         {
-            ModelState.AddModelError("imageFile", ex.Message);
+            ModelState.AddModelError("imageFiles", ex.Message);
             return View("~/Views/Admin/Product/Form.cshtml", model);
         }
 
-        await _productService.CreateProductAsync(model, imageUrl);
+        await _productService.CreateProductAsync(model, imageUrls);
         TempData["Success"] = "Đã thêm sản phẩm.";
         return RedirectToAction(nameof(Index));
     }
@@ -72,6 +72,14 @@ public class AdminProductController : Controller
             return NotFound();
         }
 
+        var imageUrls = product.Images
+            .OrderBy(image => image.SortOrder)
+            .ThenBy(image => image.Id)
+            .Select(image => image.ImageUrl)
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         return View("~/Views/Admin/Product/Form.cshtml", new ProductFormViewModel
         {
             Id = product.Id,
@@ -81,7 +89,8 @@ public class AdminProductController : Controller
             Stock = product.Stock,
             DiscountPercent = product.DiscountPercent,
             CategoryId = product.CategoryId,
-            ImageUrl = product.PrimaryImageUrl,
+            ImageUrl = imageUrls.FirstOrDefault() ?? product.PrimaryImageUrl,
+            ImageUrls = string.Join(Environment.NewLine, imageUrls),
             IsFeatured = product.IsFeatured,
             Categories = await _productService.GetCategoriesAsync(),
             StockLogs = await _db.StockLogs
@@ -95,7 +104,7 @@ public class AdminProductController : Controller
 
     [HttpPost("Edit/{id:int}")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, ProductFormViewModel model, IFormFile? imageFile)
+    public async Task<IActionResult> Edit(int id, ProductFormViewModel model, IFormFile? imageFile, List<IFormFile>? imageFiles)
     {
         model.Id = id;
         model.Categories = await _productService.GetCategoriesAsync();
@@ -109,18 +118,18 @@ public class AdminProductController : Controller
             .Select(product => product.Stock)
             .FirstOrDefaultAsync();
 
-        string? imageUrl;
+        List<string> imageUrls;
         try
         {
-            imageUrl = await _imageStorage.SaveAsWebpAsync(imageFile, "products", 1600, 1600, 82);
+            imageUrls = await SaveProductImagesAsync(imageFile, imageFiles);
         }
         catch (InvalidOperationException ex)
         {
-            ModelState.AddModelError("imageFile", ex.Message);
+            ModelState.AddModelError("imageFiles", ex.Message);
             return View("~/Views/Admin/Product/Form.cshtml", model);
         }
 
-        await _productService.UpdateProductAsync(model, imageUrl);
+        await _productService.UpdateProductAsync(model, imageUrls);
         if (oldStock != model.Stock)
         {
             _db.StockLogs.Add(new StockLog
@@ -185,5 +194,36 @@ public class AdminProductController : Controller
         slug = Regex.Replace(slug, "[^a-z0-9\\s-]", "");
         slug = Regex.Replace(slug, "\\s+", "-");
         return string.IsNullOrWhiteSpace(slug) ? Guid.NewGuid().ToString("N")[..8] : slug;
+    }
+
+    private async Task<List<string>> SaveProductImagesAsync(IFormFile? imageFile, IReadOnlyCollection<IFormFile>? imageFiles)
+    {
+        var files = new List<IFormFile>();
+        if (imageFile is { Length: > 0 })
+        {
+            files.Add(imageFile);
+        }
+
+        if (imageFiles is not null)
+        {
+            files.AddRange(imageFiles.Where(file => file.Length > 0));
+        }
+
+        if (files.Count > 8)
+        {
+            throw new InvalidOperationException("Tải tối đa 8 ảnh cho một sản phẩm.");
+        }
+
+        var urls = new List<string>();
+        foreach (var file in files)
+        {
+            var url = await _imageStorage.SaveAsWebpAsync(file, "products", 1600, 1600, 82);
+            if (!string.IsNullOrWhiteSpace(url))
+            {
+                urls.Add(url);
+            }
+        }
+
+        return urls;
     }
 }

@@ -2,6 +2,7 @@ using EcommerceApp.Data;
 using EcommerceApp.Hubs;
 using EcommerceApp.Models;
 using EcommerceApp.Services;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
@@ -31,6 +32,11 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
+builder.Services.Configure<HostOptions>(options =>
+{
+    options.ShutdownTimeout = TimeSpan.FromSeconds(30);
+});
+
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
@@ -40,9 +46,28 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
+var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+if (string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+{
+    dataProtectionKeysPath = Path.Combine("App_Data", "DataProtectionKeys");
+}
+if (!Path.IsPathRooted(dataProtectionKeysPath))
+{
+    dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, dataProtectionKeysPath);
+}
+builder.Services
+    .AddDataProtection()
+    .SetApplicationName("Techvora")
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+
 builder.Services.AddDbContext<AppDbContext>(options =>
     options
-        .UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
+        .UseSqlServer(
+            builder.Configuration.GetConnectionString("DefaultConnection"),
+            sqlOptions => sqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(10),
+                errorNumbersToAdd: null))
         .ConfigureWarnings(warnings => warnings.Ignore(
             CoreEventId.MappedEntityTypeIgnoredWarning,
             CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning)));
@@ -148,6 +173,7 @@ builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email
 builder.Services.Configure<GhnOptions>(builder.Configuration.GetSection("Ghn"));
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductSpecService, ProductSpecService>();
+builder.Services.AddScoped<IProductInteractionService, ProductInteractionService>();
 builder.Services.AddScoped<IImageStorageService, ImageStorageService>();
 builder.Services.AddScoped<ICartService, CartService>();
 builder.Services.AddScoped<ICrossSellService, CrossSellService>();
@@ -222,6 +248,42 @@ try
     app.UseAuthentication();
     app.UseRateLimiter();
     app.UseAuthorization();
+
+    app.MapGet("/health/live", () => Results.Ok(new
+    {
+        status = "Healthy",
+        service = "Techvora",
+        checkedAt = DateTimeOffset.UtcNow
+    })).AllowAnonymous();
+
+    app.MapGet("/health/ready", async (AppDbContext db, CancellationToken cancellationToken) =>
+    {
+        try
+        {
+            var canConnect = await db.Database.CanConnectAsync(cancellationToken);
+            if (canConnect)
+            {
+                return Results.Ok(new
+                {
+                    status = "Ready",
+                    service = "Techvora",
+                    checks = new { database = "Healthy" },
+                    checkedAt = DateTimeOffset.UtcNow
+                });
+            }
+        }
+        catch
+        {
+        }
+
+        return Results.Json(new
+        {
+            status = "NotReady",
+            service = "Techvora",
+            checks = new { database = "Unhealthy" },
+            checkedAt = DateTimeOffset.UtcNow
+        }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }).AllowAnonymous();
 
     app.MapControllerRoute(
         name: "default",

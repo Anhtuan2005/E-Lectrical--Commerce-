@@ -39,6 +39,7 @@ public class ProductFormViewModel
     public int DiscountPercent { get; set; }
 
     public string ImageUrl { get; set; } = string.Empty;
+    public string ImageUrls { get; set; } = string.Empty;
     public int CategoryId { get; set; }
     public bool IsFeatured { get; set; }
     public IEnumerable<Category> Categories { get; set; } = Enumerable.Empty<Category>();

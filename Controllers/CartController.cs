@@ -1,4 +1,5 @@
 using EcommerceApp.Services;
+using EcommerceApp.Models;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
@@ -7,10 +8,12 @@ namespace EcommerceApp.Controllers;
 public class CartController : Controller
 {
     private readonly ICartService _cartService;
+    private readonly IProductInteractionService _productInteractionService;
 
-    public CartController(ICartService cartService)
+    public CartController(ICartService cartService, IProductInteractionService productInteractionService)
     {
         _cartService = cartService;
+        _productInteractionService = productInteractionService;
     }
 
     public async Task<IActionResult> Index()
@@ -32,6 +35,7 @@ public class CartController : Controller
         try
         {
             await _cartService.AddAsync(productId, quantity, userId, GetStableCartSessionId(userId));
+            await _productInteractionService.TrackAsync(productId, ProductInteractionEvents.AddToCart, HttpContext);
         }
         catch (InvalidOperationException ex)
         {
@@ -98,7 +102,13 @@ public class CartController : Controller
                 productName = suggestion.ProductName,
                 anchorProductName = suggestion.AnchorProductName,
                 imageUrl = suggestion.ImageUrl,
+                source = suggestion.Source,
+                confidencePercent = suggestion.ConfidencePercent,
+                supportCount = suggestion.SupportCount,
                 discountPercent = suggestion.DiscountPercent,
+                hasDiscount = suggestion.HasDiscount,
+                badgeText = suggestion.BadgeText,
+                contextText = suggestion.ContextText,
                 originalPrice = suggestion.OriginalPrice.ToString("N0") + " ₫",
                 offerPrice = suggestion.OfferPrice.ToString("N0") + " ₫",
                 savings = suggestion.Savings.ToString("N0") + " ₫"

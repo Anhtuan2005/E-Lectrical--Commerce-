@@ -89,6 +89,7 @@
                 <span><strong>VNPAY</strong><small>Bạn sẽ được chuyển sang cổng VNPAY bảo mật.</small></span>
             </label>
         </div>
+        <span asp-validation-for="PaymentMethod" class="field-error"></span>
 
         <input asp-for="VoucherCode" type="hidden" id="VoucherCode" />
         <input asp-for="DiscountAmount" type="hidden" id="DiscountAmount" />

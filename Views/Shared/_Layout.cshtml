@@ -71,10 +71,7 @@
     <meta name="twitter:image" content="@ogImageUrl" />
     <meta name="twitter:image:alt" content="@ogImageAlt" />
     <link rel="icon" href="~/images/techvora-favicon.svg" type="image/svg+xml" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
+    <script id="lucide-script" src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" async></script>
     <script type="importmap">
         {
           "imports": {
@@ -91,6 +88,7 @@
     </environment>
 </head>
 <body>
+    <a class="skip-link" href="#main-content">Bỏ qua đến nội dung chính</a>
     <header>
         <partial name="_Navbar" />
     </header>
@@ -109,7 +107,7 @@
             <div class="toast toast-success">@paymentResult</div>
         }
     </div>
-    <main role="main">
+    <main id="main-content" role="main" tabindex="-1">
         @RenderBody()
     </main>
     <partial name="_CompareTray" />
@@ -171,10 +169,7 @@
                 <p>72 Lê Lợi, Quận 1, TP. Hồ Chí Minh</p>
                 <p><a href="tel:0900000000">0900 000 000</a></p>
                 <p><a href="mailto:hello@techvora.vn">hello@techvora.vn</a></p>
-                <form class="newsletter-form">
-                    <input type="email" placeholder="Email nhận tin" aria-label="Email nhận tin" />
-                    <button type="button">Gửi</button>
-                </form>
+                <a class="footer-deal-link" asp-controller="Product" asp-action="Index" asp-route-sortBy="discount_desc">Xem ưu đãi đang có</a>
             </div>
         </div>
         <div class="footer-bottom">

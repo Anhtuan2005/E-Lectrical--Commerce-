@@ -359,6 +359,24 @@
     </aside>
 </section>
 
+@if (Model.RecommendedProducts.Any())
+{
+    <section class="section reveal pdp-related-section">
+        <div class="section-heading">
+            <div>
+                <span class="eyebrow">Gợi ý thông minh</span>
+                <h2>Có thể hợp với bạn</h2>
+            </div>
+        </div>
+        <div class="related-scroll compact-related related-products-grid">
+            @foreach (var item in Model.RecommendedProducts.Take(4))
+            {
+                <partial name="_ProductCard" model="item" />
+            }
+        </div>
+    </section>
+}
+
 <section class="section reveal pdp-related-section">
     <div class="section-heading">
         <div>

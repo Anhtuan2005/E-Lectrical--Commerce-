@@ -17,7 +17,6 @@ using System.IO.Compression;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Configuration.AddUserSecrets<Program>(optional: true);
 
 var viCulture = CultureInfo.GetCultureInfo("vi-VN");
 CultureInfo.DefaultThreadCurrentCulture = viCulture;
@@ -42,8 +41,6 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
         | ForwardedHeaders.XForwardedHost
         | ForwardedHeaders.XForwardedProto;
-    options.KnownNetworks.Clear();
-    options.KnownProxies.Clear();
 });
 
 var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
@@ -174,6 +171,7 @@ builder.Services.Configure<GhnOptions>(builder.Configuration.GetSection("Ghn"));
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductSpecService, ProductSpecService>();
 builder.Services.AddScoped<IProductInteractionService, ProductInteractionService>();
+builder.Services.AddScoped<IRecommendationService, RecommendationService>();
 builder.Services.AddScoped<IImageStorageService, ImageStorageService>();
 builder.Services.AddScoped<ICartService, CartService>();
 builder.Services.AddScoped<ICrossSellService, CrossSellService>();

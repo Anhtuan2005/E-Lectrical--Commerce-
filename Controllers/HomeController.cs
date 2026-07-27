@@ -5,6 +5,7 @@ using EcommerceApp.Data;
 using EcommerceApp.Models;
 using EcommerceApp.Models.ViewModels;
 using EcommerceApp.Services;
+using System.Security.Claims;
 
 namespace EcommerceApp.Controllers;
 
@@ -12,12 +13,14 @@ public class HomeController : Controller
 {
     private readonly ILogger<HomeController> _logger;
     private readonly IProductService _productService;
+    private readonly IRecommendationService _recommendationService;
     private readonly AppDbContext _db;
 
-    public HomeController(ILogger<HomeController> logger, IProductService productService, AppDbContext db)
+    public HomeController(ILogger<HomeController> logger, IProductService productService, IRecommendationService recommendationService, AppDbContext db)
     {
         _logger = logger;
         _productService = productService;
+        _recommendationService = recommendationService;
         _db = db;
     }
 
@@ -28,6 +31,10 @@ public class HomeController : Controller
             Banners = await _db.Banners.Where(banner => banner.IsActive).OrderBy(banner => banner.SortOrder).Take(3).ToListAsync(),
             Categories = await _productService.GetCategoriesAsync(),
             FeaturedProducts = await _productService.GetFeaturedProductsAsync(8),
+            PersonalizedProducts = await _recommendationService.GetRecommendationsAsync(
+                User.FindFirstValue(ClaimTypes.NameIdentifier),
+                HttpContext.Session.Id,
+                take: 8),
             FlashSaleProducts = await _db.Products
                 .Include(product => product.Category)
                 .Include(product => product.Images)

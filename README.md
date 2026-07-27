@@ -33,6 +33,16 @@ Cấu hình nằm trong `appsettings.json`:
 
 Lưu ý: `ReturnUrl` và `IpnUrl` phải khớp chính xác với URL đăng ký trên portal sandbox VNPAY. Nếu ngrok đổi domain, cập nhật lại cả portal và `appsettings.json`.
 
+## Webhook GHN
+
+Đặt `Ghn:WebhookSecret` bằng user secrets hoặc biến môi trường, sau đó đăng ký URL callback dạng:
+
+```text
+https://your-host/shipping/ghn-webhook?secret=<webhook-secret>
+```
+
+Webhook chỉ được áp dụng khi secret và `ShopID` trong payload khớp cấu hình.
+
 ## Yêu cầu môi trường
 
 - .NET SDK 8 trở lên.

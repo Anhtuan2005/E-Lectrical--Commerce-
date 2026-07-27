@@ -5,6 +5,7 @@ using EcommerceApp.Models.ViewModels;
 using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace EcommerceApp.Services;
 
@@ -349,27 +350,37 @@ public class OrderService : IOrderService
             .FirstOrDefaultAsync(order => order.Id == id);
     }
 
-    public async Task UpdateStatusAsync(int id, string status)
+    public async Task<bool> UpdateStatusAsync(int id, string status)
     {
         if (!OrderStatuses.All.Contains(status))
         {
-            return;
+            return false;
         }
 
-        var order = await _db.Orders.Include(row => row.ShippingInfo).FirstOrDefaultAsync(row => row.Id == id);
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        var order = await _db.Orders
+            .FromSqlInterpolated($"SELECT * FROM Orders WITH (UPDLOCK, ROWLOCK) WHERE Id = {id}")
+            .Include(row => row.ShippingInfo)
+            .Include(row => row.Items)
+            .FirstOrDefaultAsync();
         if (order is null)
         {
-            return;
+            return false;
         }
 
         if (IsVnpayPayment(order.PaymentMethod) &&
             !order.IsPaid &&
             status is not (OrderStatuses.AwaitingPayment or OrderStatuses.Cancelled))
         {
-            return;
+            return false;
         }
 
         var oldStatus = order.Status;
+        if (oldStatus == OrderStatuses.Cancelled && status != OrderStatuses.Cancelled)
+        {
+            return false;
+        }
+
         var oldRefundStatus = order.RefundStatus;
         order.Status = status;
         order.UpdatedAt = DateTime.UtcNow;
@@ -386,9 +397,20 @@ public class OrderService : IOrderService
         if (status == OrderStatuses.Cancelled)
         {
             MarkManualRefundRequiredIfNeeded(order, "Đơn VNPAY đã thanh toán bị huỷ bởi admin.");
+            if (oldStatus != OrderStatuses.Cancelled)
+            {
+                foreach (var item in order.Items)
+                {
+                    await _db.Database.ExecuteSqlRawAsync(
+                        "UPDATE Products SET Stock = Stock + {0} WHERE Id = {1}",
+                        item.Quantity,
+                        item.ProductId);
+                }
+            }
         }
 
         await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
         await _customerSegmentService.RefreshUserAsync(order.UserId);
         _logger.LogInformation("Admin updated order {OrderId} status to {Status}", id, status);
 
@@ -407,6 +429,8 @@ public class OrderService : IOrderService
         {
             await _orderEmailService.SendRefundRequiredAsync(order.Id);
         }
+
+        return true;
     }
 
     public async Task<int> ConfirmPendingOrdersAsync(IEnumerable<int> ids)
@@ -472,15 +496,16 @@ public class OrderService : IOrderService
 
     public async Task<bool> CancelUserOrderAsync(int id, string userId, string? reason)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         var order = await _db.Orders
+            .FromSqlInterpolated($"SELECT * FROM Orders WITH (UPDLOCK, ROWLOCK) WHERE Id = {id} AND UserId = {userId}")
             .Include(row => row.Items)
-            .FirstOrDefaultAsync(row => row.Id == id && row.UserId == userId);
+            .FirstOrDefaultAsync();
         if (order is null || order.Status is not (OrderStatuses.AwaitingPayment or OrderStatuses.Pending))
         {
             return false;
         }
 
-        await using var transaction = await _db.Database.BeginTransactionAsync();
         var oldRefundStatus = order.RefundStatus;
         order.Status = OrderStatuses.Cancelled;
         order.CancelledReason = string.IsNullOrWhiteSpace(reason)

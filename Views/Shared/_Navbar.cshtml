@@ -90,23 +90,23 @@
         <div class="nav-actions">
             <form class="nav-search" asp-controller="Product" asp-action="Index" method="get" autocomplete="off">
                 <div class="nav-search-box">
-                    <input class="nav-search-input" name="search" placeholder="Tìm sản phẩm" aria-label="Tìm sản phẩm" data-search-autocomplete />
-                    <div class="search-suggestions" id="searchSuggestions"></div>
+                    <input class="nav-search-input" id="navSearchInput" name="search" placeholder="Tìm sản phẩm" aria-label="Tìm sản phẩm" aria-controls="searchSuggestions" aria-autocomplete="list" data-search-autocomplete />
+                    <div class="search-suggestions" id="searchSuggestions" role="listbox" aria-label="Gợi ý tìm kiếm"></div>
                 </div>
-                <button class="nav-icon nav-search-btn" type="button" aria-label="Mở tìm kiếm"><i data-lucide="search" aria-hidden="true"></i></button>
+                <button class="nav-icon nav-search-btn" type="button" aria-label="Mở tìm kiếm" aria-expanded="false" aria-controls="navSearchInput"><i data-lucide="search" aria-hidden="true"></i></button>
             </form>
 
             @if (isAuthenticated)
             {
                 <div class="notification-menu">
-                    <button class="nav-icon nav-badge-link notification-toggle" type="button" aria-label="Thông báo" aria-expanded="false">
+                    <button class="nav-icon nav-badge-link notification-toggle" type="button" aria-label="Thông báo" aria-expanded="false" aria-controls="notificationDropdown">
                         <i data-lucide="bell" aria-hidden="true"></i>
                         @if (notificationCount > 0)
                         {
                             <em>@notificationCount</em>
                         }
                     </button>
-                    <div class="notification-dropdown">
+                    <div class="notification-dropdown" id="notificationDropdown">
                         <div class="notification-dropdown-head">
                             <strong>Thông báo</strong>
                             <a asp-controller="Notification" asp-action="Index">Xem tất cả</a>
@@ -133,19 +133,19 @@
             }
 
             <a class="nav-icon nav-badge-link" asp-controller="Wishlist" asp-action="Index" aria-label="Yêu thích">
-                <i data-lucide="heart" aria-hidden="true"></i><em id="wishlist-count">@wishlistCount</em>
+                <i data-lucide="heart" aria-hidden="true"></i><em id="wishlist-count" aria-live="polite">@wishlistCount</em>
             </a>
             @if (!isAdminViewer)
             {
                 <a class="nav-icon nav-badge-link" asp-controller="Cart" asp-action="Index" aria-label="Giỏ hàng">
-                    <i data-lucide="shopping-cart" aria-hidden="true"></i><em id="cart-count">@cartCount</em>
+                    <i data-lucide="shopping-cart" aria-hidden="true"></i><em id="cart-count" aria-live="polite">@cartCount</em>
                 </a>
             }
             @if (isAuthenticated)
             {
                 <div class="avatar-menu">
-                    <button class="avatar-btn" type="button" aria-label="Tài khoản"><i data-lucide="user-circle" aria-hidden="true"></i></button>
-                    <div class="avatar-dropdown">
+                    <button class="avatar-btn" type="button" aria-label="Tài khoản" aria-expanded="false" aria-controls="accountDropdown"><i data-lucide="user-circle" aria-hidden="true"></i></button>
+                    <div class="avatar-dropdown" id="accountDropdown">
                         <span>@User.Identity?.Name</span>
                         @if (User.IsInRole("Admin"))
                         {
@@ -170,13 +170,13 @@
             {
                 <a class="nav-login" asp-controller="Account" asp-action="Login">Đăng nhập</a>
             }
-            <button class="nav-hamburger" type="button" aria-label="Mở menu"><i data-lucide="menu" aria-hidden="true"></i></button>
+            <button class="nav-hamburger" type="button" aria-label="Mở menu" aria-expanded="false" aria-controls="navDrawer"><i data-lucide="menu" aria-hidden="true"></i></button>
         </div>
     </div>
 </nav>
 
-<div class="nav-overlay"></div>
-<aside class="nav-drawer" aria-label="Menu di động">
+<div class="nav-overlay" aria-hidden="true"></div>
+<aside class="nav-drawer" id="navDrawer" aria-label="Menu di động" aria-hidden="true" tabindex="-1" inert>
     <div class="drawer-head">
         <a class="brand brand-logo" asp-controller="Home" asp-action="Index" aria-label="Techvora">
             <partial name="_TechvoraLogo" />

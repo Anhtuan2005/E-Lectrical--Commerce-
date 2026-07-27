@@ -34,6 +34,7 @@ public class CheckoutViewModel
     public string ShippingAddress => $"{Street}, {Ward}, {District}, {Province}";
 
     [Required]
+    [RegularExpression("^(COD|VNPAY)$", ErrorMessage = "Phương thức thanh toán không hợp lệ")]
     public string PaymentMethod { get; set; } = "COD";
 
     public string? VoucherCode { get; set; }

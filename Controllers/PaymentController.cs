@@ -70,6 +70,12 @@ public class PaymentController : Controller
             return RedirectToAction("Detail", "Order", new { id = order.Id });
         }
 
+        if (!_vnpayService.IsConfigured)
+        {
+            TempData["Error"] = "VNPAY đang tạm ngưng, vui lòng thử lại sau.";
+            return RedirectToAction("Detail", "Order", new { id = order.Id });
+        }
+
         return Redirect(_vnpayService.CreatePaymentUrl(order, HttpContext));
     }
 
@@ -88,6 +94,12 @@ public class PaymentController : Controller
 
         if (response.IsSuccess)
         {
+            if (order.Status == OrderStatuses.Cancelled)
+            {
+                TempData["Error"] = "Thanh toán đã được ghi nhận sau khi đơn bị huỷ. Hệ thống đã chuyển đơn sang chờ hoàn tiền.";
+                return RedirectToAction("Detail", "Order", new { id = order.Id });
+            }
+
             TempData["Success"] = "Thanh toán VNPAY thành công.";
             return RedirectToAction("Confirmation", "Order", new { id = order.Id });
         }
@@ -130,13 +142,15 @@ public class PaymentController : Controller
             return Json(new { RspCode = "00", Message = "Order already confirmed" });
         }
 
-        if (order.IsPaid || !IsUnpaidVnpayOrderAwaitingPayment(order))
+        if (order.IsPaid || !CanAcceptVnpayCallback(order))
         {
             return Json(new { RspCode = "02", Message = "Order already confirmed" });
         }
 
-        await UpdateOrderPaymentAsync(response);
-        return Json(new { RspCode = "00", Message = "Confirm Success" });
+        var updated = await UpdateOrderPaymentAsync(response);
+        return updated is null
+            ? Json(new { RspCode = "02", Message = "Order already confirmed" })
+            : Json(new { RspCode = "00", Message = "Confirm Success" });
     }
 
     private async Task<Order?> UpdateOrderPaymentAsync(VnpayResponse response)
@@ -160,12 +174,26 @@ public class PaymentController : Controller
             return null;
         }
 
-        if (order.TotalAmount != response.Amount)
+        if (order.TotalAmount != response.Amount ||
+            !string.Equals(order.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
 
+        if (order.IsPaid)
+        {
+            return order;
+        }
+
+        if (!CanAcceptVnpayCallback(order))
+        {
+            return null;
+        }
+
+        var oldRefundStatus = order.RefundStatus;
         var shouldSendStatusEmail = ApplyPaymentResponse(response, order);
+        var shouldSendRefundEmail = oldRefundStatus != order.RefundStatus
+            && order.RefundStatus == RefundStatuses.PendingManual;
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
 
@@ -186,6 +214,22 @@ public class PaymentController : Controller
             await NotifyAdminsAboutPaidVnpayOrderAsync(order);
         }
 
+        if (shouldSendRefundEmail)
+        {
+            await _orderEmailService.SendRefundRequiredAsync(order.Id);
+            await _notificationService.CreateAsync(
+                order.UserId,
+                "Thanh toán cần hoàn tiền",
+                $"Đơn #DH{order.Id:D4} đã nhận thanh toán sau khi bị huỷ và đang chờ hoàn tiền.",
+                NotificationTypes.Order,
+                $"/Order/Detail/{order.Id}");
+            await _notificationService.CreateForAdminsAsync(
+                "VNPAY cần hoàn tiền",
+                $"Đơn #DH{order.Id:D4} nhận thanh toán sau khi huỷ. Vui lòng xử lý hoàn tiền thủ công.",
+                NotificationTypes.Order,
+                $"/Admin/Order/{order.Id}");
+        }
+
         return order;
     }
 
@@ -202,11 +246,18 @@ public class PaymentController : Controller
         order.VnpayResponseCode = response.ResponseCode;
         if (response.IsSuccess)
         {
+            var paidAt = DateTime.UtcNow;
             order.IsPaid = true;
-            order.PaidAt = DateTime.UtcNow;
+            order.PaidAt = paidAt;
             if (order.Status == OrderStatuses.AwaitingPayment)
             {
                 order.Status = OrderStatuses.Pending;
+            }
+            else if (order.Status == OrderStatuses.Cancelled)
+            {
+                order.RefundStatus = RefundStatuses.PendingManual;
+                order.RefundRequestedAt ??= paidAt;
+                order.RefundNote = "VNPAY xác nhận thanh toán sau khi đơn đã bị huỷ.";
             }
         }
 
@@ -244,5 +295,12 @@ public class PaymentController : Controller
         return !order.IsPaid
             && string.Equals(order.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase)
             && order.Status is OrderStatuses.AwaitingPayment or OrderStatuses.Pending;
+    }
+
+    private static bool CanAcceptVnpayCallback(Order order)
+    {
+        return !order.IsPaid
+            && string.Equals(order.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase)
+            && order.Status is OrderStatuses.AwaitingPayment or OrderStatuses.Pending or OrderStatuses.Cancelled;
     }
 }

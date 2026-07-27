@@ -14,14 +14,16 @@ public class ProductController : Controller
     private readonly ICartService _cartService;
     private readonly IProductSpecService _productSpecService;
     private readonly IProductInteractionService _productInteractionService;
+    private readonly IRecommendationService _recommendationService;
     private readonly AppDbContext _db;
 
-    public ProductController(IProductService productService, ICartService cartService, IProductSpecService productSpecService, IProductInteractionService productInteractionService, AppDbContext db)
+    public ProductController(IProductService productService, ICartService cartService, IProductSpecService productSpecService, IProductInteractionService productInteractionService, IRecommendationService recommendationService, AppDbContext db)
     {
         _productService = productService;
         _cartService = cartService;
         _productSpecService = productSpecService;
         _productInteractionService = productInteractionService;
+        _recommendationService = recommendationService;
         _db = db;
     }
 
@@ -146,6 +148,11 @@ public class ProductController : Controller
         var model = new ProductDetailViewModel
         {
             Product = product,
+            RecommendedProducts = await _recommendationService.GetRecommendationsAsync(
+                userId,
+                HttpContext.Session.Id,
+                take: 8,
+                anchorProductId: product.Id),
             RelatedProducts = await _productService.GetRelatedProductsAsync(product.Id, product.CategoryId),
             Reviews = reviews,
             TechnicalSpecs = _productSpecService.Build(product),

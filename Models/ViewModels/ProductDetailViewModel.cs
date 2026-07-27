@@ -3,6 +3,7 @@ namespace EcommerceApp.Models.ViewModels;
 public class ProductDetailViewModel
 {
     public Product Product { get; set; } = new();
+    public IEnumerable<Product> RecommendedProducts { get; set; } = Enumerable.Empty<Product>();
     public IEnumerable<Product> RelatedProducts { get; set; } = Enumerable.Empty<Product>();
     public IEnumerable<Review> Reviews { get; set; } = Enumerable.Empty<Review>();
     public IReadOnlyList<ProductSpecViewModel> TechnicalSpecs { get; set; } = Array.Empty<ProductSpecViewModel>();

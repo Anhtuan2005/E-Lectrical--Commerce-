@@ -773,6 +773,7 @@ public sealed class GhnOptions
     public string BaseUrl { get; set; } = "https://dev-online-gateway.ghn.vn/shiip/public-api";
     public string Token { get; set; } = string.Empty;
     public string ShopId { get; set; } = string.Empty;
+    public string WebhookSecret { get; set; } = string.Empty;
     public int DefaultWeight { get; set; } = 2000;
     public int DefaultLength { get; set; } = 30;
     public int DefaultWidth { get; set; } = 25;

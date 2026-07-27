@@ -4,6 +4,7 @@ namespace EcommerceApp.Services;
 
 public interface IVnpayService
 {
+    bool IsConfigured { get; }
     string CreatePaymentUrl(Order order, HttpContext context);
     VnpayResponse ProcessCallback(IQueryCollection query);
 }

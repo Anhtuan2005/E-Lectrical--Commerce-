@@ -15,13 +15,23 @@ public class VnpayService : IVnpayService
         _configuration = configuration;
     }
 
+    public bool IsConfigured =>
+        HasSetting("BaseUrl") &&
+        HasSetting("TmnCode") &&
+        HasSetting("HashSecret") &&
+        HasSetting("ReturnUrl");
+
     public string CreatePaymentUrl(Order order, HttpContext context)
     {
-        var section = _configuration.GetSection("Vnpay");
-        var baseUrl = section["BaseUrl"] ?? throw new InvalidOperationException("Thiếu VNPAY BaseUrl.");
-        var tmnCode = section["TmnCode"]?.Trim() ?? throw new InvalidOperationException("Thiếu VNPAY TmnCode.");
-        var hashSecret = section["HashSecret"]?.Trim() ?? throw new InvalidOperationException("Thiếu VNPAY HashSecret.");
-        var returnUrl = section["ReturnUrl"] ?? throw new InvalidOperationException("Thiếu VNPAY ReturnUrl.");
+        if (!IsConfigured)
+        {
+            throw new InvalidOperationException("VNPAY chưa được cấu hình đầy đủ.");
+        }
+
+        var baseUrl = GetSetting("BaseUrl");
+        var tmnCode = GetSetting("TmnCode");
+        var hashSecret = GetSetting("HashSecret");
+        var returnUrl = GetSetting("ReturnUrl");
 
         var now = DateTime.Now;
         var txnRef = $"{order.Id}_{now:yyyyMMddHHmmss}";
@@ -74,9 +84,10 @@ public class VnpayService : IVnpayService
         }
 
         var rawData = BuildSignedQuery(fields);
-        var expectedHash = HmacSha512(_configuration["Vnpay:HashSecret"]?.Trim() ?? string.Empty, rawData);
+        var hashSecret = _configuration["Vnpay:HashSecret"]?.Trim();
         var actualHash = query["vnp_SecureHash"].ToString();
-        var sigValid = expectedHash.Equals(actualHash, StringComparison.OrdinalIgnoreCase);
+        var sigValid = !string.IsNullOrWhiteSpace(hashSecret)
+            && FixedTimeEqualsHex(HmacSha512(hashSecret, rawData), actualHash);
 
         var txnRef = query["vnp_TxnRef"].ToString();
         var orderId = txnRef.Split('_')[0];
@@ -114,5 +125,23 @@ public class VnpayService : IVnpayService
         var dataBytes = Encoding.UTF8.GetBytes(data);
         using var hmac = new HMACSHA512(keyBytes);
         return Convert.ToHexString(hmac.ComputeHash(dataBytes)).ToLowerInvariant();
+    }
+
+    private bool HasSetting(string key) => !string.IsNullOrWhiteSpace(_configuration[$"Vnpay:{key}"]);
+
+    private string GetSetting(string key) => _configuration[$"Vnpay:{key}"]!.Trim();
+
+    private static bool FixedTimeEqualsHex(string expected, string actual)
+    {
+        try
+        {
+            return expected.Length == actual.Length && CryptographicOperations.FixedTimeEquals(
+                Convert.FromHexString(expected),
+                Convert.FromHexString(actual));
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
     }
 }

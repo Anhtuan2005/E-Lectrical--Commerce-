@@ -11,7 +11,7 @@ public interface IOrderService
     Task<Order?> GetUserOrderAsync(int id, string userId);
     Task<OrderListViewModel> GetOrdersAsync(string? status, string? customer, DateTime? fromDate, DateTime? toDate);
     Task<Order?> GetOrderAsync(int id);
-    Task UpdateStatusAsync(int id, string status);
+    Task<bool> UpdateStatusAsync(int id, string status);
     Task<int> ConfirmPendingOrdersAsync(IEnumerable<int> ids);
     Task<bool> MarkManualRefundCompletedAsync(int id, string? note);
     Task<bool> CancelUserOrderAsync(int id, string userId, string? reason);

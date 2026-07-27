@@ -142,6 +142,12 @@ public class OrderController : Controller
             return View(model);
         }
 
+        if (model.PaymentMethod == "VNPAY" && !_vnpayService.IsConfigured)
+        {
+            ModelState.AddModelError(nameof(model.PaymentMethod), "VNPAY đang tạm ngưng, vui lòng chọn thanh toán khi nhận hàng.");
+            return View(model);
+        }
+
         try
         {
             var order = await _orderService.CreateOrderAsync(userId, model, GetStableCartSessionId(userId));

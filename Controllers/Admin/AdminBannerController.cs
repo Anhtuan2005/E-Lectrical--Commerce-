@@ -130,6 +130,7 @@ public class AdminBannerController : Controller
     }
 
     [HttpPost("Sort")]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Sort([FromBody] List<int> ids)
     {
         var banners = await _db.Banners.Where(banner => ids.Contains(banner.Id)).ToListAsync();

@@ -49,8 +49,10 @@ public class AdminOrderController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateStatus(int id, string status)
     {
-        await _orderService.UpdateStatusAsync(id, status);
-        TempData["Success"] = "Đã cập nhật trạng thái đơn hàng.";
+        var updated = await _orderService.UpdateStatusAsync(id, status);
+        TempData[updated ? "Success" : "Error"] = updated
+            ? "Đã cập nhật trạng thái đơn hàng."
+            : "Không thể chuyển đơn sang trạng thái đã chọn.";
         return RedirectToAction(nameof(Details), new { id });
     }
 

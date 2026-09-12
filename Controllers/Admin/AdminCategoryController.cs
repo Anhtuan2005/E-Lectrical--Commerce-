@@ -1,5 +1,6 @@
 using EcommerceApp.Data;
 using EcommerceApp.Models;
+using EcommerceApp.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -86,20 +87,18 @@ public class AdminCategoryController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
-        var category = await _db.Categories.Include(row => row.Products).FirstOrDefaultAsync(row => row.Id == id);
-        if (category is null)
+        var result = await CategoryDeletion.DeleteAsync(_db, id);
+        if (result == CategoryDeleteResult.NotFound)
         {
             return NotFound();
         }
 
-        if (category.Products.Any())
+        if (result == CategoryDeleteResult.InUse)
         {
-            TempData["Error"] = "Không thể xoá danh mục đang có sản phẩm.";
+            TempData["Error"] = "Không thể xoá danh mục còn sản phẩm, kể cả sản phẩm đã ẩn. Hãy chuyển sản phẩm sang danh mục khác trước.";
             return RedirectToAction(nameof(Index));
         }
 
-        _db.Categories.Remove(category);
-        await _db.SaveChangesAsync();
         TempData["Success"] = "Đã xoá danh mục.";
         return RedirectToAction(nameof(Index));
     }

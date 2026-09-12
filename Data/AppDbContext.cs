@@ -42,6 +42,14 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     {
         base.OnModelCreating(builder);
 
+        builder.Entity<CartItem>().ToTable(table => table.HasCheckConstraint("CK_CartItems_Quantity_Positive", "[Quantity] > 0"));
+        builder.Entity<OrderItem>().ToTable(table => table.HasCheckConstraint("CK_OrderItems_Quantity_Positive", "[Quantity] > 0"));
+        builder.Entity<ReturnWarrantyRequestItem>().ToTable(table => table.HasCheckConstraint("CK_ReturnWarrantyRequestItems_Quantity_Positive", "[Quantity] > 0"));
+        builder.Entity<Product>().HasOne(product => product.Category).WithMany(category => category.Products)
+            .HasForeignKey(product => product.CategoryId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<OrderItem>().HasOne(item => item.Product).WithMany()
+            .HasForeignKey(item => item.ProductId).OnDelete(DeleteBehavior.Restrict);
+
         builder.Entity<Order>().HasIndex(order => new { order.PaymentMethod, order.IsPaid, order.Status, order.PaymentExpiresAt });
 
         builder.Ignore<IdentityUserClaim<string>>();

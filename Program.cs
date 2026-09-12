@@ -87,11 +87,14 @@ builder.Services
     .AddDefaultTokenProviders();
 
 builder.Services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, MinimalUserClaimsPrincipalFactory>();
+builder.Services.AddScoped<AdminUserAccessService>();
+builder.Services.AddScoped<ApplicationCookieEvents>();
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = "/Account/Login";
     options.AccessDeniedPath = "/Account/Login";
+    options.EventsType = typeof(ApplicationCookieEvents);
 });
 
 builder.Services.AddDistributedMemoryCache();

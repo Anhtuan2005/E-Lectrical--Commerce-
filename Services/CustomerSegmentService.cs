@@ -196,7 +196,8 @@ public class CustomerSegmentService : ICustomerSegmentService
     private async Task<CustomerStats> GetCustomerStatsAsync(string userId, CancellationToken cancellationToken)
     {
         var orders = _db.Orders
-            .Where(order => order.UserId == userId && (order.IsPaid || order.Status == OrderStatuses.Delivered));
+            .WithRecognizedRevenue()
+            .Where(order => order.UserId == userId);
 
         var totalOrders = await orders.CountAsync(cancellationToken);
         var totalSpent = totalOrders == 0 ? 0 : await orders.SumAsync(order => order.TotalAmount, cancellationToken);

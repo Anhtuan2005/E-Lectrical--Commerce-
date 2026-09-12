@@ -186,13 +186,11 @@ public class AdminProductController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteCategory(int id)
     {
-        var category = await _db.Categories.FindAsync(id);
-        if (category is not null)
-        {
-            _db.Categories.Remove(category);
-            await _db.SaveChangesAsync();
-            TempData["Success"] = "Đã xoá danh mục.";
-        }
+        var result = await CategoryDeletion.DeleteAsync(_db, id);
+        if (result == CategoryDeleteResult.NotFound) return NotFound();
+        TempData[result == CategoryDeleteResult.Deleted ? "Success" : "Error"] = result == CategoryDeleteResult.Deleted
+            ? "Đã xoá danh mục."
+            : "Không thể xoá danh mục còn sản phẩm, kể cả sản phẩm đã ẩn. Hãy chuyển sản phẩm sang danh mục khác trước.";
 
         return RedirectToAction(nameof(Index));
     }

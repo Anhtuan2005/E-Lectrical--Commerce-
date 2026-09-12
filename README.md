@@ -85,6 +85,10 @@ Các trường hợp được kiểm tra:
 - Chặn chuyển trạng thái ngược, xác nhận hàng loạt tranh với huỷ đơn; webhook GHN lặp/đến sai thứ tự.
 - Form sản phẩm cũ không ghi đè tồn kho; điều chỉnh kho đồng thời với checkout, rollback nếu không ghi được lịch sử.
 - Lọc theo giá sau giảm và làm tròn; dashboard/báo cáo loại đơn huỷ, chờ hoàn và đã hoàn tiền.
+- Chặn tràn số lượng giỏ và checkout số lượng không dương; database cũng từ chối số lượng sai.
+- Cả hai đường xoá danh mục giữ nguyên sản phẩm/lịch sử đơn, kể cả sản phẩm đã ẩn; khoá ngoại ngăn xoá dây chuyền.
+- Khoá/mở khoá/đổi quyền thu hồi cookie cũ; chặn tự khoá/tự gỡ Admin và hai admin thu hồi quyền của nhau đồng thời.
+- Đơn huỷ/hoàn tiền không tạo quyền lợi VIP; yêu cầu đổi trả đồng thời không vượt số lượng đã mua và không mở lại yêu cầu đã đóng.
 - Retry sau lỗi tạm thời không giữ entity từ transaction đã rollback.
 - Reset mật khẩu không hợp lệ giữ mật khẩu cũ; token hết hạn/dùng lại/dùng đồng thời; vô hiệu hóa các link còn lại sau khi reset.
 - Production không seed admin/demo; chặn bật demo nhầm môi trường.
@@ -165,6 +169,16 @@ Production: migrate trước, đặt secrets admin/dịch vụ, giữ `Demo:Enab
 - Sửa thông tin sản phẩm dùng `rowversion`; form cũ báo xung đột và yêu cầu tải lại. Nhập/xuất kho dùng số lượng tăng/giảm cùng lý do; cập nhật và lịch sử nằm trong một transaction.
 - Dashboard/báo cáo chỉ tính đơn đã thanh toán hoặc COD đã giao, loại đơn huỷ và mọi đơn có trạng thái hoàn tiền. Kỳ báo cáo theo ngày tạo đơn UTC. Tổng đơn gồm phí giao và trừ voucher; thống kê sản phẩm/danh mục là tiền hàng trước voucher và phí giao, nên không nhất thiết bằng tổng doanh thu.
 - Migration `HardenOrderLifecycleAndProductConcurrency` thêm phiên bản sản phẩm và hạn thanh toán. Đơn VNPAY cũ được đặt hạn bằng ngày tạo + 15 phút; worker sẽ xử lý đơn chưa trả tiền đã quá hạn khi ứng dụng khởi động.
+- Giỏ dùng phép cộng số lượng qua `long` để kiểm tra giới hạn tồn kho, checkout kiểm tra lại số lượng dương. Sản phẩm hết hàng được bỏ khỏi giỏ khi cập nhật số lượng thay vì lưu dòng có số lượng 0.
+- Xoá danh mục chỉ được phép khi không còn sản phẩm, bao gồm sản phẩm đã ẩn. Migration `ProtectQuantitiesAndOrderHistory` chuyển khoá ngoại danh mục/sản phẩm và sản phẩm/chi tiết đơn sang `Restrict`, thêm ràng buộc số lượng dương. Migration xoá dòng giỏ có số lượng không dương; nếu lịch sử đơn/hỗ trợ có số lượng sai thì dừng để đối soát, không tự sửa lịch sử.
+- Phân nhóm VIP dùng cùng quy tắc doanh thu với dashboard, loại đơn huỷ và mọi đơn có trạng thái hoàn tiền.
+
+## Quyền tài khoản và đổi trả
+
+- Khoá, mở khoá hoặc đổi vai trò làm mới security stamp; cookie cũ bị từ chối ở request xác thực tiếp theo. Mỗi request có đăng nhập kiểm tra tài khoản trong database, bao gồm trạng thái khoá. Người dùng phải đăng nhập lại sau khi mở khoá/cấp quyền.
+- Admin không tự khoá hoặc tự gỡ quyền. Các thay đổi quyền được tuần tự hoá bằng khoá role Admin trong transaction và kiểm tra lại người thực hiện, để hai admin không thể thu hồi quyền của nhau đồng thời hoặc làm mất admin hoạt động cuối cùng.
+- Tổng số lượng yêu cầu hỗ trợ đang xử lý và đổi trả đã hoàn tất không được vượt số đã mua. Yêu cầu bị từ chối giải phóng số lượng; bảo hành hoàn tất cho phép gửi yêu cầu mới sau này. Đổi trả hoàn tất được tính là đã dùng số lượng đổi trả đó.
+- Luồng hỗ trợ: mới gửi → đang xử lý → đã duyệt → hoàn tất; có nhánh chờ khách bổ sung hoặc từ chối. Hoàn tất/từ chối là trạng thái kết thúc, giữ nguyên ghi chú và thời điểm hoàn tất. Đây là quản lý yêu cầu; hoàn tiền, nhập hàng trả và gửi hàng thay thế vẫn cần xử lý nghiệp vụ riêng.
 
 Chi tiết quy tắc: [kiến trúc](docs/architecture.md).
 

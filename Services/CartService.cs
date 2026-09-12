@@ -60,17 +60,17 @@ public class CartService : ICartService
 
     public async Task AddAsync(int productId, int quantity, string? userId, string sessionId, CartItemGroupInput? group = null)
     {
+        if (quantity <= 0) throw new InvalidOperationException("Số lượng thêm vào giỏ phải lớn hơn 0.");
         var product = await _db.Products.FirstOrDefaultAsync(row => row.Id == productId);
         if (product is null || product.Stock <= 0)
         {
             throw new InvalidOperationException("Sản phẩm hiện không còn hàng.");
         }
 
-        quantity = Math.Max(1, quantity);
         var cart = await GetOrCreateCartAsync(userId, sessionId);
         var item = await _db.CartItems.FirstOrDefaultAsync(row => row.CartId == cart.Id && row.ProductId == productId);
         var currentQuantity = item?.Quantity ?? 0;
-        if (currentQuantity + quantity > product.Stock)
+        if (currentQuantity < 0 || (long)currentQuantity + quantity > product.Stock)
         {
             throw new InvalidOperationException($"Sản phẩm chỉ còn {product.Stock:N0} sản phẩm trong kho.");
         }
@@ -100,7 +100,7 @@ public class CartService : ICartService
             return;
         }
 
-        if (quantity <= 0)
+        if (quantity <= 0 || item.Product is null || item.Product.Stock <= 0)
         {
             _db.CartItems.Remove(item);
         }
@@ -154,6 +154,13 @@ public class CartService : ICartService
             {
                 if (userCart is null)
                 {
+                    foreach (var item in sessionCart.Items.ToList())
+                    {
+                        if (item.Quantity <= 0 || item.Product is null || item.Product.Stock <= 0)
+                            _db.CartItems.Remove(item);
+                        else
+                            item.Quantity = Math.Min(item.Quantity, item.Product.Stock);
+                    }
                     sessionCart.UserId = userId;
                     sessionCart.SessionId = null;
                     Touch(sessionCart);
@@ -163,6 +170,7 @@ public class CartService : ICartService
 
                 foreach (var sessionItem in sessionCart.Items)
                 {
+                    if (sessionItem.Quantity <= 0 || sessionItem.Product is null || sessionItem.Product.Stock <= 0) continue;
                     var targetItem = userCart.Items.FirstOrDefault(item => item.ProductId == sessionItem.ProductId);
                     if (targetItem is null)
                     {
@@ -179,7 +187,7 @@ public class CartService : ICartService
                     }
                     else
                     {
-                        targetItem.Quantity = Math.Min(targetItem.Quantity + sessionItem.Quantity, targetItem.Product?.Stock ?? targetItem.Quantity + sessionItem.Quantity);
+                        targetItem.Quantity = (int)Math.Min((long)Math.Max(0, targetItem.Quantity) + sessionItem.Quantity, sessionItem.Product.Stock);
                         if (string.IsNullOrWhiteSpace(targetItem.GroupKey) && !string.IsNullOrWhiteSpace(sessionItem.GroupKey))
                         {
                             targetItem.GroupKey = sessionItem.GroupKey;

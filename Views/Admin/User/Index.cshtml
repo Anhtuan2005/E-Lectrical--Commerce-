@@ -1,4 +1,5 @@
 @model IEnumerable<ApplicationUser>
+@using System.Security.Claims
 @{
     Layout = "_AdminLayout";
     ViewData["Title"] = "Quản lý người dùng";
@@ -14,6 +15,7 @@
             {
                 var userRoles = roles.GetValueOrDefault(user.Id) ?? new List<string>();
                 var locked = user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTimeOffset.UtcNow;
+                var isSelf = user.Id == User.FindFirstValue(ClaimTypes.NameIdentifier);
                 <tr>
                     <td>@user.FullName</td>
                     <td>@user.Email</td>
@@ -23,13 +25,14 @@
                     <td class="actions-cell">
                         <form action="/Admin/User/ToggleLock/@user.Id" method="post">
                             @Html.AntiForgeryToken()
-                            <button class="admin-link" type="submit">@(locked ? "Mở khoá" : "Khoá")</button>
+                            <input type="hidden" name="locked" value="@((!locked).ToString().ToLowerInvariant())" />
+                            <button class="admin-link" type="submit" disabled="@isSelf">@(locked ? "Mở khoá" : "Khoá")</button>
                         </form>
                         @if (userRoles.Contains("Admin"))
                         {
                             <form action="/Admin/User/RemoveAdmin/@user.Id" method="post">
                                 @Html.AntiForgeryToken()
-                                <button class="danger-link" type="submit">Gỡ Admin</button>
+                                <button class="danger-link" type="submit" disabled="@isSelf">Gỡ Admin</button>
                             </form>
                         }
                         else

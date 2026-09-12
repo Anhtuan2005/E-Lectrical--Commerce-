@@ -2,6 +2,7 @@
 @{
     Layout = "_AdminLayout";
     ViewData["Title"] = $"{Model.Type} #{Model.Id}";
+    var isClosed = Model.Status is ReturnWarrantyRequestStatuses.Completed or ReturnWarrantyRequestStatuses.Rejected;
 }
 
 <section class="admin-grid">
@@ -39,14 +40,15 @@
             <input type="hidden" name="id" value="@Model.Id" />
             <label>Trạng thái</label>
             <select name="status">
-                @foreach (var status in ReturnWarrantyRequestStatuses.All)
+                @foreach (var status in ReturnWarrantyRequestStatuses.All.Where(status => EcommerceApp.Services.ReturnRequestLifecycle.CanTransition(Model.Status, status)))
                 {
                     <option value="@status" selected="@(Model.Status == status)">@status</option>
                 }
             </select>
             <label>Ghi chú gửi cho khách</label>
-            <textarea name="adminNote" rows="5" placeholder="VD: Techvora đã tiếp nhận, vui lòng gửi thêm ảnh số serial...">@Model.AdminNote</textarea>
-            <button class="admin-button" type="submit">Lưu trạng thái</button>
+            <textarea name="adminNote" rows="5" maxlength="1200" readonly="@isClosed" placeholder="VD: Techvora đã tiếp nhận, vui lòng gửi thêm ảnh số serial...">@Model.AdminNote</textarea>
+            <button class="admin-button" type="submit" disabled="@isClosed">Lưu trạng thái</button>
+            @if (isClosed) { <p>Yêu cầu đã đóng; trạng thái và ghi chú được giữ lại để tra cứu.</p> }
         </form>
     </div>
 </section>

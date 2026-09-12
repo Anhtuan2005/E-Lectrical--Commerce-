@@ -1,8 +1,10 @@
 using EcommerceApp.Models;
+using EcommerceApp.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace EcommerceApp.Controllers.Admin;
 
@@ -12,11 +14,13 @@ public class AdminUserController : Controller
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<AdminUserController> _logger;
+    private readonly AdminUserAccessService _access;
 
-    public AdminUserController(UserManager<ApplicationUser> userManager, ILogger<AdminUserController> logger)
+    public AdminUserController(UserManager<ApplicationUser> userManager, ILogger<AdminUserController> logger, AdminUserAccessService access)
     {
         _userManager = userManager;
         _logger = logger;
+        _access = access;
     }
 
     [HttpGet("")]
@@ -35,17 +39,10 @@ public class AdminUserController : Controller
 
     [HttpPost("ToggleLock/{id}")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> ToggleLock(string id)
+    public async Task<IActionResult> ToggleLock(string id, bool? locked)
     {
-        var user = await _userManager.FindByIdAsync(id);
-        if (user is not null)
-        {
-            var isLocked = user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTimeOffset.UtcNow;
-            await _userManager.SetLockoutEndDateAsync(user, isLocked ? null : DateTimeOffset.UtcNow.AddYears(10));
-            TempData["Success"] = isLocked ? "Đã mở khoá tài khoản." : "Đã khoá tài khoản.";
-            _logger.LogInformation("Admin {Admin} {Action} user {UserId}", User.Identity?.Name, isLocked ? "unlocked" : "locked", user.Id);
-        }
-
+        if (!locked.HasValue) return BadRequest();
+        Record(await _access.SetLockAsync(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "", id, locked.Value), id);
         return RedirectToAction(nameof(Index));
     }
 
@@ -53,14 +50,7 @@ public class AdminUserController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> MakeAdmin(string id)
     {
-        var user = await _userManager.FindByIdAsync(id);
-        if (user is not null && !await _userManager.IsInRoleAsync(user, "Admin"))
-        {
-            await _userManager.AddToRoleAsync(user, "Admin");
-            TempData["Success"] = "Đã cấp quyền Admin.";
-            _logger.LogInformation("Admin {Admin} granted Admin role to user {UserId}", User.Identity?.Name, user.Id);
-        }
-
+        Record(await _access.SetAdminAsync(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "", id, true), id);
         return RedirectToAction(nameof(Index));
     }
 
@@ -68,14 +58,13 @@ public class AdminUserController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RemoveAdmin(string id)
     {
-        var user = await _userManager.FindByIdAsync(id);
-        if (user is not null && await _userManager.IsInRoleAsync(user, "Admin"))
-        {
-            await _userManager.RemoveFromRoleAsync(user, "Admin");
-            TempData["Success"] = "Đã gỡ quyền Admin.";
-            _logger.LogInformation("Admin {Admin} removed Admin role from user {UserId}", User.Identity?.Name, user.Id);
-        }
-
+        Record(await _access.SetAdminAsync(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "", id, false), id);
         return RedirectToAction(nameof(Index));
+    }
+
+    private void Record(UserAccessResult result, string userId)
+    {
+        TempData[result.Succeeded ? "Success" : "Error"] = result.Message;
+        if (result.Succeeded) _logger.LogInformation("Admin {Admin} updated access for user {UserId}: {Result}", User.Identity?.Name, userId, result.Message);
     }
 }

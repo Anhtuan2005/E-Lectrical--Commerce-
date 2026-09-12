@@ -50,6 +50,8 @@ erDiagram
 - Callback kiểm tra chữ ký, số tiền, phương thức. Đơn đã trả tiền không phát lại email trạng thái.
 - Reset mật khẩu khóa user, kiểm tra lại token, dùng Identity để đổi mật khẩu và vô hiệu hóa các token còn lại trong cùng transaction.
 - Email và SignalR ở ngoài phần retry.
+- `CategoryDeletion` được cả hai controller dùng chung, kiểm tra cả sản phẩm đã ẩn trong transaction serializable. Khoá ngoại `Restrict` từ Product → Category và OrderItem → Product bảo vệ lịch sử khi một đường ghi khác bỏ qua service.
+- Cart kiểm tra tổng số lượng bằng `long` trước khi ghi `int`; checkout từ chối Quantity ≤ 0. Check constraint ở CartItem, OrderItem và ReturnWarrantyRequestItem bổ sung lớp bảo vệ tại database.
 
 Integration test tạo database mới, chạy migration và dùng nhiều scope/connection để kiểm tra cạnh tranh. Đối soát commit không rõ kết quả và transactional outbox là các bước phát triển tiếp.
 
@@ -68,6 +70,12 @@ Khách chỉ huỷ đơn chờ thanh toán/chờ xác nhận. Gán vận chuyể
 `PaymentExpiresAt` lưu UTC, cố định 15 phút từ checkout. URL VNPAY dùng cùng hạn theo UTC+7. Worker chạy ngay khi khởi động và mỗi 30 giây, lấy tối đa 100 đơn quá hạn rồi khóa/kiểm tra lại từng đơn. Thanh toán, huỷ và hết hạn cùng tranh một khóa; chỉ lần chuyển sang huỷ đầu tiên mới hoàn kho. Callback đến sau hạn tự huỷ trước khi ghi nhận `IsPaid` và `PendingManual`, kể cả khi worker chưa quét. Không đổi `IsPaid` thành false sau hoàn tiền vì đây là lịch sử nhận thanh toán.
 
 `RevenueQueries` định nghĩa chung cho dashboard, báo cáo và xếp hạng bán chạy: đơn chưa huỷ, không chờ/đã hoàn tiền, và đã trả tiền hoặc đã giao COD. Kỳ thống kê dùng `CreatedAt` UTC; đây là báo cáo bán hàng theo đơn, chưa phải sổ kế toán tiền vào/ra theo ngày đối soát. Thống kê sản phẩm dùng `UnitPrice × Quantity`, chưa phân bổ voucher/phí giao của đơn.
+
+## Tài khoản và hậu mãi
+
+`AdminUserAccessService` khoá role Admin bằng `UPDLOCK, HOLDLOCK`, kiểm tra lại quyền/trạng thái của actor và không cho tự khoá/gỡ quyền. Cập nhật Identity và security stamp nằm trong một transaction; lỗi Identity làm rollback toàn bộ. `ApplicationCookieEvents` xác minh stamp và trạng thái khoá ở mỗi request có đăng nhập, rồi giữ cơ chế gia hạn cookie của Identity. Điều này thêm truy vấn database cho mỗi request nhưng bảo đảm quyền cũ không chờ đến chu kỳ refresh mặc định mới mất hiệu lực.
+
+`ReturnWarrantyRequestService` khoá order trước khi kiểm tra tổng số lượng và tạo/cập nhật yêu cầu. Số lượng giữ chỗ là tổng yêu cầu chưa bị từ chối, trừ bảo hành đã hoàn tất. Đổi trả hoàn tất vẫn tiêu thụ số lượng; bảo hành có thể lặp sau khi yêu cầu trước kết thúc. `ReturnRequestLifecycle` giới hạn chuyển trạng thái; lặp trạng thái hoàn tất không thay đổi CompletedAt hay ghi chú. UI hiển thị số lượng còn có thể yêu cầu nhưng service luôn kiểm tra lại dưới khoá để xử lý cạnh tranh.
 
 ## Smart PC Builder
 

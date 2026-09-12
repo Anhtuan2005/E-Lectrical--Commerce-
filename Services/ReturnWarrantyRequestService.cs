@@ -42,6 +42,7 @@ public class ReturnWarrantyRequestService : IReturnWarrantyRequestService
         {
             return null;
         }
+        var reserved = await ReservedQuantitiesAsync(order.Id);
 
         return new ReturnWarrantyRequestCreateViewModel
         {
@@ -52,8 +53,9 @@ public class ReturnWarrantyRequestService : IReturnWarrantyRequestService
             Items = order.Items.Select(item => new ReturnWarrantyRequestItemInput
             {
                 OrderItemId = item.Id,
-                Selected = true,
-                Quantity = item.Quantity
+                Selected = item.Quantity > reserved.GetValueOrDefault(item.Id),
+                AvailableQuantity = (int)Math.Max(0, item.Quantity - reserved.GetValueOrDefault(item.Id)),
+                Quantity = (int)Math.Max(1, item.Quantity - reserved.GetValueOrDefault(item.Id))
             }).ToList()
         };
     }
@@ -61,90 +63,75 @@ public class ReturnWarrantyRequestService : IReturnWarrantyRequestService
     public async Task<ReturnWarrantyRequest> CreateAsync(string userId, ReturnWarrantyRequestCreateViewModel model)
     {
         if (!ReturnWarrantyRequestTypes.All.Contains(model.Type))
-        {
             throw new InvalidOperationException("Loại yêu cầu không hợp lệ.");
-        }
-
-        var order = await LoadUserDeliveredOrder(model.OrderId, userId).FirstOrDefaultAsync()
-            ?? throw new InvalidOperationException("Chỉ có thể gửi yêu cầu cho đơn hàng đã giao.");
-
-        var selectedInputs = model.Items
-            .Where(item => item.Selected)
-            .ToDictionary(item => item.OrderItemId, item => Math.Max(1, item.Quantity));
-
+        var selectedInputs = model.Items.Where(item => item.Selected).ToList();
         if (selectedInputs.Count == 0)
-        {
             throw new InvalidOperationException("Vui lòng chọn ít nhất một sản phẩm cần hỗ trợ.");
-        }
+        if (selectedInputs.Any(item => item.Quantity <= 0 || item.OrderItemId <= 0) ||
+            selectedInputs.Select(item => item.OrderItemId).Distinct().Count() != selectedInputs.Count)
+            throw new InvalidOperationException("Mỗi sản phẩm chỉ được chọn một lần và số lượng phải lớn hơn 0.");
 
         var imageFiles = (model.Images ?? new List<IFormFile>()).Where(file => file.Length > 0).Take(MaxEvidenceImages + 1).ToList();
         var imageError = ValidateImages(imageFiles);
-        if (!string.IsNullOrWhiteSpace(imageError))
-        {
-            throw new InvalidOperationException(imageError);
-        }
-
-        var request = new ReturnWarrantyRequest
-        {
-            UserId = userId,
-            OrderId = order.Id,
-            Type = model.Type,
-            ContactName = model.ContactName.Trim(),
-            ContactPhone = model.ContactPhone.Trim(),
-            Reason = model.Reason.Trim(),
-            Description = model.Description.Trim(),
-            PreferredResolution = string.IsNullOrWhiteSpace(model.PreferredResolution)
-                ? "Liên hệ tư vấn phương án phù hợp"
-                : model.PreferredResolution.Trim()
-        };
-
-        foreach (var orderItem in order.Items)
-        {
-            if (!selectedInputs.TryGetValue(orderItem.Id, out var requestedQuantity))
-            {
-                continue;
-            }
-
-            request.Items.Add(new ReturnWarrantyRequestItem
-            {
-                OrderItemId = orderItem.Id,
-                ProductId = orderItem.ProductId,
-                ProductNameSnapshot = orderItem.Product?.Name ?? $"Sản phẩm #{orderItem.ProductId}",
-                Quantity = Math.Clamp(requestedQuantity, 1, orderItem.Quantity)
-            });
-        }
-
-        if (!request.Items.Any())
-        {
-            throw new InvalidOperationException("Không tìm thấy sản phẩm hợp lệ trong đơn hàng.");
-        }
-
+        if (!string.IsNullOrWhiteSpace(imageError)) throw new InvalidOperationException(imageError);
+        // Validate ownership before writing files, then recheck quantities while holding the order lock.
+        if (!await LoadUserDeliveredOrder(model.OrderId, userId).AnyAsync())
+            throw new InvalidOperationException("Chỉ có thể gửi yêu cầu cho đơn hàng đã giao.");
         var savedImages = await SaveImagesAsync(imageFiles);
-        foreach (var image in savedImages.Select((url, index) => new ReturnWarrantyRequestImage { ImageUrl = url, SortOrder = index }))
+        var request = await DatabaseTransaction.ExecuteAsync(_db, async () =>
         {
-            request.Images.Add(image);
-        }
+            var order = await OrderLifecycle.LoadForUpdateAsync(_db, model.OrderId);
+            if (order is null || order.UserId != userId || order.Status != OrderStatuses.Delivered)
+                throw new InvalidOperationException("Chỉ có thể gửi yêu cầu cho đơn hàng đã giao.");
+            var orderItems = await _db.OrderItems.IgnoreQueryFilters().Include(item => item.Product)
+                .Where(item => item.OrderId == order.Id).ToDictionaryAsync(item => item.Id);
+            var reserved = await ReservedQuantitiesAsync(order.Id);
+            var current = new ReturnWarrantyRequest
+            {
+                UserId = userId, OrderId = order.Id, Type = model.Type,
+                ContactName = model.ContactName.Trim(), ContactPhone = model.ContactPhone.Trim(),
+                Reason = model.Reason.Trim(), Description = model.Description.Trim(),
+                PreferredResolution = string.IsNullOrWhiteSpace(model.PreferredResolution)
+                    ? "Liên hệ tư vấn phương án phù hợp" : model.PreferredResolution.Trim()
+            };
+            foreach (var input in selectedInputs)
+            {
+                if (!orderItems.TryGetValue(input.OrderItemId, out var item))
+                    throw new InvalidOperationException("Sản phẩm được chọn không thuộc đơn hàng này.");
+                var available = item.Quantity - reserved.GetValueOrDefault(item.Id);
+                if (input.Quantity > available)
+                    throw new InvalidOperationException($"Sản phẩm '{item.Product?.Name}' còn {Math.Max(0, available)} sản phẩm có thể gửi yêu cầu. Số lượng còn lại đã có yêu cầu đang xử lý hoặc đã đổi trả.");
+                current.Items.Add(new ReturnWarrantyRequestItem
+                {
+                    OrderItemId = item.Id, ProductId = item.ProductId, Quantity = input.Quantity,
+                    ProductNameSnapshot = item.Product?.Name ?? $"Sản phẩm #{item.ProductId}"
+                });
+            }
+            foreach (var image in savedImages.Select((url, index) => new ReturnWarrantyRequestImage { ImageUrl = url, SortOrder = index }))
+                current.Images.Add(image);
+            _db.ReturnWarrantyRequests.Add(current);
+            await _db.SaveChangesAsync();
+            return current;
+        });
 
-        _db.ReturnWarrantyRequests.Add(request);
-        await _db.SaveChangesAsync();
-
-        var userLink = $"/ReturnWarranty/Details/{request.Id}";
-        var adminLink = $"/Admin/ReturnWarranty/{request.Id}";
-        await _notificationService.CreateAsync(
-            userId,
-            $"Đã nhận yêu cầu {request.Type.ToLowerInvariant()}",
-            $"Techvora đã nhận yêu cầu cho đơn #DH{order.Id:D4} và sẽ phản hồi sau khi kiểm tra.",
-            NotificationTypes.Support,
-            userLink);
-        await _notificationService.CreateForAdminsAsync(
-            $"Yêu cầu {request.Type.ToLowerInvariant()} mới",
-            $"Đơn #DH{order.Id:D4} vừa có yêu cầu {request.Type.ToLowerInvariant()} từ {order.User?.FullName ?? order.User?.Email ?? "khách hàng"}.",
-            NotificationTypes.Support,
-            adminLink);
-
-        _logger.LogInformation("User {UserId} created return/warranty request {RequestId} for order {OrderId}", userId, request.Id, order.Id);
+        await _notificationService.CreateAsync(userId, $"Đã nhận yêu cầu {request.Type.ToLowerInvariant()}",
+            $"Techvora đã nhận yêu cầu cho đơn #DH{request.OrderId:D4} và sẽ phản hồi sau khi kiểm tra.",
+            NotificationTypes.Support, $"/ReturnWarranty/Details/{request.Id}");
+        await _notificationService.CreateForAdminsAsync($"Yêu cầu {request.Type.ToLowerInvariant()} mới",
+            $"Đơn #DH{request.OrderId:D4} vừa có yêu cầu {request.Type.ToLowerInvariant()} từ {request.ContactName}.",
+            NotificationTypes.Support, $"/Admin/ReturnWarranty/{request.Id}");
+        _logger.LogInformation("User {UserId} created return/warranty request {RequestId} for order {OrderId}", userId, request.Id, request.OrderId);
         return request;
     }
+
+    private Task<Dictionary<int, long>> ReservedQuantitiesAsync(int orderId) => _db.ReturnWarrantyRequestItems
+        .IgnoreQueryFilters()
+        .Where(item => item.ReturnWarrantyRequest!.OrderId == orderId &&
+            item.ReturnWarrantyRequest.Status != ReturnWarrantyRequestStatuses.Rejected &&
+            (item.ReturnWarrantyRequest.Type == ReturnWarrantyRequestTypes.Return ||
+             item.ReturnWarrantyRequest.Status != ReturnWarrantyRequestStatuses.Completed))
+        .GroupBy(item => item.OrderItemId)
+        .ToDictionaryAsync(group => group.Key, group => group.Sum(item => (long)item.Quantity));
 
     public async Task<IReadOnlyList<ReturnWarrantyRequest>> GetUserRequestsAsync(string userId)
     {
@@ -200,40 +187,41 @@ public class ReturnWarrantyRequestService : IReturnWarrantyRequestService
 
     public async Task<bool> UpdateStatusAsync(int id, string status, string? adminNote)
     {
-        if (!ReturnWarrantyRequestStatuses.All.Contains(status))
+        if (!ReturnWarrantyRequestStatuses.All.Contains(status) || adminNote?.Length > 1200) return false;
+        var change = await DatabaseTransaction.ExecuteAsync<(ReturnWarrantyRequest Request, bool Changed)?>(_db, async () =>
         {
-            return false;
-        }
-
-        var request = await _db.ReturnWarrantyRequests.Include(row => row.Order).FirstOrDefaultAsync(row => row.Id == id);
-        if (request is null)
-        {
-            return false;
-        }
-
-        var oldStatus = request.Status;
-        request.Status = status;
-        request.AdminNote = string.IsNullOrWhiteSpace(adminNote) ? null : adminNote.Trim();
-        request.UpdatedAt = DateTime.UtcNow;
-        if (status != ReturnWarrantyRequestStatuses.Submitted)
-        {
+            var orderId = await _db.ReturnWarrantyRequests.Where(request => request.Id == id)
+                .Select(request => (int?)request.OrderId).SingleOrDefaultAsync();
+            if (orderId is null || await OrderLifecycle.LoadForUpdateAsync(_db, orderId.Value) is null) return null;
+            var request = await _db.ReturnWarrantyRequests.SingleOrDefaultAsync(row => row.Id == id);
+            if (request is null || !ReturnRequestLifecycle.CanTransition(request.Status, status)) return null;
+            if (request.Status == status)
+            {
+                if (status is not (ReturnWarrantyRequestStatuses.Completed or ReturnWarrantyRequestStatuses.Rejected))
+                {
+                    request.AdminNote = string.IsNullOrWhiteSpace(adminNote) ? null : adminNote.Trim();
+                    request.UpdatedAt = DateTime.UtcNow;
+                    await _db.SaveChangesAsync();
+                }
+                return (request, false);
+            }
+            request.Status = status;
+            request.AdminNote = string.IsNullOrWhiteSpace(adminNote) ? null : adminNote.Trim();
+            request.UpdatedAt = DateTime.UtcNow;
             request.ReviewedAt ??= DateTime.UtcNow;
-        }
-
-        request.CompletedAt = status == ReturnWarrantyRequestStatuses.Completed ? DateTime.UtcNow : null;
-        await _db.SaveChangesAsync();
-
-        if (oldStatus != status)
+            if (status == ReturnWarrantyRequestStatuses.Completed) request.CompletedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+            return (request, true);
+        });
+        if (change is null) return false;
+        var (request, changed) = change.Value;
+        if (changed)
         {
-            await _notificationService.CreateAsync(
-                request.UserId,
-                $"Yêu cầu {request.Type.ToLowerInvariant()} đã cập nhật",
+            await _notificationService.CreateAsync(request.UserId, $"Yêu cầu {request.Type.ToLowerInvariant()} đã cập nhật",
                 $"Yêu cầu #{request.Id} cho đơn #DH{request.OrderId:D4} hiện ở trạng thái: {request.Status}.",
-                NotificationTypes.Support,
-                $"/ReturnWarranty/Details/{request.Id}");
+                NotificationTypes.Support, $"/ReturnWarranty/Details/{request.Id}");
+            _logger.LogInformation("Admin updated return/warranty request {RequestId} to {Status}", id, status);
         }
-
-        _logger.LogInformation("Admin updated return/warranty request {RequestId} to {Status}", id, status);
         return true;
     }
 

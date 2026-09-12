@@ -63,6 +63,8 @@ public class OrderService : IOrderService
 
             foreach (var item in checkoutItems)
             {
+                if (item.Quantity <= 0)
+                    throw new InvalidOperationException("Số lượng sản phẩm trong giỏ không hợp lệ. Vui lòng xoá sản phẩm và thêm lại.");
                 if (item.Product is null || item.Product.Stock < item.Quantity)
                 {
                     throw new InvalidOperationException($"Sản phẩm '{item.Product?.Name ?? "không xác định"}' không đủ hàng. Còn {item.Product?.Stock ?? 0} sản phẩm.");

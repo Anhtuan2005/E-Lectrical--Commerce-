@@ -69,6 +69,16 @@ public class ReturnWarrantyController : Controller
         {
             model.Items = baseModel.Items;
         }
+        var availableItems = baseModel.Items.ToDictionary(item => item.OrderItemId);
+        if (model.Items.Any(item => !availableItems.ContainsKey(item.OrderItemId)) ||
+            model.Items.Select(item => item.OrderItemId).Distinct().Count() != model.Items.Count)
+        {
+            model.Items = baseModel.Items;
+            foreach (var key in ModelState.Keys.Where(key => key.StartsWith("Items", StringComparison.OrdinalIgnoreCase)).ToList())
+                ModelState.Remove(key);
+            ModelState.AddModelError(string.Empty, "Danh sách sản phẩm không hợp lệ. Vui lòng chọn lại sản phẩm thuộc đơn hàng.");
+        }
+        foreach (var item in model.Items) item.AvailableQuantity = availableItems[item.OrderItemId].AvailableQuantity;
 
         if (!ModelState.IsValid)
         {

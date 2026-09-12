@@ -41,6 +41,8 @@ public class ReturnWarrantyRequestItemInput
     public int OrderItemId { get; set; }
     public bool Selected { get; set; }
     public int Quantity { get; set; } = 1;
+    [Microsoft.AspNetCore.Mvc.ModelBinding.BindNever]
+    public int AvailableQuantity { get; set; }
 }
 
 public class UserReturnWarrantyRequestsViewModel

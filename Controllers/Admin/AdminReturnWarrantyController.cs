@@ -35,7 +35,7 @@ public class AdminReturnWarrantyController : Controller
         var updated = await _requestService.UpdateStatusAsync(id, status, adminNote);
         TempData[updated ? "Success" : "Error"] = updated
             ? "Đã cập nhật trạng thái yêu cầu."
-            : "Không thể cập nhật yêu cầu.";
+            : "Không thể chuyển yêu cầu sang trạng thái này. Hãy kiểm tra trạng thái hiện tại và ghi chú (tối đa 1.200 ký tự).";
 
         return RedirectToAction(nameof(Details), new { id });
     }

@@ -1153,7 +1153,7 @@ function initDetailAddToCart() {
     }
   }
 
-  function addDetailProduct(redirectToCheckout, source) {
+  function addDetailProduct(source) {
     if (!source || source.disabled) return;
     var qty = clampQuantity(input);
     setBusy(source, true);
@@ -1164,10 +1164,6 @@ function initDetailAddToCart() {
           return;
         }
         updateCartBadges(data);
-        if (redirectToCheckout) {
-          window.location.href = "/Order/Checkout?selectedProductIds=" + encodeURIComponent(source.dataset.productId);
-          return;
-        }
         if (!showCartOffersAfterAdd(data)) {
           showToast(data.message, "success");
         }
@@ -1182,13 +1178,16 @@ function initDetailAddToCart() {
 
   addButtons.forEach(function (button) {
     button.addEventListener("click", function () {
-      addDetailProduct(false, button);
+      addDetailProduct(button);
     });
   });
 
   buyButtons.forEach(function (button) {
     button.addEventListener("click", function () {
-      addDetailProduct(true, button);
+      if (button.disabled) return;
+      var qty = clampQuantity(input);
+      window.location.href = "/Order/Checkout?buyNowProductId=" + encodeURIComponent(button.dataset.productId)
+        + "&buyNowQuantity=" + encodeURIComponent(qty);
     });
   });
 }
@@ -1621,6 +1620,8 @@ function initVoucher() {
     if (!input || !message) return;
     var body = new URLSearchParams();
     body.append("code", input.value);
+    var checkoutTotal = document.getElementById("checkoutTotal");
+    if (checkoutTotal) body.append("subtotalOverride", checkoutTotal.dataset.subtotal || "0");
     fetch("/Voucher/Validate", {
       method: "POST",
       headers: {
@@ -1676,6 +1677,10 @@ function updateCheckoutShippingFee() {
   document.querySelectorAll('input[name="SelectedProductIds"]').forEach(function (input) {
     if (input.value) query.append("selectedProductIds", input.value);
   });
+  var buyNowProductId = document.getElementById("BuyNowProductId");
+  var buyNowQuantity = document.getElementById("BuyNowQuantity");
+  if (buyNowProductId && buyNowProductId.value) query.append("buyNowProductId", buyNowProductId.value);
+  if (buyNowQuantity && buyNowQuantity.value) query.append("buyNowQuantity", buyNowQuantity.value);
 
   fetch("/Order/ShippingFee?" + query.toString(), { headers: { Accept: "application/json" } })
     .then(function (response) { return response.json(); })
@@ -2193,6 +2198,13 @@ function initAddressDropdowns() {
   var street = document.getElementById("Street");
   if (!province || !district || !ward) return;
 
+  // This checkout uses the three-level province/district/ward address format.
+  var addressApiBase = "https://provinces.open-api.vn/api/v1";
+  var addressCache = {
+    provinces: null,
+    districtsByProvince: {},
+    wardsByDistrict: {}
+  };
   var currentProvince = province.dataset.current || province.value;
   var currentDistrict = district.dataset.current || district.value;
   var currentWard = ward.dataset.current || ward.value;

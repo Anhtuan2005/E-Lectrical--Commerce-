@@ -38,27 +38,51 @@ public class OrderService : IOrderService
     {
         var order = await DatabaseTransaction.ExecuteAsync(_db, async () =>
         {
-            var cart = await _cartService.GetCartEntityAsync(userId, sessionId);
-            if (cart is null || !cart.Items.Any())
+            Cart? cart = null;
+            List<CartItem> checkoutItems;
+            if (model.BuyNowProductId.HasValue)
             {
-                throw new InvalidOperationException("Giỏ hàng đang trống.");
-            }
+                var quantity = model.BuyNowQuantity ?? 0;
+                if (model.BuyNowProductId.Value <= 0 || quantity <= 0)
+                {
+                    throw new InvalidOperationException("Sản phẩm mua ngay không hợp lệ.");
+                }
 
-            var selectedProductIds = model.SelectedProductIds
-                .Where(id => id > 0)
-                .Distinct()
-                .ToHashSet();
-            if (!selectedProductIds.Any())
-            {
-                throw new InvalidOperationException("Vui lòng chọn sản phẩm cần thanh toán.");
-            }
+                var product = await _db.Products.FirstOrDefaultAsync(row => row.Id == model.BuyNowProductId.Value);
+                if (product is null || product.Stock < quantity)
+                {
+                    throw new InvalidOperationException($"Sản phẩm mua ngay không đủ hàng. Còn {product?.Stock ?? 0} sản phẩm.");
+                }
 
-            var checkoutItems = cart.Items
-                .Where(item => selectedProductIds.Contains(item.ProductId))
-                .ToList();
-            if (!checkoutItems.Any())
+                checkoutItems = new List<CartItem>
+                {
+                    new() { ProductId = product.Id, Product = product, Quantity = quantity }
+                };
+            }
+            else
             {
-                throw new InvalidOperationException("Các sản phẩm đã chọn không còn trong giỏ hàng.");
+                cart = await _cartService.GetCartEntityAsync(userId, sessionId);
+                if (cart is null || !cart.Items.Any())
+                {
+                    throw new InvalidOperationException("Giỏ hàng đang trống.");
+                }
+
+                var selectedProductIds = model.SelectedProductIds
+                    .Where(id => id > 0)
+                    .Distinct()
+                    .ToHashSet();
+                if (!selectedProductIds.Any())
+                {
+                    throw new InvalidOperationException("Vui lòng chọn sản phẩm cần thanh toán.");
+                }
+
+                checkoutItems = cart.Items
+                    .Where(item => selectedProductIds.Contains(item.ProductId))
+                    .ToList();
+                if (!checkoutItems.Any())
+                {
+                    throw new InvalidOperationException("Các sản phẩm đã chọn không còn trong giỏ hàng.");
+                }
             }
 
             foreach (var item in checkoutItems)
@@ -72,7 +96,9 @@ public class OrderService : IOrderService
             }
 
             var isVnpayOrder = IsVnpayPayment(model.PaymentMethod);
-            var crossSellUnitPrices = await _crossSellService.GetEligibleUnitPricesAsync(checkoutItems);
+            var crossSellUnitPrices = model.BuyNowProductId.HasValue
+                ? new Dictionary<int, decimal>()
+                : await _crossSellService.GetEligibleUnitPricesAsync(checkoutItems);
             var order = new Order
             {
                 PaymentExpiresAt = IsVnpayPayment(model.PaymentMethod) ? DateTime.UtcNow.Add(OrderLifecycle.PaymentWindow) : null,
@@ -176,8 +202,11 @@ public class OrderService : IOrderService
                 }
             }
 
-            _db.CartItems.RemoveRange(checkoutItems);
-            cart.UpdatedAt = DateTime.UtcNow;
+            if (cart is not null)
+            {
+                _db.CartItems.RemoveRange(checkoutItems);
+                cart.UpdatedAt = DateTime.UtcNow;
+            }
 
             try
             {

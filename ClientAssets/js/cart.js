@@ -50,7 +50,7 @@ function initDetailAddToCart() {
     }
   }
 
-  function addDetailProduct(redirectToCheckout, source) {
+  function addDetailProduct(source) {
     if (!source || source.disabled) return;
     var qty = clampQuantity(input);
     setBusy(source, true);
@@ -61,10 +61,6 @@ function initDetailAddToCart() {
           return;
         }
         updateCartBadges(data);
-        if (redirectToCheckout) {
-          window.location.href = "/Order/Checkout?selectedProductIds=" + encodeURIComponent(source.dataset.productId);
-          return;
-        }
         if (!showCartOffersAfterAdd(data)) {
           showToast(data.message, "success");
         }
@@ -79,13 +75,16 @@ function initDetailAddToCart() {
 
   addButtons.forEach(function (button) {
     button.addEventListener("click", function () {
-      addDetailProduct(false, button);
+      addDetailProduct(button);
     });
   });
 
   buyButtons.forEach(function (button) {
     button.addEventListener("click", function () {
-      addDetailProduct(true, button);
+      if (button.disabled) return;
+      var qty = clampQuantity(input);
+      window.location.href = "/Order/Checkout?buyNowProductId=" + encodeURIComponent(button.dataset.productId)
+        + "&buyNowQuantity=" + encodeURIComponent(qty);
     });
   });
 }

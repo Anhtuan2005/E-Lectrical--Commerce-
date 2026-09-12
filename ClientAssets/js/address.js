@@ -152,6 +152,13 @@ function initAddressDropdowns() {
   var street = document.getElementById("Street");
   if (!province || !district || !ward) return;
 
+  // This checkout uses the three-level province/district/ward address format.
+  var addressApiBase = "https://provinces.open-api.vn/api/v1";
+  var addressCache = {
+    provinces: null,
+    districtsByProvince: {},
+    wardsByDistrict: {}
+  };
   var currentProvince = province.dataset.current || province.value;
   var currentDistrict = district.dataset.current || district.value;
   var currentWard = ward.dataset.current || ward.value;

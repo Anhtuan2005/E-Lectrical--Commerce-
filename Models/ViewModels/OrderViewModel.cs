@@ -42,6 +42,11 @@ public class CheckoutViewModel
     public decimal ShippingFee { get; set; }
     public List<int> SelectedProductIds { get; set; } = new();
 
+    public int? BuyNowProductId { get; set; }
+
+    [Range(1, int.MaxValue, ErrorMessage = "Số lượng mua ngay phải lớn hơn 0")]
+    public int? BuyNowQuantity { get; set; }
+
     public CartViewModel Cart { get; set; } = new();
 
     public string? ProfileAddress { get; set; }

@@ -102,6 +102,10 @@ $env:TECHVORA_SMOKE_URL = "http://localhost:5009"
 npm run test:smoke
 ```
 
+Smoke test bao gồm chọn tỉnh/huyện/xã tại checkout và giữ lại lựa chọn sau lỗi validation. CI dùng phản hồi API địa chỉ cố định; để kiểm tra dịch vụ thật, đặt `$env:TECHVORA_ADDRESS_LIVE = "true"` rồi chạy `npx playwright test tests/browser/checkout-address.spec.mjs` trên bản demo.
+
+Checkout dùng [Province Open API v1](https://provinces.open-api.vn/) cho địa chỉ ba cấp trước sáp nhập 07/2025. Dữ liệu được tải từ trình duyệt nên cần kết nối tới dịch vụ này.
+
 Mặc định dùng Microsoft Edge đã cài. Máy không có Edge:
 
 ```powershell

@@ -79,7 +79,7 @@
     </section>
 
     <section class="usp-bar usp-premium reveal" tabindex="0" aria-label="Cam kết dịch vụ, cuộn ngang để xem thêm">
-        <div class="usp-item"><span class="usp-icon"><i data-lucide="truck" aria-hidden="true"></i></span><div><strong>Giao nhanh toàn quốc</strong><p>Miễn phí cho đơn từ 500.000 ₫</p></div></div>
+        <div class="usp-item"><span class="usp-icon"><i data-lucide="truck" aria-hidden="true"></i></span><div><strong>Giao nhanh toàn quốc</strong><p>Miễn phí từ <span class="usp-price">500.000&nbsp;₫</span></p></div></div>
         <div class="usp-item"><span class="usp-icon"><i data-lucide="refresh-cw" aria-hidden="true"></i></span><div><strong>Đổi trả 30 ngày</strong><p>Quy trình rõ ràng, phản hồi nhanh</p></div></div>
         <div class="usp-item"><span class="usp-icon"><i data-lucide="shield-check" aria-hidden="true"></i></span><div><strong>Bảo hành chính hãng</strong><p>12 tháng toàn quốc</p></div></div>
         <div class="usp-item"><span class="usp-icon"><i data-lucide="credit-card" aria-hidden="true"></i></span><div><strong>Thanh toán an toàn</strong><p>COD, Banking, VNPAY</p></div></div>
@@ -318,13 +318,23 @@
         <p class="why-us-tagline">Techvora gom sản phẩm, giá và hậu mãi vào một trải nghiệm mua sắm dễ quyết định.</p>
     </section>
 
-    <section class="section newsletter-cta reveal">
-        <span class="newsletter-icon"><i data-lucide="bell" aria-hidden="true"></i></span>
-        <h2>Deal đang có, xem ngay</h2>
-        <p>Khám phá sản phẩm đang giảm giá và chọn ưu đãi phù hợp, không cần để lại email.</p>
-        <a class="btn-primary newsletter-deal-link" asp-controller="Product" asp-action="Index" asp-route-sortBy="discount_desc">
-            <i data-lucide="tag" aria-hidden="true"></i>
-            Xem flash sale
-        </a>
+    <section class="section newsletter-cta reveal" aria-labelledby="home-deals-title">
+        <div class="newsletter-copy">
+            <div class="newsletter-eyebrow">
+                <span class="newsletter-icon"><i data-lucide="bell" aria-hidden="true"></i></span>
+                <span><span class="newsletter-live-dot" aria-hidden="true"></span>Flash sale Techvora</span>
+            </div>
+            <h2 id="home-deals-title">Deal đang có, chọn nhanh món phù hợp</h2>
+            <p>Sản phẩm đang giảm giá được xếp theo mức ưu đãi để bạn dễ so sánh và ra quyết định.</p>
+        </div>
+
+        <div class="newsletter-action">
+            <span class="newsletter-action-label">Danh sách đang sắp theo</span>
+            <strong>Mức giảm cao nhất</strong>
+            <a class="btn-primary newsletter-deal-link" asp-controller="Product" asp-action="Index" asp-route-sortBy="discount_desc">
+                Xem flash sale
+                <i data-lucide="arrow-right" aria-hidden="true"></i>
+            </a>
+        </div>
     </section>
 </section>

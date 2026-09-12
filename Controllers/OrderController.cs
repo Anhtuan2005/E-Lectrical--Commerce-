@@ -16,6 +16,7 @@ public class OrderController : Controller
     private readonly IShippingFeeService _shippingFeeService;
     private readonly IVnpayService _vnpayService;
     private readonly IGhnShippingService _ghnShippingService;
+    private readonly IProductService _productService;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<OrderController> _logger;
 
@@ -25,6 +26,7 @@ public class OrderController : Controller
         IShippingFeeService shippingFeeService,
         IVnpayService vnpayService,
         IGhnShippingService ghnShippingService,
+        IProductService productService,
         UserManager<ApplicationUser> userManager,
         ILogger<OrderController> logger)
     {
@@ -33,11 +35,15 @@ public class OrderController : Controller
         _shippingFeeService = shippingFeeService;
         _vnpayService = vnpayService;
         _ghnShippingService = ghnShippingService;
+        _productService = productService;
         _userManager = userManager;
         _logger = logger;
     }
 
-    public async Task<IActionResult> Checkout([FromQuery] int[] selectedProductIds)
+    public async Task<IActionResult> Checkout(
+        [FromQuery] int[] selectedProductIds,
+        [FromQuery] int? buyNowProductId,
+        [FromQuery] int? buyNowQuantity)
     {
         if (User.IsInRole("Admin"))
         {
@@ -46,14 +52,27 @@ public class OrderController : Controller
         }
 
         var selectedIds = NormalizeSelectedProductIds(selectedProductIds);
-        if (!selectedIds.Any())
+        CartViewModel? cart;
+        if (buyNowProductId.HasValue)
+        {
+            cart = await BuildBuyNowCartAsync(buyNowProductId.Value, buyNowQuantity ?? 1);
+            if (cart is null)
+            {
+                TempData["Error"] = "Sản phẩm mua ngay không hợp lệ hoặc không đủ hàng.";
+                return RedirectToAction("Detail", "Product", new { id = buyNowProductId.Value });
+            }
+        }
+        else if (!selectedIds.Any())
         {
             TempData["Error"] = "Vui lòng chọn sản phẩm cần thanh toán.";
             return RedirectToAction("Index", "Cart");
         }
+        else
+        {
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            cart = await _cartService.GetCartAsync(currentUserId, GetStableCartSessionId(currentUserId), selectedIds);
+        }
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var cart = await _cartService.GetCartAsync(userId, GetStableCartSessionId(userId), selectedIds);
         if (!cart.Items.Any())
         {
             TempData["Error"] = "Giỏ hàng đang trống.";
@@ -65,6 +84,8 @@ public class OrderController : Controller
         {
             Cart = cart,
             SelectedProductIds = selectedIds,
+            BuyNowProductId = buyNowProductId,
+            BuyNowQuantity = buyNowProductId.HasValue ? buyNowQuantity ?? 1 : null,
             RecipientName = user?.FullName ?? string.Empty,
             RecipientPhone = user?.PhoneNumber ?? string.Empty,
             ShippingFee = _shippingFeeService.Calculate(null, null, cart.Total).Fee,
@@ -73,7 +94,12 @@ public class OrderController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> ShippingFee(string? province, string? district, [FromQuery] int[] selectedProductIds)
+    public async Task<IActionResult> ShippingFee(
+        string? province,
+        string? district,
+        [FromQuery] int[] selectedProductIds,
+        [FromQuery] int? buyNowProductId,
+        [FromQuery] int? buyNowQuantity)
     {
         if (User.IsInRole("Admin"))
         {
@@ -92,7 +118,9 @@ public class OrderController : Controller
         }
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var cart = await _cartService.GetCartAsync(userId, GetStableCartSessionId(userId), NormalizeSelectedProductIds(selectedProductIds));
+        var cart = buyNowProductId.HasValue
+            ? await BuildBuyNowCartAsync(buyNowProductId.Value, buyNowQuantity ?? 1) ?? new CartViewModel()
+            : await _cartService.GetCartAsync(userId, GetStableCartSessionId(userId), NormalizeSelectedProductIds(selectedProductIds));
         var quote = _shippingFeeService.Calculate(province, district, cart.Total);
         var total = cart.Total + quote.Fee;
 
@@ -122,13 +150,25 @@ public class OrderController : Controller
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         model.SelectedProductIds = NormalizeSelectedProductIds(model.SelectedProductIds);
-        if (!model.SelectedProductIds.Any())
+        if (model.BuyNowProductId.HasValue)
+        {
+            model.SelectedProductIds.Clear();
+            model.Cart = await BuildBuyNowCartAsync(model.BuyNowProductId.Value, model.BuyNowQuantity ?? 0) ?? new CartViewModel();
+            if (!model.Cart.Items.Any())
+            {
+                ModelState.AddModelError(string.Empty, "Sản phẩm mua ngay không hợp lệ hoặc không đủ hàng.");
+            }
+        }
+        else if (!model.SelectedProductIds.Any())
         {
             TempData["Error"] = "Vui lòng chọn sản phẩm cần thanh toán.";
             return RedirectToAction("Index", "Cart");
         }
 
-        model.Cart = await _cartService.GetCartAsync(userId, GetStableCartSessionId(userId), model.SelectedProductIds);
+        else
+        {
+            model.Cart = await _cartService.GetCartAsync(userId, GetStableCartSessionId(userId), model.SelectedProductIds);
+        }
         if (!model.Cart.Items.Any())
         {
             TempData["Error"] = "Các sản phẩm đã chọn không còn trong giỏ hàng.";
@@ -278,6 +318,28 @@ public class OrderController : Controller
             .Where(id => id > 0)
             .Distinct()
             .ToList();
+    }
+
+    private async Task<CartViewModel?> BuildBuyNowCartAsync(int productId, int quantity)
+    {
+        if (productId <= 0 || quantity <= 0)
+        {
+            return null;
+        }
+
+        var product = await _productService.GetProductAsync(productId);
+        if (product is null || product.Stock < quantity)
+        {
+            return null;
+        }
+
+        return new CartViewModel
+        {
+            Items = new[]
+            {
+                new CartItem { ProductId = product.Id, Product = product, Quantity = quantity }
+            }
+        };
     }
 
     private string GetStableCartSessionId(string? userId)

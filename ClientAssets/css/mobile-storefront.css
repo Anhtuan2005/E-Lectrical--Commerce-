@@ -995,13 +995,14 @@
 
   .voucher-box div {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
   }
 
   .voucher-box .btn-ghost {
-    width: 100%;
+    width: auto;
     min-height: 42px;
+    white-space: nowrap;
   }
 }
 

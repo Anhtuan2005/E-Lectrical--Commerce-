@@ -18,9 +18,17 @@
 <section class="checkout-layout">
     <form asp-action="Checkout" method="post" class="form-panel checkout-form" id="checkoutForm" novalidate>
         @Html.AntiForgeryToken()
-        @foreach (var productId in Model.SelectedProductIds)
+        @if (Model.BuyNowProductId.HasValue)
         {
-            <input type="hidden" name="SelectedProductIds" value="@productId" />
+            <input asp-for="BuyNowProductId" type="hidden" />
+            <input asp-for="BuyNowQuantity" type="hidden" />
+        }
+        else
+        {
+            @foreach (var productId in Model.SelectedProductIds)
+            {
+                <input type="hidden" name="SelectedProductIds" value="@productId" />
+            }
         }
         <div class="checkout-head">
             <span class="eyebrow">Techvora Checkout</span>

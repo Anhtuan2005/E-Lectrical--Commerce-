@@ -16,6 +16,26 @@ namespace EcommerceApp.Tests;
 
 public sealed partial class OrderPaymentTests
 {
+    [Fact]
+    public async Task Buy_now_creates_the_requested_order_without_changing_existing_cart_quantity()
+    {
+        var (productId, users) = await SeedCartsAsync(5, 1);
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var model = Checkout(productId);
+        model.SelectedProductIds.Clear();
+        model.BuyNowProductId = productId;
+        model.BuyNowQuantity = 2;
+
+        var order = await CreateService(scope.ServiceProvider).CreateOrderAsync(users[0], model, "test");
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.ChangeTracker.Clear();
+
+        Assert.Equal(2, await db.OrderItems.Where(item => item.OrderId == order.Id).Select(item => item.Quantity).SingleAsync());
+        Assert.Equal(3, await db.Products.Where(product => product.Id == productId).Select(product => product.Stock).SingleAsync());
+        Assert.Equal(1, await db.CartItems.Where(item => item.Cart!.UserId == users[0] && item.ProductId == productId)
+            .Select(item => item.Quantity).SingleAsync());
+    }
+
     [Theory]
     [InlineData(int.MaxValue)]
     [InlineData(0)]

@@ -25,6 +25,8 @@ function initVoucher() {
     if (!input || !message) return;
     var body = new URLSearchParams();
     body.append("code", input.value);
+    var checkoutTotal = document.getElementById("checkoutTotal");
+    if (checkoutTotal) body.append("subtotalOverride", checkoutTotal.dataset.subtotal || "0");
     fetch("/Voucher/Validate", {
       method: "POST",
       headers: {
@@ -80,6 +82,10 @@ function updateCheckoutShippingFee() {
   document.querySelectorAll('input[name="SelectedProductIds"]').forEach(function (input) {
     if (input.value) query.append("selectedProductIds", input.value);
   });
+  var buyNowProductId = document.getElementById("BuyNowProductId");
+  var buyNowQuantity = document.getElementById("BuyNowQuantity");
+  if (buyNowProductId && buyNowProductId.value) query.append("buyNowProductId", buyNowProductId.value);
+  if (buyNowQuantity && buyNowQuantity.value) query.append("buyNowQuantity", buyNowQuantity.value);
 
   fetch("/Order/ShippingFee?" + query.toString(), { headers: { Accept: "application/json" } })
     .then(function (response) { return response.json(); })

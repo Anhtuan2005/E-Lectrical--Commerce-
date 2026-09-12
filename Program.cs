@@ -207,6 +207,8 @@ builder.Services.AddHttpClient<IAiChatService, GeminiChatService>(client =>
     client.Timeout = TimeSpan.FromSeconds(35);
 });
 builder.Services.AddHostedService<AbandonedCartRecoveryHostedService>();
+builder.Services.AddScoped<OrderPaymentExpiryService>();
+builder.Services.AddHostedService<OrderPaymentExpiryHostedService>();
 
 builder.Services.AddControllersWithViews();
 builder.Services.AddSignalR();

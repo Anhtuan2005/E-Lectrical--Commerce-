@@ -22,6 +22,7 @@ public class ProductViewModel
 public class ProductFormViewModel
 {
     public int Id { get; set; }
+    public string? RowVersion { get; set; }
 
     [Required(ErrorMessage = "Vui lòng nhập tên sản phẩm")]
     public string Name { get; set; } = string.Empty;

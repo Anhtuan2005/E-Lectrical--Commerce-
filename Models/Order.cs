@@ -46,6 +46,7 @@ public class Order
 
     public bool IsPaid { get; set; }
     public DateTime? PaidAt { get; set; }
+    public DateTime? PaymentExpiresAt { get; set; }
 
     [Required, StringLength(40)]
     public string RefundStatus { get; set; } = RefundStatuses.NotRequired;

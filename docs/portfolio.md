@@ -19,4 +19,4 @@ ASP.NET Core MVC, EF Core, SQL Server, ASP.NET Core Identity, JavaScript, Signal
 - Vì sao không xóa mật khẩu cũ trước khi xác thực mật khẩu mới?
 - Thiếu socket thì kết luận gì? Điểm hiệu năng được tính hay được đo?
 - Vì sao test SQL Server thật thay vì EF InMemory?
-- Giới hạn còn lại: outbox, đối soát commit, hết hạn đơn chưa trả tiền, kiểm thử tải?
+- Giới hạn còn lại: outbox, đối soát commit/GHN, kiểm thử tải? Có thể giải thích vì sao callback thanh toán đến sau hạn phải vào luồng hoàn tiền thay vì mở lại đơn.

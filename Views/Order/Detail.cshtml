@@ -262,7 +262,11 @@
                             <button class="btn-primary" type="submit">Mua lại</button>
                         </form>
                     }
-                    @if (!isAdminViewer && string.Equals(Model.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase) && !Model.IsPaid && (Model.Status == OrderStatuses.AwaitingPayment || Model.Status == OrderStatuses.Pending))
+                    @if (EcommerceApp.Services.OrderLifecycle.IsUnpaidVnpay(Model) && Model.Status is OrderStatuses.AwaitingPayment or OrderStatuses.Pending)
+                    {
+                        <p>Hạn thanh toán: @EcommerceApp.Services.OrderLifecycle.PaymentDeadline(Model).AddHours(7).ToString("dd/MM/yyyy HH:mm") (giờ Việt Nam). Hết hạn, đơn sẽ tự huỷ và hàng được trả về kho.</p>
+                    }
+                    @if (!isAdminViewer && string.Equals(Model.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase) && !Model.IsPaid && (Model.Status == OrderStatuses.AwaitingPayment || Model.Status == OrderStatuses.Pending) && !EcommerceApp.Services.OrderLifecycle.IsPaymentExpired(Model, DateTime.UtcNow))
                     {
                         <form asp-controller="Payment" asp-action="VnpayCreate" method="post">
                             @Html.AntiForgeryToken()

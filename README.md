@@ -81,6 +81,10 @@ Các trường hợp được kiểm tra:
 - Hai khách mua món cuối cùng hoặc tranh lượt voucher cuối.
 - Hủy đơn đồng thời chỉ hoàn tồn kho một lần.
 - Callback VNPAY lặp, callback sau khi hủy, cập nhật trạng thái admin.
+- Đơn VNPAY hết hạn: worker, khách huỷ và callback đến muộn tranh cùng một đơn; hoàn kho một lần, thanh toán muộn vào hàng chờ hoàn tiền.
+- Chặn chuyển trạng thái ngược, xác nhận hàng loạt tranh với huỷ đơn; webhook GHN lặp/đến sai thứ tự.
+- Form sản phẩm cũ không ghi đè tồn kho; điều chỉnh kho đồng thời với checkout, rollback nếu không ghi được lịch sử.
+- Lọc theo giá sau giảm và làm tròn; dashboard/báo cáo loại đơn huỷ, chờ hoàn và đã hoàn tiền.
 - Retry sau lỗi tạm thời không giữ entity từ transaction đã rollback.
 - Reset mật khẩu không hợp lệ giữ mật khẩu cũ; token hết hạn/dùng lại/dùng đồng thời; vô hiệu hóa các link còn lại sau khi reset.
 - Production không seed admin/demo; chặn bật demo nhầm môi trường.
@@ -154,12 +158,23 @@ VNPAY return: `/payment/vnpay-return`; IPN: `/payment/vnpay-ipn`. GHN webhook: `
 
 Production: migrate trước, đặt secrets admin/dịch vụ, giữ `Demo:Enabled=false`, cấu hình HTTPS/reverse proxy, lưu bền vững key và ảnh upload. Sau khi tạo admin, gỡ secrets bootstrap. Nếu database từng dùng demo, đổi mật khẩu hoặc vô hiệu hóa tài khoản demo trước khi triển khai. Health endpoints: `/health/live`, `/health/ready`.
 
+## Đơn hàng, tồn kho và doanh thu
+
+- VNPAY giữ hàng **15 phút từ lúc đặt đơn**. Thanh toán lại giữ nguyên hạn; worker quét mỗi 30 giây (tối đa 100 đơn/lượt), tự huỷ và hoàn kho khi quá hạn. Callback tự kiểm tra hạn ngay cả khi worker chưa chạy. Tiền đến sau hạn được ghi nhận để hoàn thủ công, không mở lại đơn.
+- Admin xác nhận đơn trước khi giao; đơn đã giao/huỷ không quay lại xử lý. VNPAY chưa trả tiền không được xác nhận hay gán vận chuyển. Vận đơn hoàn hàng/đã huỷ cần kiểm tra thực tế; webhook không tự hoàn kho khi hàng còn ở bên vận chuyển.
+- Sửa thông tin sản phẩm dùng `rowversion`; form cũ báo xung đột và yêu cầu tải lại. Nhập/xuất kho dùng số lượng tăng/giảm cùng lý do; cập nhật và lịch sử nằm trong một transaction.
+- Dashboard/báo cáo chỉ tính đơn đã thanh toán hoặc COD đã giao, loại đơn huỷ và mọi đơn có trạng thái hoàn tiền. Kỳ báo cáo theo ngày tạo đơn UTC. Tổng đơn gồm phí giao và trừ voucher; thống kê sản phẩm/danh mục là tiền hàng trước voucher và phí giao, nên không nhất thiết bằng tổng doanh thu.
+- Migration `HardenOrderLifecycleAndProductConcurrency` thêm phiên bản sản phẩm và hạn thanh toán. Đơn VNPAY cũ được đặt hạn bằng ngày tạo + 15 phút; worker sẽ xử lý đơn chưa trả tiền đã quá hạn khi ứng dụng khởi động.
+
+Chi tiết quy tắc: [kiến trúc](docs/architecture.md).
+
 ## Giới hạn hiện tại
 
 - Build PC dùng quy tắc và heuristic; điểm hiệu năng không phải benchmark. Socket/RAM chưa thay thế kiểm tra BIOS, kích thước, đầu cấp điện hay danh sách CPU mainboard hỗ trợ.
 - VNPAY/GHN/SMTP/Gemini cần credentials riêng; test giả lập adapter ngoài, không xác nhận giao dịch thật.
 - Hoàn tiền đang theo dõi/xác nhận thủ công; hóa đơn tạo cục bộ.
-- Đơn VNPAY chưa thanh toán chưa có job tự hết hạn/hoàn tồn kho; khách hoặc admin hủy đơn.
+- Worker hết hạn chạy trong ứng dụng; khi ứng dụng tắt, hàng được giải phóng ở lần khởi động tiếp theo. Thanh toán đến sau hạn vẫn xử lý theo luồng hoàn tiền thủ công.
+- Tạo vận đơn GHN và lưu database chưa có cơ chế đối soát tự động; nếu trạng thái đổi trong lúc gọi GHN, admin nhận mã vận đơn để kiểm tra/huỷ ở nhà vận chuyển.
 - Email/thông báo sau commit chưa có transactional outbox. Khi lỗi tại commit khiến kết quả không rõ, cần đối soát đơn trước khi thao tác lại.
 - Sản phẩm cũ chưa có metadata linh kiện cần cập nhật trong admin. Thông số trình bày khác và ảnh mẫu cần rà soát trước khi dùng cho cửa hàng thật.
 - Chưa có số liệu kiểm thử tải lớn hoặc SLA để công bố.

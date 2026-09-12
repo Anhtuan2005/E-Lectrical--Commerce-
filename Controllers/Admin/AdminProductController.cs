@@ -83,6 +83,7 @@ public class AdminProductController : Controller
         return View("~/Views/Admin/Product/Form.cshtml", new ProductFormViewModel
         {
             Id = product.Id,
+            RowVersion = Convert.ToBase64String(product.RowVersion),
             Name = product.Name,
             Description = product.Description,
             Price = product.Price,
@@ -116,11 +117,6 @@ public class AdminProductController : Controller
             return View("~/Views/Admin/Product/Form.cshtml", model);
         }
 
-        var oldStock = await _db.Products
-            .Where(product => product.Id == id)
-            .Select(product => product.Stock)
-            .FirstOrDefaultAsync();
-
         List<string> imageUrls;
         try
         {
@@ -132,17 +128,15 @@ public class AdminProductController : Controller
             return View("~/Views/Admin/Product/Form.cshtml", model);
         }
 
-        await _productService.UpdateProductAsync(model, imageUrls);
-        if (oldStock != model.Stock)
+        try
         {
-            _db.StockLogs.Add(new StockLog
-            {
-                ProductId = id,
-                ChangeAmount = model.Stock - oldStock,
-                Reason = "Admin cập nhật tồn kho",
-                ChangedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
-            });
-            await _db.SaveChangesAsync();
+            await _productService.UpdateProductAsync(model, imageUrls);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ModelState.AddModelError("", "Sản phẩm hoặc tồn kho đã thay đổi từ khi bạn mở trang. Hãy tải lại trang và kiểm tra trước khi lưu lại.");
+            Response.StatusCode = StatusCodes.Status409Conflict;
+            return View("~/Views/Admin/Product/Form.cshtml", model);
         }
         TempData["Success"] = "Đã cập nhật sản phẩm.";
         return RedirectToAction(nameof(Index));
@@ -155,6 +149,18 @@ public class AdminProductController : Controller
         await _productService.DeleteProductAsync(id);
         TempData["Success"] = "Đã xoá sản phẩm.";
         return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost("AdjustStock/{id:int}")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AdjustStock(int id, int change, string reason)
+    {
+        var updated = ModelState.IsValid && await _productService.AdjustStockAsync(
+            id, change, reason, User.FindFirstValue(ClaimTypes.NameIdentifier));
+        TempData[updated ? "Success" : "Error"] = updated
+            ? "Đã điều chỉnh tồn kho và lưu lịch sử."
+            : "Nhập số lượng tăng/giảm khác 0 và lý do (tối đa 300 ký tự). Không thể giảm quá số hàng còn trong kho.";
+        return RedirectToAction(nameof(Edit), new { id });
     }
 
     [HttpPost("CreateCategory")]

@@ -42,6 +42,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     {
         base.OnModelCreating(builder);
 
+        builder.Entity<Order>().HasIndex(order => new { order.PaymentMethod, order.IsPaid, order.Status, order.PaymentExpiresAt });
+
         builder.Ignore<IdentityUserClaim<string>>();
         builder.Ignore<IdentityRoleClaim<string>>();
         builder.Ignore<IdentityUserLogin<string>>();

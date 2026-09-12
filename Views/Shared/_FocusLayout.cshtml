@@ -19,6 +19,8 @@
         }
     </script>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @* Auth redirects may enter a layout without view-transition support. Keep these navigations immediate. *@
+    <style>@@view-transition { navigation: none; }</style>
 </head>
 <body class="focus-body @(ViewData["BodyClass"])">
     @RenderBody()

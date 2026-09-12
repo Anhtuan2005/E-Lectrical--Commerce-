@@ -67,17 +67,20 @@ public static class SeedData
         for (var index = 0; index < products.Count; index++)
         {
             var product = products[index];
-            var createdAt = DateTime.UtcNow.AddDays(index - 7);
+            var createdAt = index >= 6 ? DateTime.UtcNow : DateTime.UtcNow.AddDays(index - 7);
             var status = index == 7 ? OrderStatuses.Pending : index == 6 ? OrderStatuses.AwaitingPayment : OrderStatuses.Delivered;
             db.Orders.Add(new Order
             {
                 UserId = customer.Id, RecipientName = "Khách hàng demo", RecipientPhone = "0900000000",
                 ShippingAddress = "Địa chỉ minh họa, Hồ Chí Minh", Status = status,
                 PaymentMethod = index == 6 ? "VNPAY" : "COD", IsPaid = index < 6,
+                PaymentExpiresAt = index == 6 ? createdAt.AddMinutes(15) : null,
                 PaidAt = index < 6 ? createdAt.AddHours(2) : null, CreatedAt = createdAt, UpdatedAt = createdAt,
                 TotalAmount = product.SalePrice,
                 Items = new List<OrderItem> { new() { ProductId = product.Id, Quantity = 1, UnitPrice = product.SalePrice } }
             });
+            // Historical delivered samples are illustrative; active samples reserve real demo stock.
+            if (index >= 6) product.Stock -= 1;
         }
         await db.SaveChangesAsync();
     }

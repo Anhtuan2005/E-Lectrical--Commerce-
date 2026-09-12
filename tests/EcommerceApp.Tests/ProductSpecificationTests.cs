@@ -30,6 +30,7 @@ public sealed class ProductSpecificationTests(SqlServerFixture fixture)
             Assert.Equal(30, saved.PowerWatts);
         }
         model.Id = product.Id;
+        model.RowVersion = Convert.ToBase64String(product.RowVersion);
         model.Socket = CpuSocket.Am4;
         model.MemoryType = MemoryStandard.Ddr4;
         model.PowerWatts = null;

@@ -13,5 +13,6 @@ public interface IProductService
     Task<Product?> GetProductAsync(int id);
     Task<Product> CreateProductAsync(ProductFormViewModel model, IEnumerable<string?> imageUrls);
     Task UpdateProductAsync(ProductFormViewModel model, IEnumerable<string?> imageUrls);
+    Task<bool> AdjustStockAsync(int id, int change, string reason, string? actorId);
     Task DeleteProductAsync(int id);
 }

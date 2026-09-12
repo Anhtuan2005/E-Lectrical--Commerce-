@@ -15,7 +15,7 @@ using Moq;
 namespace EcommerceApp.Tests;
 
 [Collection("SqlServer")]
-public sealed class OrderPaymentTests(SqlServerFixture fixture)
+public sealed partial class OrderPaymentTests(SqlServerFixture fixture)
 {
     [Fact]
     public async Task Checkout_with_retry_enabled_commits_order_stock_and_cart_together()

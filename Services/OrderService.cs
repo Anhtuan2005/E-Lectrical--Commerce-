@@ -73,6 +73,7 @@ public class OrderService : IOrderService
             var crossSellUnitPrices = await _crossSellService.GetEligibleUnitPricesAsync(checkoutItems);
             var order = new Order
             {
+                PaymentExpiresAt = IsVnpayPayment(model.PaymentMethod) ? DateTime.UtcNow.Add(OrderLifecycle.PaymentWindow) : null,
                 UserId = userId,
                 RecipientName = model.RecipientName,
                 RecipientPhone = model.RecipientPhone,
@@ -351,7 +352,9 @@ public class OrderService : IOrderService
             .FirstOrDefaultAsync(order => order.Id == id);
     }
 
-    public async Task<bool> UpdateStatusAsync(int id, string status)
+    public Task<bool> UpdateStatusAsync(int id, string status) => ChangeStatusAsync(id, status);
+
+    private async Task<bool> ChangeStatusAsync(int id, string status, string? expectedStatus = null)
     {
         if (!OrderStatuses.All.Contains(status))
         {
@@ -360,31 +363,19 @@ public class OrderService : IOrderService
 
         var change = await DatabaseTransaction.ExecuteAsync<(Order Order, string OldStatus, string OldRefundStatus)?>(_db, async () =>
         {
-            var order = await _db.Orders
-                .FromSqlInterpolated($"SELECT * FROM Orders WITH (UPDLOCK, ROWLOCK) WHERE Id = {id}")
-                .Include(row => row.ShippingInfo)
-                .Include(row => row.Items)
-                .FirstOrDefaultAsync();
-            if (order is null)
-            {
-                return null;
-            }
-
-            if (IsVnpayPayment(order.PaymentMethod) &&
-                !order.IsPaid &&
-                status is not (OrderStatuses.AwaitingPayment or OrderStatuses.Cancelled))
+            var order = await OrderLifecycle.LoadForUpdateAsync(_db, id);
+            if (order is null || (expectedStatus is not null && order.Status != expectedStatus)
+                || !OrderLifecycle.CanTransition(order, status))
             {
                 return null;
             }
 
             var oldStatus = order.Status;
-            if (oldStatus == OrderStatuses.Cancelled && status != OrderStatuses.Cancelled)
-            {
-                return null;
-            }
-
             var oldRefundStatus = order.RefundStatus;
-            order.Status = status;
+            if (status == OrderStatuses.Cancelled)
+                await OrderLifecycle.CancelAsync(_db, order, "Đơn hàng bị huỷ bởi admin.", DateTime.UtcNow);
+            else
+                order.Status = status;
             order.UpdatedAt = DateTime.UtcNow;
 
             if (status == OrderStatuses.Shipping && order.ShippingInfo is not null && string.IsNullOrWhiteSpace(order.ShippingInfo.Status))
@@ -394,21 +385,6 @@ public class OrderService : IOrderService
             else if (status == OrderStatuses.Delivered && order.ShippingInfo is not null)
             {
                 order.ShippingInfo.Status = ShippingStatuses.Delivered;
-            }
-
-            if (status == OrderStatuses.Cancelled)
-            {
-                MarkManualRefundRequiredIfNeeded(order, "Đơn VNPAY đã thanh toán bị huỷ bởi admin.");
-                if (oldStatus != OrderStatuses.Cancelled)
-                {
-                    foreach (var item in order.Items)
-                    {
-                        await _db.Database.ExecuteSqlRawAsync(
-                            "UPDATE Products SET Stock = Stock + {0} WHERE Id = {1}",
-                            item.Quantity,
-                            item.ProductId);
-                    }
-                }
             }
 
             await _db.SaveChangesAsync();
@@ -440,54 +416,27 @@ public class OrderService : IOrderService
 
     public async Task<int> ConfirmPendingOrdersAsync(IEnumerable<int> ids)
     {
-        var orderIds = ids.Distinct().ToList();
-        if (!orderIds.Any())
-        {
-            return 0;
-        }
-
-        var orders = await _db.Orders
-            .Where(order => orderIds.Contains(order.Id) && order.Status == OrderStatuses.Pending)
-            .ToListAsync();
-
-        foreach (var order in orders)
-        {
-            order.Status = OrderStatuses.Confirmed;
-            order.UpdatedAt = DateTime.UtcNow;
-        }
-
-        await _db.SaveChangesAsync();
-        _logger.LogInformation("Admin bulk-confirmed {OrderCount} pending orders", orders.Count);
-        foreach (var order in orders)
-        {
-            await _orderEmailService.SendOrderStatusChangedAsync(order.Id, OrderStatuses.Confirmed);
-            await _notificationService.CreateAsync(
-                order.UserId,
-                "Đơn hàng đã được xác nhận",
-                $"Đơn #DH{order.Id:D4} đang được chuẩn bị.",
-                NotificationTypes.Order,
-                $"/Order/Detail/{order.Id}");
-        }
-
-        return orders.Count;
+        var confirmed = 0;
+        foreach (var id in ids.Where(id => id > 0).Distinct().OrderBy(id => id))
+            if (await ChangeStatusAsync(id, OrderStatuses.Confirmed, OrderStatuses.Pending)) confirmed++;
+        return confirmed;
     }
 
     public async Task<bool> MarkManualRefundCompletedAsync(int id, string? note)
     {
-        var order = await _db.Orders.FirstOrDefaultAsync(row => row.Id == id);
-        if (order is null || order.RefundStatus != RefundStatuses.PendingManual)
+        if (note?.Length > 500) return false;
+        var order = await DatabaseTransaction.ExecuteAsync<Order?>(_db, async () =>
         {
-            return false;
-        }
-
-        order.RefundStatus = RefundStatuses.Refunded;
-        order.RefundedAt = DateTime.UtcNow;
-        order.RefundNote = string.IsNullOrWhiteSpace(note)
-            ? "Admin đã xác nhận hoàn tiền thủ công."
-            : note.Trim();
-        order.UpdatedAt = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync();
+            var current = await OrderLifecycle.LoadForUpdateAsync(_db, id);
+            if (current is null || current.RefundStatus != RefundStatuses.PendingManual) return null;
+            current.RefundStatus = RefundStatuses.Refunded;
+            current.RefundedAt = DateTime.UtcNow;
+            current.RefundNote = string.IsNullOrWhiteSpace(note) ? "Admin đã xác nhận hoàn tiền thủ công." : note.Trim();
+            current.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+            return current;
+        });
+        if (order is null) return false;
         _logger.LogInformation("Admin marked manual refund completed for order {OrderId}", id);
         await _orderEmailService.SendRefundCompletedAsync(order.Id);
         await _notificationService.CreateAsync(
@@ -513,20 +462,10 @@ public class OrderService : IOrderService
             }
 
             var oldRefundStatus = order.RefundStatus;
-            order.Status = OrderStatuses.Cancelled;
-            order.CancelledReason = string.IsNullOrWhiteSpace(reason)
+            var cancellationReason = string.IsNullOrWhiteSpace(reason)
                 ? "Khách hàng hủy đơn trước khi xác nhận."
                 : reason.Trim();
-            order.UpdatedAt = DateTime.UtcNow;
-            MarkManualRefundRequiredIfNeeded(order, "Đơn VNPAY đã thanh toán bị khách hàng huỷ.");
-
-            foreach (var item in order.Items)
-            {
-                await _db.Database.ExecuteSqlRawAsync(
-                    "UPDATE Products SET Stock = Stock + {0} WHERE Id = {1}",
-                    item.Quantity,
-                    item.ProductId);
-            }
+            await OrderLifecycle.CancelAsync(_db, order, cancellationReason, DateTime.UtcNow);
 
             await _db.SaveChangesAsync();
             return (order, oldRefundStatus);
@@ -597,7 +536,7 @@ public class OrderService : IOrderService
         var startOfMonth = new DateTime(now.Year, now.Month, 1);
         var startOfYear = new DateTime(now.Year, 1, 1);
         var startOfEngagementWindow = startOfDay.AddDays(-30);
-        var revenueOrders = _db.Orders.Where(order => order.IsPaid || order.Status == OrderStatuses.Delivered);
+        var revenueOrders = _db.Orders.WithRecognizedRevenue();
 
         var todayRevenue = await revenueOrders.Where(order => order.CreatedAt >= startOfDay).SumAsync(order => order.TotalAmount);
         var weekRevenue = await revenueOrders.Where(order => order.CreatedAt >= startOfWeek).SumAsync(order => order.TotalAmount);
@@ -611,7 +550,7 @@ public class OrderService : IOrderService
         var topProducts = await _db.OrderItems
             .IgnoreQueryFilters()
             .Include(item => item.Product)
-            .Where(item => item.Order != null && (item.Order.IsPaid || item.Order.Status == OrderStatuses.Delivered))
+            .WithRecognizedRevenue()
             .GroupBy(item => item.Product!.Name)
             .Select(group => new TopProductViewModel
             {
@@ -643,9 +582,8 @@ public class OrderService : IOrderService
 
         var salesLast30Rows = await _db.OrderItems
             .IgnoreQueryFilters()
-            .Where(item => item.Order != null
-                && item.Order.CreatedAt >= startOfEngagementWindow
-                && (item.Order.IsPaid || item.Order.Status == OrderStatuses.Delivered))
+            .WithRecognizedRevenue()
+            .Where(item => item.Order!.CreatedAt >= startOfEngagementWindow)
             .GroupBy(item => item.ProductId)
             .Select(group => new
             {
@@ -789,20 +727,6 @@ public class OrderService : IOrderService
 
             return string.Empty;
         }
-    }
-
-    private static void MarkManualRefundRequiredIfNeeded(Order order, string note)
-    {
-        if (!order.IsPaid ||
-            !string.Equals(order.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase) ||
-            order.RefundStatus is RefundStatuses.PendingManual or RefundStatuses.Refunded)
-        {
-            return;
-        }
-
-        order.RefundStatus = RefundStatuses.PendingManual;
-        order.RefundRequestedAt ??= DateTime.UtcNow;
-        order.RefundNote = note;
     }
 
     private async Task NotifyAdminsAboutNewOrderAsync(Order order)

@@ -64,9 +64,9 @@ public class PaymentController : Controller
             return RedirectToAction("Confirmation", "Order", new { id = order.Id });
         }
 
-        if (!IsUnpaidVnpayOrderAwaitingPayment(order))
+        if (!IsUnpaidVnpayOrderAwaitingPayment(order) || OrderLifecycle.IsPaymentExpired(order, DateTime.UtcNow))
         {
-            TempData["Error"] = "Chỉ có thể thanh toán lại đơn VNPAY đang chờ thanh toán.";
+            TempData["Error"] = "Đơn đã hết hạn hoặc không còn chờ thanh toán VNPAY. Vui lòng đặt đơn mới.";
             return RedirectToAction("Detail", "Order", new { id = order.Id });
         }
 
@@ -76,7 +76,15 @@ public class PaymentController : Controller
             return RedirectToAction("Detail", "Order", new { id = order.Id });
         }
 
-        return Redirect(_vnpayService.CreatePaymentUrl(order, HttpContext));
+        try
+        {
+            return Redirect(_vnpayService.CreatePaymentUrl(order, HttpContext));
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = ex.Message;
+            return RedirectToAction("Detail", "Order", new { id = order.Id });
+        }
     }
 
     [AllowAnonymous]
@@ -167,9 +175,7 @@ public class PaymentController : Controller
 
         var (order, shouldSendStatusEmail, shouldSendRefundEmail) = await DatabaseTransaction.ExecuteAsync<(Order? Order, bool StatusEmail, bool RefundEmail)>(_db, async () =>
         {
-            var order = await _db.Orders
-                .FromSqlInterpolated($"SELECT * FROM Orders WITH (UPDLOCK, ROWLOCK) WHERE Id = {id}")
-                .FirstOrDefaultAsync();
+            var order = await OrderLifecycle.LoadForUpdateAsync(_db, id);
             if (order is null)
             {
                 return (null, false, false);
@@ -192,6 +198,8 @@ public class PaymentController : Controller
             }
 
             var oldRefundStatus = order.RefundStatus;
+            if (OrderLifecycle.IsPaymentExpired(order, DateTime.UtcNow))
+                await OrderLifecycle.CancelAsync(_db, order, "Hết thời hạn thanh toán VNPAY (15 phút).", DateTime.UtcNow);
             var shouldSendStatusEmail = ApplyPaymentResponse(response, order);
             var shouldSendRefundEmail = oldRefundStatus != order.RefundStatus
                 && order.RefundStatus == RefundStatuses.PendingManual;

@@ -20,100 +20,64 @@ public class ShippingService : IShippingService
         _notificationService = notificationService;
     }
 
-    public async Task AssignAsync(int orderId, string carrier, string trackingCode, DateTime? estimatedDelivery)
+    public Task<bool> AssignAsync(int orderId, string carrier, string trackingCode, DateTime? estimatedDelivery) =>
+        SaveTrackingAsync(orderId, carrier, trackingCode, estimatedDelivery);
+
+    public Task<bool> UpdateTrackingAsync(int orderId, string? carrier, string trackingCode) =>
+        string.IsNullOrWhiteSpace(trackingCode) ? Task.FromResult(false) :
+            SaveTrackingAsync(orderId, carrier, trackingCode, null);
+
+    private async Task<bool> SaveTrackingAsync(int orderId, string? carrier, string? trackingCode, DateTime? estimatedDelivery)
     {
-        var order = await _db.Orders.Include(row => row.ShippingInfo).FirstOrDefaultAsync(row => row.Id == orderId);
-        if (order is null)
+        if (carrier?.Length > 80 || trackingCode?.Length > 80) return false;
+        var order = await DatabaseTransaction.ExecuteAsync<Order?>(_db, async () =>
         {
-            return;
-        }
-
-        order.ShippingInfo ??= new ShippingInfo { OrderId = orderId };
-        order.ShippingInfo.Carrier = carrier;
-        order.ShippingInfo.TrackingCode = trackingCode;
-        order.ShippingInfo.EstimatedDelivery = estimatedDelivery;
-        order.ShippingInfo.ShippedAt ??= DateTime.UtcNow;
-        order.ShippingInfo.Status = string.IsNullOrWhiteSpace(trackingCode) ? ShippingStatuses.WaitingPickup : ShippingStatuses.InTransit;
-        order.Status = OrderStatuses.Shipping;
-        order.UpdatedAt = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync();
+            var current = await OrderLifecycle.LoadForUpdateAsync(_db, orderId);
+            var status = string.IsNullOrWhiteSpace(trackingCode) ? ShippingStatuses.WaitingPickup : ShippingStatuses.InTransit;
+            if (current is null || !OrderLifecycle.CanApplyShipment(current, status)) return null;
+            current.ShippingInfo ??= new ShippingInfo { OrderId = orderId };
+            current.ShippingInfo.Carrier = string.IsNullOrWhiteSpace(carrier)
+                ? (string.IsNullOrWhiteSpace(current.ShippingInfo.Carrier) ? "Techvora Express" : current.ShippingInfo.Carrier)
+                : carrier.Trim();
+            current.ShippingInfo.TrackingCode = trackingCode?.Trim() ?? "";
+            if (estimatedDelivery.HasValue) current.ShippingInfo.EstimatedDelivery = estimatedDelivery;
+            current.ShippingInfo.ShippedAt ??= DateTime.UtcNow;
+            current.ShippingInfo.Status = status;
+            current.Status = OrderStatuses.Shipping;
+            current.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+            return current;
+        });
+        if (order is null) return false;
         await _orderEmailService.SendOrderStatusChangedAsync(order.Id, OrderStatuses.Shipping);
-        await _notificationService.CreateAsync(
-            order.UserId,
-            "Đơn hàng đang giao",
-            string.IsNullOrWhiteSpace(trackingCode)
-                ? $"Đơn #DH{order.Id:D4} đã được bàn giao cho vận chuyển."
-                : $"Đơn #DH{order.Id:D4} đang giao với mã vận đơn {trackingCode}.",
-            NotificationTypes.Order,
-            $"/Order/Detail/{order.Id}");
-    }
-
-    public async Task<bool> UpdateTrackingAsync(int orderId, string? carrier, string trackingCode)
-    {
-        if (string.IsNullOrWhiteSpace(trackingCode))
-        {
-            return false;
-        }
-
-        var order = await _db.Orders.Include(row => row.ShippingInfo).FirstOrDefaultAsync(row => row.Id == orderId);
-        if (order is null)
-        {
-            return false;
-        }
-
-        order.ShippingInfo ??= new ShippingInfo { OrderId = orderId };
-        order.ShippingInfo.Carrier = string.IsNullOrWhiteSpace(carrier)
-            ? string.IsNullOrWhiteSpace(order.ShippingInfo.Carrier) ? "Techvora Express" : order.ShippingInfo.Carrier
-            : carrier.Trim();
-        order.ShippingInfo.TrackingCode = trackingCode.Trim();
-        order.ShippingInfo.ShippedAt ??= DateTime.UtcNow;
-        order.ShippingInfo.Status = ShippingStatuses.InTransit;
-        order.Status = OrderStatuses.Shipping;
-        order.UpdatedAt = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync();
-        await _orderEmailService.SendOrderStatusChangedAsync(order.Id, OrderStatuses.Shipping);
-        await _notificationService.CreateAsync(
-            order.UserId,
-            "Đã cập nhật mã vận đơn",
-            $"Đơn #DH{order.Id:D4} đang giao với mã vận đơn {order.ShippingInfo.TrackingCode}.",
-            NotificationTypes.Order,
-            $"/Order/Detail/{order.Id}");
+        await _notificationService.CreateAsync(order.UserId, "Cập nhật vận chuyển",
+            $"Đơn #DH{order.Id:D4} đang giao. Mã vận đơn: {order.ShippingInfo!.TrackingCode}.",
+            NotificationTypes.Order, $"/Order/Detail/{order.Id}");
         return true;
     }
 
-    public async Task UpdateStatusAsync(int orderId, string status)
+    public async Task<bool> UpdateStatusAsync(int orderId, string status)
     {
-        if (!ShippingStatuses.All.Contains(status))
+        var order = await DatabaseTransaction.ExecuteAsync<Order?>(_db, async () =>
         {
-            return;
-        }
-
-        var info = await _db.ShippingInfos.Include(row => row.Order).FirstOrDefaultAsync(row => row.OrderId == orderId);
-        if (info is null)
+            var current = await OrderLifecycle.LoadForUpdateAsync(_db, orderId);
+            if (current?.ShippingInfo is null || !OrderLifecycle.CanApplyShipment(current, status)) return null;
+            if (current.ShippingInfo.Status == status) return null;
+            current.ShippingInfo.Status = status;
+            if (status == ShippingStatuses.Delivered) current.Status = OrderStatuses.Delivered;
+            current.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+            return current;
+        });
+        if (order is null) return false;
+        if (status == ShippingStatuses.Delivered)
         {
-            return;
+            await _orderEmailService.SendOrderStatusChangedAsync(order.Id, OrderStatuses.Delivered);
+            await _notificationService.CreateAsync(order.UserId, "Đơn hàng đã giao",
+                $"Đơn #DH{order.Id:D4} đã giao thành công. Bạn có thể đánh giá sản phẩm hoặc gửi yêu cầu bảo hành nếu cần.",
+                NotificationTypes.Order, $"/Order/Detail/{order.Id}");
         }
-
-        info.Status = status;
-        if (status == ShippingStatuses.Delivered && info.Order is not null)
-        {
-            info.Order.Status = OrderStatuses.Delivered;
-            info.Order.UpdatedAt = DateTime.UtcNow;
-        }
-
-        await _db.SaveChangesAsync();
-        if (status == ShippingStatuses.Delivered && info.Order is not null)
-        {
-            await _orderEmailService.SendOrderStatusChangedAsync(info.Order.Id, OrderStatuses.Delivered);
-            await _notificationService.CreateAsync(
-                info.Order.UserId,
-                "Đơn hàng đã giao",
-                $"Đơn #DH{info.Order.Id:D4} đã giao thành công. Bạn có thể đánh giá sản phẩm hoặc gửi yêu cầu bảo hành nếu cần.",
-                NotificationTypes.Order,
-                $"/Order/Detail/{info.Order.Id}");
-        }
+        return true;
     }
 
     public async Task<ShippingDashboardViewModel> GetDashboardAsync()
@@ -137,9 +101,8 @@ public class ShippingService : IShippingService
             .Include(order => order.User)
             .Include(order => order.ShippingInfo)
             .Where(order =>
-                order.Status != OrderStatuses.AwaitingPayment &&
-                order.Status != OrderStatuses.Delivered &&
-                order.Status != OrderStatuses.Cancelled &&
+                (order.Status == OrderStatuses.Confirmed || order.Status == OrderStatuses.Shipping) &&
+                (order.PaymentMethod != "VNPAY" || order.IsPaid) &&
                 (order.ShippingInfo == null ||
                  order.ShippingInfo.TrackingCode == "" ||
                  (order.ShippingInfo.EstimatedDelivery.HasValue && order.ShippingInfo.EstimatedDelivery.Value < now && order.ShippingInfo.Status != ShippingStatuses.Delivered)))

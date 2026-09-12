@@ -36,12 +36,16 @@ public class ProductService : IProductService
 
         if (minPrice.HasValue)
         {
-            query = query.Where(product => product.Price >= minPrice.Value);
+            query = query.Where(product => (product.DiscountPercent > 0
+                ? Math.Round(product.Price * (100 - product.DiscountPercent) / 100m, 0)
+                : product.Price) >= minPrice.Value);
         }
 
         if (maxPrice.HasValue)
         {
-            query = query.Where(product => product.Price <= maxPrice.Value);
+            query = query.Where(product => (product.DiscountPercent > 0
+                ? Math.Round(product.Price * (100 - product.DiscountPercent) / 100m, 0)
+                : product.Price) <= maxPrice.Value);
         }
 
         var normalizedSortBy = sortBy switch
@@ -50,10 +54,7 @@ public class ProductService : IProductService
             _ => "featured"
         };
 
-        var completedOrderItems = _db.OrderItems
-            .Where(item => item.Order != null
-                && (item.Order.Status == OrderStatuses.Delivered
-                    || (item.Order.IsPaid && item.Order.Status != OrderStatuses.Cancelled)));
+        var completedOrderItems = _db.OrderItems.WithRecognizedRevenue();
 
         query = normalizedSortBy switch
         {
@@ -69,12 +70,12 @@ public class ProductService : IProductService
             "newest" => query.OrderByDescending(product => product.CreatedAt),
             "price_asc" => query
                 .OrderBy(product => product.DiscountPercent > 0
-                    ? product.Price * (100 - product.DiscountPercent) / 100
+                    ? Math.Round(product.Price * (100 - product.DiscountPercent) / 100m, 0)
                     : product.Price)
                 .ThenByDescending(product => product.CreatedAt),
             "price_desc" => query
                 .OrderByDescending(product => product.DiscountPercent > 0
-                    ? product.Price * (100 - product.DiscountPercent) / 100
+                    ? Math.Round(product.Price * (100 - product.DiscountPercent) / 100m, 0)
                     : product.Price)
                 .ThenByDescending(product => product.CreatedAt),
             _ => query
@@ -181,45 +182,66 @@ public class ProductService : IProductService
 
     public async Task UpdateProductAsync(ProductFormViewModel model, IEnumerable<string?> imageUrls)
     {
-        var product = await _db.Products
-            .Include(row => row.Images)
-            .FirstOrDefaultAsync(row => row.Id == model.Id);
-        if (product is null)
-        {
-            return;
-        }
-
-        product.Name = model.Name;
-        product.Description = model.Description;
-        product.Price = model.Price;
-        product.Stock = model.Stock;
-        product.DiscountPercent = model.DiscountPercent;
-        product.CategoryId = model.CategoryId;
-        product.IsFeatured = model.IsFeatured;
-        product.Socket = model.Socket;
-        product.MemoryType = model.MemoryType;
-        product.PowerWatts = model.PowerWatts;
-
+        byte[] version;
+        try { version = Convert.FromBase64String(model.RowVersion ?? ""); }
+        catch (FormatException) { throw new DbUpdateConcurrencyException("Phiên bản sản phẩm không hợp lệ."); }
+        if (version.Length != 8) throw new DbUpdateConcurrencyException("Thiếu phiên bản sản phẩm.");
         var normalizedImageUrls = BuildImageUrls(model, imageUrls);
-        if (normalizedImageUrls.Count > 0)
+        await DatabaseTransaction.ExecuteAsync(_db, async () =>
         {
-            ReplaceProductImages(product, normalizedImageUrls, removeExisting: true);
-        }
+            var product = await _db.Products
+                .Include(row => row.Images)
+                .FirstOrDefaultAsync(row => row.Id == model.Id);
+            if (product is null || !product.RowVersion.SequenceEqual(version))
+                throw new DbUpdateConcurrencyException("Sản phẩm đã được thay đổi hoặc xoá.");
+            _db.Entry(product).Property(row => row.RowVersion).OriginalValue = version;
+            // Even image-only edits must check the root product version when saving.
+            _db.Entry(product).Property(row => row.Name).IsModified = true;
 
-        await _db.SaveChangesAsync();
-        await ProductSearchIndex.ReplaceTermsAsync(_db, product.Id);
+            product.Name = model.Name;
+            product.Description = model.Description;
+            product.Price = model.Price;
+            product.DiscountPercent = model.DiscountPercent;
+            product.CategoryId = model.CategoryId;
+            product.IsFeatured = model.IsFeatured;
+            product.Socket = model.Socket;
+            product.MemoryType = model.MemoryType;
+            product.PowerWatts = model.PowerWatts;
+
+            if (normalizedImageUrls.Count > 0)
+            {
+                ReplaceProductImages(product, normalizedImageUrls, removeExisting: true);
+            }
+
+            await _db.SaveChangesAsync();
+            await ProductSearchIndex.ReplaceTermsAsync(_db, product.Id);
+            return true;
+        });
+    }
+
+    public Task<bool> AdjustStockAsync(int id, int change, string reason, string? actorId)
+    {
+        if (change == 0 || string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > 300)
+            return Task.FromResult(false);
+        return DatabaseTransaction.ExecuteAsync(_db, async () =>
+        {
+            var updated = await _db.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE Products SET Stock = Stock + {change}
+                WHERE Id = {id} AND IsDeleted = 0
+                    AND CAST(Stock AS bigint) + {change} BETWEEN 0 AND 2147483647
+                """);
+            if (updated != 1) return false;
+            _db.StockLogs.Add(new StockLog { ProductId = id, ChangeAmount = change,
+                Reason = reason.Trim(), ChangedByUserId = actorId });
+            await _db.SaveChangesAsync();
+            return true;
+        });
     }
 
     public async Task DeleteProductAsync(int id)
     {
-        var product = await _db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(row => row.Id == id);
-        if (product is null)
-        {
-            return;
-        }
-
-        product.IsDeleted = true;
-        await _db.SaveChangesAsync();
+        await _db.Products.IgnoreQueryFilters().Where(product => product.Id == id)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(product => product.IsDeleted, true));
     }
 
     private static List<string> BuildImageUrls(ProductFormViewModel model, IEnumerable<string?> uploadedImageUrls)

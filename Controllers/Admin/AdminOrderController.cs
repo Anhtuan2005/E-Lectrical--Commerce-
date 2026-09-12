@@ -77,8 +77,10 @@ public class AdminOrderController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AssignShipping(int id, string carrier, string trackingCode, DateTime? estimatedDelivery)
     {
-        await _shippingService.AssignAsync(id, carrier, trackingCode, estimatedDelivery);
-        TempData["Success"] = "Đã gán thông tin vận chuyển.";
+        var updated = await _shippingService.AssignAsync(id, carrier, trackingCode, estimatedDelivery);
+        TempData[updated ? "Success" : "Error"] = updated
+            ? "Đã gán thông tin vận chuyển."
+            : "Không thể gán vận chuyển. Đơn phải được xác nhận, VNPAY phải đã thanh toán; tên đơn vị và mã vận đơn tối đa 80 ký tự.";
         return RedirectToAction(nameof(Details), new { id });
     }
 

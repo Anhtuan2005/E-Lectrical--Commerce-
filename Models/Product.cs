@@ -7,6 +7,9 @@ public class Product
 {
     public int Id { get; set; }
 
+    [Timestamp]
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
     [Required, StringLength(180)]
     public string Name { get; set; } = string.Empty;
 
@@ -39,7 +42,7 @@ public class Product
     public int DiscountPercent { get; set; }
 
     public decimal SalePrice => DiscountPercent > 0
-        ? Math.Round(Price * (1 - DiscountPercent / 100m), 0)
+        ? Math.Round(Price * (100 - DiscountPercent) / 100m, 0, MidpointRounding.AwayFromZero)
         : Price;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

@@ -33,7 +33,11 @@ public class VnpayService : IVnpayService
         var hashSecret = GetSetting("HashSecret");
         var returnUrl = GetSetting("ReturnUrl");
 
-        var now = DateTime.Now;
+        var utcNow = DateTime.UtcNow;
+        var deadline = OrderLifecycle.PaymentDeadline(order);
+        if (deadline <= utcNow)
+            throw new InvalidOperationException("Đơn đã hết thời hạn thanh toán VNPAY.");
+        var now = utcNow.AddHours(7);
         var txnRef = $"{order.Id}_{now:yyyyMMddHHmmss}";
         var ipAddr = context.Connection.RemoteIpAddress?.ToString();
         if (string.IsNullOrWhiteSpace(ipAddr) || ipAddr == "::1")
@@ -55,7 +59,7 @@ public class VnpayService : IVnpayService
             ["vnp_ReturnUrl"] = returnUrl,
             ["vnp_IpAddr"] = ipAddr,
             ["vnp_CreateDate"] = now.ToString("yyyyMMddHHmmss"),
-            ["vnp_ExpireDate"] = now.AddMinutes(15).ToString("yyyyMMddHHmmss")
+            ["vnp_ExpireDate"] = deadline.AddHours(7).ToString("yyyyMMddHHmmss")
         };
 
         var queryToSign = BuildSignedQuery(parameters);

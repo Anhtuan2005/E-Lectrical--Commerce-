@@ -12,6 +12,12 @@
 <section class="admin-panel narrow">
     <div class="panel-head"><h2>@ViewData["Title"]</h2></div>
     <form method="post" enctype="multipart/form-data" class="stack-form">
+        <div asp-validation-summary="ModelOnly" role="alert"></div>
+        @if (Context.Response.StatusCode == StatusCodes.Status409Conflict)
+        {
+            <a class="admin-link" asp-action="Edit" asp-route-id="@Model.Id">Tải lại dữ liệu mới nhất</a>
+        }
+        <input asp-for="RowVersion" type="hidden" />
         <label>Tên sản phẩm</label>
         <input asp-for="Name" />
         <span asp-validation-for="Name"></span>
@@ -25,7 +31,11 @@
         <span asp-validation-for="Price"></span>
 
         <label>Tồn kho</label>
-        <input asp-for="Stock" type="number" min="0" />
+        <input asp-for="Stock" type="number" min="0" readonly="@(Model.Id != 0)" />
+        @if (Model.Id != 0)
+        {
+            <small class="form-hint">Dùng mục Điều chỉnh tồn kho bên dưới để nhập hoặc xuất hàng.</small>
+        }
         <span asp-validation-for="Stock"></span>
 
         <label>Giảm giá (%)</label>
@@ -93,7 +103,17 @@
 @if (Model.Id != 0)
 {
     <section class="admin-panel narrow">
-        <div class="panel-head"><h2>Lịch sử tồn kho</h2></div>
+        <div class="panel-head"><h2>Điều chỉnh tồn kho</h2></div>
+        <form asp-action="AdjustStock" asp-route-id="@Model.Id" method="post" class="stack-form">
+            <label for="stock-change">Số lượng thay đổi</label>
+            <input id="stock-change" name="change" type="number" required step="1" placeholder="Ví dụ: 10 để nhập thêm, -2 để xuất bớt" />
+            <label for="stock-reason">Lý do</label>
+            <input id="stock-reason" name="reason" required maxlength="300" />
+            <button class="admin-button" type="submit">Điều chỉnh và lưu lịch sử</button>
+        </form>
+    </section>
+    <section class="admin-panel narrow">
+        <div class="panel-head"><h2>Lịch sử điều chỉnh kho thủ công</h2></div>
         <table class="admin-table">
             <thead><tr><th>Thời gian</th><th>Thay đổi</th><th>Lý do</th><th>Người cập nhật</th></tr></thead>
             <tbody>

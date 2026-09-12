@@ -75,7 +75,7 @@ public sealed class GhnShippingService : IGhnShippingService
             return GhnOperationResult.Fail("Không tìm thấy đơn hàng.");
         }
 
-        if (order.Status is OrderStatuses.AwaitingPayment or OrderStatuses.Cancelled)
+        if (!OrderLifecycle.CanShip(order))
         {
             return GhnOperationResult.Fail("Chỉ tạo vận đơn cho đơn đã sẵn sàng xử lý.");
         }
@@ -102,7 +102,11 @@ public sealed class GhnShippingService : IGhnShippingService
 
         var totalFee = payload.Data.TryGetDecimal("total_fee") ?? payload.Data.TryGetDecimal("fee");
         var expectedDelivery = payload.Data.TryGetDateTime("expected_delivery_time");
-        await ApplyShipmentAsync(order, orderCode, "ready_to_pick", totalFee, expectedDelivery);
+        if (!await ApplyShipmentAsync(order, orderCode, "ready_to_pick", totalFee, expectedDelivery))
+        {
+            _logger.LogWarning("GHN created {TrackingCode}, but order {OrderId} changed before the shipment could be saved", orderCode, order.Id);
+            return GhnOperationResult.Fail($"GHN đã tạo {orderCode} nhưng trạng thái đơn đã thay đổi. Kiểm tra và huỷ vận đơn trên GHN nếu cần.");
+        }
         return GhnOperationResult.Ok($"Đã tạo vận đơn GHN {orderCode}.", orderCode);
     }
 
@@ -203,7 +207,8 @@ public sealed class GhnShippingService : IGhnShippingService
         var totalFee = payload.Data.TryGetDecimal("total_fee");
         var expectedDelivery = payload.Data.TryGetDateTime("leadtime")
             ?? payload.Data.TryGetDateTime("expected_delivery_time");
-        await ApplyShipmentAsync(order, order.ShippingInfo.TrackingCode, ghnStatus, totalFee, expectedDelivery);
+        if (!await ApplyShipmentAsync(order, order.ShippingInfo.TrackingCode, ghnStatus, totalFee, expectedDelivery))
+            return GhnOperationResult.Fail("Không áp dụng trạng thái GHN cũ hoặc không phù hợp với trạng thái hiện tại của đơn.");
         return GhnOperationResult.Ok("Đã đồng bộ trạng thái GHN.", order.ShippingInfo.TrackingCode);
     }
 
@@ -271,7 +276,8 @@ public sealed class GhnShippingService : IGhnShippingService
             return GhnOperationResult.Fail(payload.Message);
         }
 
-        await ApplyShipmentAsync(order, orderCode, "cancel", null, null);
+        if (!await ApplyShipmentAsync(order, orderCode, "cancel", null, null))
+            return GhnOperationResult.Fail($"GHN đã nhận yêu cầu huỷ {orderCode}; trạng thái nội bộ không thay đổi. Vui lòng kiểm tra vận đơn.");
         return GhnOperationResult.Ok($"Đã huỷ vận đơn GHN {orderCode}.", orderCode);
     }
 
@@ -304,8 +310,8 @@ public sealed class GhnShippingService : IGhnShippingService
             return new GhnWebhookApplyResult(false, "Không tìm thấy đơn tương ứng webhook GHN.");
         }
 
-        await ApplyShipmentAsync(order, orderCode ?? order.ShippingInfo?.TrackingCode ?? "", payload.Status, payload.TotalFee, payload.Time);
-        return new GhnWebhookApplyResult(true, "Đã nhận webhook GHN.");
+        var applied = await ApplyShipmentAsync(order, orderCode ?? order.ShippingInfo?.TrackingCode ?? "", payload.Status, payload.TotalFee, payload.Time);
+        return new GhnWebhookApplyResult(true, applied ? "Đã nhận webhook GHN." : "Đã nhận; bỏ qua cập nhật không còn phù hợp với trạng thái hiện tại.");
     }
 
     private async Task<Order?> LoadOrderAsync(int orderId)
@@ -610,64 +616,42 @@ public sealed class GhnShippingService : IGhnShippingService
         return GhnAddressResult.Ok(items);
     }
 
-    private async Task ApplyShipmentAsync(Order order, string orderCode, string? ghnStatus, decimal? totalFee, DateTime? expectedDelivery)
+    private async Task<bool> ApplyShipmentAsync(Order order, string orderCode, string? ghnStatus, decimal? totalFee, DateTime? expectedDelivery)
     {
         var mappedStatus = MapGhnStatus(ghnStatus);
-        var previousOrderStatus = order.Status;
-        var previousShippingStatus = order.ShippingInfo?.Status;
-        order.ShippingInfo ??= new ShippingInfo { OrderId = order.Id };
-        order.ShippingInfo.Carrier = CarrierName;
-        if (!string.IsNullOrWhiteSpace(orderCode))
+        var orderId = order.Id;
+        var saved = await DatabaseTransaction.ExecuteAsync<Order?>(_db, async () =>
         {
-            order.ShippingInfo.TrackingCode = orderCode;
-        }
-
-        if (expectedDelivery.HasValue)
+            var current = await OrderLifecycle.LoadForUpdateAsync(_db, orderId);
+            if (current is null || !OrderLifecycle.CanApplyShipment(current, mappedStatus)) return null;
+            // A late callback for an old shipment must not replace the current tracking number.
+            if (!string.IsNullOrWhiteSpace(current.ShippingInfo?.TrackingCode) &&
+                (!string.Equals(current.ShippingInfo.TrackingCode, orderCode, StringComparison.OrdinalIgnoreCase) ||
+                 !string.Equals(current.ShippingInfo.Carrier, CarrierName, StringComparison.OrdinalIgnoreCase))) return null;
+            current.ShippingInfo ??= new ShippingInfo { OrderId = orderId };
+            current.ShippingInfo.Carrier = CarrierName;
+            current.ShippingInfo.TrackingCode = orderCode;
+            if (expectedDelivery.HasValue)
+                current.ShippingInfo.EstimatedDelivery = expectedDelivery.Value.Kind == DateTimeKind.Unspecified
+                    ? DateTime.SpecifyKind(expectedDelivery.Value, DateTimeKind.Utc)
+                    : expectedDelivery.Value.ToUniversalTime();
+            // Carrier cost is not a revision of the shipping price agreed at checkout.
+            current.ShippingInfo.Status = mappedStatus;
+            current.ShippingInfo.ShippedAt ??= DateTime.UtcNow;
+            current.Status = mappedStatus == ShippingStatuses.Delivered ? OrderStatuses.Delivered : OrderStatuses.Shipping;
+            current.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+            return current;
+        });
+        if (saved is null) return false;
+        if (mappedStatus == ShippingStatuses.Delivered)
         {
-            order.ShippingInfo.EstimatedDelivery = expectedDelivery.Value.Kind == DateTimeKind.Unspecified
-                ? DateTime.SpecifyKind(expectedDelivery.Value, DateTimeKind.Utc)
-                : expectedDelivery.Value.ToUniversalTime();
+            await _orderEmailService.SendOrderStatusChangedAsync(saved.Id, OrderStatuses.Delivered);
+            await _notificationService.CreateAsync(saved.UserId, "Đơn hàng đã giao",
+                $"Đơn #DH{saved.Id:D4} đã giao thành công qua GHN.",
+                NotificationTypes.Order, $"/Order/Detail/{saved.Id}");
         }
-
-        if (totalFee.HasValue && totalFee.Value > 0)
-        {
-            order.ShippingFee = totalFee.Value;
-        }
-
-        order.ShippingInfo.Status = mappedStatus;
-        if (mappedStatus == ShippingStatuses.WaitingPickup)
-        {
-            order.ShippingInfo.ShippedAt ??= DateTime.UtcNow;
-            if (order.Status == OrderStatuses.Confirmed)
-            {
-                order.Status = OrderStatuses.Shipping;
-            }
-        }
-        else if (mappedStatus == ShippingStatuses.InTransit)
-        {
-            order.ShippingInfo.ShippedAt ??= DateTime.UtcNow;
-            order.Status = OrderStatuses.Shipping;
-        }
-        else if (mappedStatus == ShippingStatuses.Delivered)
-        {
-            order.Status = OrderStatuses.Delivered;
-        }
-
-        order.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
-
-        if (mappedStatus == ShippingStatuses.Delivered &&
-            previousOrderStatus != OrderStatuses.Delivered &&
-            previousShippingStatus != ShippingStatuses.Delivered)
-        {
-            await _orderEmailService.SendOrderStatusChangedAsync(order.Id, OrderStatuses.Delivered);
-            await _notificationService.CreateAsync(
-                order.UserId,
-                "Đơn hàng đã giao",
-                $"Đơn #DH{order.Id:D4} đã giao thành công qua GHN.",
-                NotificationTypes.Order,
-                $"/Order/Detail/{order.Id}");
-        }
+        return true;
     }
 
     private async Task<HttpResponseMessage> PostAsync(string path, object body)

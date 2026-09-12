@@ -39,7 +39,7 @@
         <form asp-action="UpdateStatus" method="post" class="inline-form">
             <input type="hidden" name="id" value="@Model.Id" />
             <select name="status">
-                @foreach (var status in OrderStatuses.All)
+                @foreach (var status in OrderStatuses.All.Where(status => EcommerceApp.Services.OrderLifecycle.CanTransition(Model, status)))
                 {
                     <option value="@status" selected="@(Model.Status == status)">@status</option>
                 }
@@ -60,6 +60,8 @@
         <div class="panel-head">
             <h2>Vận chuyển</h2>
         </div>
+        @if (EcommerceApp.Services.OrderLifecycle.CanShip(Model))
+        {
         <form asp-action="AssignShipping" method="post" class="stack-form">
             <input type="hidden" name="id" value="@Model.Id" />
             <label>Đơn vị vận chuyển</label>
@@ -70,11 +72,16 @@
                 }
             </select>
             <label>Mã vận đơn</label>
-            <input name="trackingCode" value="@Model.ShippingInfo?.TrackingCode" />
+            <input name="trackingCode" value="@Model.ShippingInfo?.TrackingCode" maxlength="80" />
             <label>Dự kiến giao</label>
             <input type="date" name="estimatedDelivery" value="@Model.ShippingInfo?.EstimatedDelivery?.ToString("yyyy-MM-dd")" />
             <button class="admin-button" type="submit">Lưu vận chuyển</button>
         </form>
+        }
+        else
+        {
+            <p>Chỉ gán vận chuyển khi đơn đã được xác nhận và đủ điều kiện thanh toán.</p>
+        }
     </div>
     <div class="admin-panel">
         <div class="panel-head">

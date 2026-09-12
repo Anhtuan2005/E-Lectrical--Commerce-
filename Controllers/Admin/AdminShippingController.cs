@@ -31,8 +31,10 @@ public class AdminShippingController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateStatus(int orderId, string status)
     {
-        await _shippingService.UpdateStatusAsync(orderId, status);
-        TempData["Success"] = "Đã cập nhật trạng thái vận chuyển.";
+        var updated = await _shippingService.UpdateStatusAsync(orderId, status);
+        TempData[updated ? "Success" : "Error"] = updated
+            ? "Đã cập nhật trạng thái vận chuyển."
+            : "Không thể chuyển vận đơn sang trạng thái này. Hãy kiểm tra trạng thái hiện tại của đơn.";
         return RedirectToAction(nameof(Index));
     }
 
@@ -43,7 +45,7 @@ public class AdminShippingController : Controller
         var updated = await _shippingService.UpdateTrackingAsync(orderId, carrier, trackingCode);
         TempData[updated ? "Success" : "Error"] = updated
             ? $"Đã cập nhật mã vận đơn cho đơn #{orderId}."
-            : "Vui lòng nhập mã vận đơn hợp lệ.";
+            : "Đơn phải được xác nhận và đủ điều kiện giao hàng. Mã vận đơn và tên đơn vị vận chuyển tối đa 80 ký tự.";
 
         return RedirectToAction(nameof(Index));
     }

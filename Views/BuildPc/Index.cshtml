@@ -38,7 +38,7 @@
     <div class="buildpc-hero-inner smartpc-hero-inner">
         <div class="smartpc-hero-copy">
             <span class="eyebrow">Smart PC Builder</span>
-            <h1>AI Advisor dựng cấu hình PC theo ngân sách</h1>
+            <h1>Dựng cấu hình PC theo ngân sách</h1>
             <p>Chọn mục tiêu, nhập ngân sách và để Techvora gợi ý bộ linh kiện cân bằng từ sản phẩm còn hàng.</p>
         </div>
 
@@ -80,7 +80,7 @@
 <section class="smart-result-section section reveal" id="smartResult" hidden>
     <div class="smart-result-head">
         <div>
-            <span class="eyebrow">AI Advisor</span>
+            <span class="eyebrow">Trợ lý cấu hình</span>
             <h2 id="smartResultTitle">Cấu hình gợi ý</h2>
         </div>
         <div class="smart-result-total">
@@ -149,12 +149,12 @@
             <span class="eyebrow">Tinh chỉnh</span>
             <h2>Cấu hình đang chọn</h2>
         </div>
-        <p>Thay linh kiện theo ý bạn, AI Advisor vẫn giữ cảnh báo ngân sách, công suất và tương thích cơ bản.</p>
+        <p>Thay linh kiện theo ý bạn, Trợ lý cấu hình vẫn giữ cảnh báo ngân sách, công suất và tương thích cơ bản.</p>
     </div>
 
     <div class="builder-wrap">
         <div class="slot-list" id="slotList">
-            @foreach (var slot in EcommerceApp.Controllers.PcSlots.All)
+            @foreach (var slot in EcommerceApp.Models.PcSlots.All)
             {
                 <div class="slot-row" data-slot="@slot">
                     <div class="slot-icon"><i data-lucide="@GetSlotIcon(slot)" aria-hidden="true"></i></div>
@@ -187,7 +187,7 @@
             <div class="summary-advisor">
                 <div>
                     <i data-lucide="bot" aria-hidden="true"></i>
-                    <strong>AI Advisor</strong>
+                    <strong>Trợ lý cấu hình</strong>
                 </div>
                 <p id="summaryAdvisorText">Tạo cấu hình thông minh để nhận đánh giá nhanh.</p>
             </div>

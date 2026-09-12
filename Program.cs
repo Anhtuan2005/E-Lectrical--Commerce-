@@ -24,6 +24,7 @@ CultureInfo.DefaultThreadCurrentUICulture = viCulture;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", Serilog.Events.LogEventLevel.Warning)
     .Enrich.FromLogContext()
     .WriteTo.Console()
     .WriteTo.File("logs/app-.log", rollingInterval: RollingInterval.Day)
@@ -145,6 +146,15 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0
         }));
 
+    options.AddPolicy("password-reset", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(15),
+            QueueLimit = 0
+        }));
+
     options.AddPolicy("voucher", httpContext => RateLimitPartition.GetFixedWindowLimiter(
         httpContext.User.Identity?.Name ?? httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
         _ => new FixedWindowRateLimiterOptions
@@ -170,6 +180,7 @@ builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email
 builder.Services.Configure<GhnOptions>(builder.Configuration.GetSection("Ghn"));
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductSpecService, ProductSpecService>();
+builder.Services.AddScoped<ISmartPcBuildService, SmartPcBuildService>();
 builder.Services.AddScoped<IProductInteractionService, ProductInteractionService>();
 builder.Services.AddScoped<IRecommendationService, RecommendationService>();
 builder.Services.AddScoped<IImageStorageService, ImageStorageService>();
@@ -295,6 +306,7 @@ try
 catch (Exception ex)
 {
     Log.Fatal(ex, "Ứng dụng dừng bất thường.");
+    Environment.ExitCode = 1;
 }
 finally
 {

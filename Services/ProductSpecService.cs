@@ -12,6 +12,26 @@ public class ProductSpecService : IProductSpecService
 {
     public IReadOnlyList<ProductSpecViewModel> Build(Product product)
     {
+        var specs = BuildPresentationSpecs(product).ToList();
+        var socket = product.Socket?.ToString().ToUpperInvariant() ?? "Chưa xác định";
+        var memory = product.MemoryType?.ToString().ToUpperInvariant() ?? "Chưa xác định";
+        var power = product.PowerWatts.HasValue ? $"{product.PowerWatts.Value}W" : "Chưa xác định";
+        for (var i = 0; i < specs.Count; i++)
+        {
+            specs[i] = specs[i].Label switch
+            {
+                "Socket" => Spec("Socket", socket),
+                "Chuẩn RAM" => Spec("Chuẩn RAM", memory),
+                "RAM hỗ trợ" => Spec("RAM hỗ trợ", memory),
+                "Công suất" => Spec("Công suất", power),
+                _ => specs[i]
+            };
+        }
+        return specs;
+    }
+
+    private IReadOnlyList<ProductSpecViewModel> BuildPresentationSpecs(Product product)
+    {
         var name = product.Name;
         var normalizedName = NormalizeSpecText(name);
         var slug = product.Category?.Slug?.ToLowerInvariant() ?? string.Empty;

@@ -42,6 +42,12 @@ public class ProductFormViewModel
     public string ImageUrls { get; set; } = string.Empty;
     public int CategoryId { get; set; }
     public bool IsFeatured { get; set; }
+    [EnumDataType(typeof(CpuSocket))]
+    public CpuSocket? Socket { get; set; }
+    [EnumDataType(typeof(MemoryStandard))]
+    public MemoryStandard? MemoryType { get; set; }
+    [Range(1, 5000, ErrorMessage = "Công suất phải từ 1 đến 5.000 W")]
+    public int? PowerWatts { get; set; }
     public IEnumerable<Category> Categories { get; set; } = Enumerable.Empty<Category>();
     public IEnumerable<StockLog> StockLogs { get; set; } = Enumerable.Empty<StockLog>();
 }

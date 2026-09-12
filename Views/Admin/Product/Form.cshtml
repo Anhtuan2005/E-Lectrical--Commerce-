@@ -40,6 +40,25 @@
             }
         </select>
 
+        <fieldset>
+            <legend>Thông số linh kiện PC</legend>
+            <p class="form-hint">Dùng để kiểm tra cấu hình. Để trống nếu sản phẩm không áp dụng hoặc chưa có thông số xác nhận.</p>
+            <label asp-for="Socket">Socket CPU / mainboard</label>
+            <select asp-for="Socket" asp-items="Html.GetEnumSelectList<CpuSocket>()">
+                <option value="">Chưa xác định / không áp dụng</option>
+            </select>
+            <span asp-validation-for="Socket"></span>
+            <label asp-for="MemoryType">Chuẩn RAM / RAM mainboard hỗ trợ</label>
+            <select asp-for="MemoryType" asp-items="Html.GetEnumSelectList<MemoryStandard>()">
+                <option value="">Chưa xác định / không áp dụng</option>
+            </select>
+            <span asp-validation-for="MemoryType"></span>
+            <label asp-for="PowerWatts">Công suất (W)</label>
+            <input asp-for="PowerWatts" type="number" min="1" max="5000" />
+            <span asp-validation-for="PowerWatts"></span>
+            <small class="form-hint">Với PSU: công suất cấp. Với CPU/VGA: mức công suất dùng để dự trù nguồn.</small>
+        </fieldset>
+
         <label>Thư viện ảnh</label>
         <textarea asp-for="ImageUrls" rows="6" placeholder="Mỗi dòng một URL ảnh. Dòng đầu là ảnh chính."></textarea>
         <span asp-validation-for="ImageUrls"></span>

@@ -1,0 +1,13 @@
+{
+  "name": "techvora-assets",
+  "private": true,
+  "scripts": {
+    "build:assets": "node scripts/build-assets.mjs",
+    "check:assets": "node scripts/build-assets.mjs --check",
+    "test:smoke": "playwright test"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "@playwright/test": "1.58.2"
+  }
+}

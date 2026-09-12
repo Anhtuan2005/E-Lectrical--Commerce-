@@ -1,0 +1,71 @@
+name: Build and test
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: Techvora_CI_Only123!
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd="/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Techvora_CI_Only123!' -C -Q 'SELECT 1'"
+          --health-interval=10s --health-timeout=5s --health-retries=15
+    env:
+      TECHVORA_TEST_SQLSERVER: Server=localhost,1433;User Id=sa;Password=Techvora_CI_Only123!;TrustServerCertificate=True
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check:assets
+      - run: dotnet tool restore
+      - run: dotnet restore EcommerceApp.sln
+      - run: dotnet build EcommerceApp.sln --configuration Release --no-restore
+      - run: dotnet test EcommerceApp.sln --configuration Release --no-build --logger trx --results-directory TestResults
+      - run: dotnet tool run dotnet-ef migrations has-pending-model-changes --no-build --configuration Release
+      - run: dotnet publish EcommerceApp.csproj --configuration Release --no-build --output artifacts/publish
+      - run: npx playwright install --with-deps chromium
+      - name: Browser smoke tests on an isolated demo
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ASPNETCORE_URLS: http://localhost:5009
+          ASPNETCORE_CONTENTROOT: ${{ github.workspace }}/artifacts/publish
+          ConnectionStrings__DefaultConnection: Server=localhost,1433;Database=TechvoraSmoke;User Id=sa;Password=Techvora_CI_Only123!;TrustServerCertificate=True
+          Database__MigrateOnStartup: "true"
+          Demo__Enabled: "true"
+          Email__Enabled: "false"
+          PLAYWRIGHT_CHANNEL: chromium
+        run: |
+          dotnet artifacts/publish/EcommerceApp.dll > artifacts/smoke.log 2>&1 &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..45}; do
+            if curl --fail --silent http://localhost:5009/health/ready > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail http://localhost:5009/health/ready
+          npm run test:smoke
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: |
+            TestResults/*.trx
+            artifacts/browser/
+            artifacts/smoke.log

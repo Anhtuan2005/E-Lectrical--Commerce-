@@ -1,0 +1,350 @@
+/* Product spec modal, tuned for the Techvora PDP palette. */
+.pdp-spec-open {
+  min-height: 44px;
+  padding: 0 16px;
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line-soft));
+  border-radius: 999px;
+  color: var(--accent-dark);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-light) 88%, var(--bg-card)), var(--bg-card));
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.pdp-spec-open:hover,
+.pdp-spec-open:focus-visible {
+  border-color: var(--accent);
+  background:
+    linear-gradient(135deg, var(--accent-light), color-mix(in srgb, var(--bg-card) 88%, var(--accent)));
+  box-shadow: 0 14px 32px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.spec-modal-backdrop {
+  z-index: 5000;
+  padding: 20px;
+  background:
+    radial-gradient(circle at 50% 16%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 34%),
+    oklch(0.18 0.045 250 / 0.66);
+}
+
+.spec-modal-panel {
+  width: min(940px, 100%);
+  max-height: min(86svh, 760px);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line-soft));
+  border-radius: 20px;
+  background: oklch(0.985 0.006 250);
+  box-shadow: 0 30px 90px oklch(0.16 0.05 250 / 0.36);
+}
+
+.spec-modal-head {
+  min-height: 66px;
+  padding: 0 16px 0 20px;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 14%, var(--line-soft));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-light) 74%, var(--bg-card)), oklch(0.99 0.008 225));
+}
+
+.spec-modal-head > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.spec-modal-head span {
+  color: var(--accent);
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.spec-modal-head h2 {
+  color: var(--ink);
+  font-size: 1.22rem;
+  font-weight: 900;
+}
+
+.spec-modal-close {
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  color: var(--ink-muted);
+  background: color-mix(in srgb, var(--bg-card) 78%, var(--accent-light));
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--line-soft));
+}
+
+.spec-modal-close:hover,
+.spec-modal-close:focus-visible {
+  color: var(--accent-dark);
+  background: var(--accent-light);
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line-soft));
+}
+
+.spec-modal-close:focus {
+  outline: none;
+}
+
+.spec-modal-close:focus-visible {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+body.spec-modal-lock .ai-chatbot {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.spec-modal-body {
+  padding: 18px;
+  background:
+    linear-gradient(180deg, oklch(0.995 0.004 250), oklch(0.975 0.01 250));
+}
+
+.spec-modal-product {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line-soft));
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-light) 62%, var(--bg-card)), var(--bg-card));
+}
+
+.spec-modal-product img {
+  width: 74px;
+  height: 74px;
+  border-radius: 14px;
+  object-fit: contain;
+  background: oklch(0.99 0.006 250);
+  border: 1px solid var(--line-soft);
+}
+
+.spec-modal-product div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.spec-modal-product span {
+  color: var(--accent);
+  font-size: .76rem;
+  font-weight: 900;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.spec-modal-product strong {
+  color: var(--ink);
+  font-size: 1.05rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.spec-table-title {
+  top: -18px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 16px;
+  border-radius: 14px 14px 0 0;
+  color: oklch(0.99 0.006 250);
+  background:
+    linear-gradient(135deg, var(--accent), oklch(0.67 0.16 218));
+  letter-spacing: .04em;
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.spec-table-title .lucide {
+  width: 18px;
+  height: 18px;
+}
+
+.spec-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 15%, var(--line-soft));
+  border-top: 0;
+  border-radius: 0 0 14px 14px;
+  background: var(--bg-card);
+}
+
+.spec-table th,
+.spec-table td {
+  padding: 15px 16px;
+  border: 0;
+  border-top: 1px solid var(--line-soft);
+  color: oklch(0.31 0.024 250);
+  font-size: .96rem;
+}
+
+.spec-table th {
+  width: 31%;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-light) 66%, var(--bg-soft)), var(--bg-soft));
+  color: oklch(0.25 0.026 250);
+}
+
+.spec-table td {
+  background: oklch(0.996 0.003 250);
+}
+
+.spec-table tr:first-child th,
+.spec-table tr:first-child td {
+  border-top: 0;
+}
+
+@media (max-width: 760px) {
+  .spec-modal-backdrop {
+    padding: 10px;
+  }
+
+  .spec-modal-panel {
+    max-height: calc(100svh - 20px);
+    border-radius: 18px;
+  }
+
+  .spec-modal-head {
+    min-height: 60px;
+    padding: 0 12px 0 16px;
+  }
+
+  .spec-modal-head h2 {
+    font-size: 1.08rem;
+  }
+
+  .spec-modal-body {
+    padding: 12px;
+  }
+
+  .spec-modal-product {
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 11px;
+    padding: 10px;
+  }
+
+  .spec-modal-product img {
+    width: 58px;
+    height: 58px;
+    border-radius: 12px;
+  }
+
+  .spec-modal-product strong {
+    font-size: .98rem;
+  }
+
+  .spec-table-title {
+    top: -12px;
+    padding: 12px;
+    font-size: .84rem;
+  }
+
+  .spec-table th,
+  .spec-table td {
+    padding: 12px;
+    font-size: .9rem;
+  }
+
+  .spec-table th {
+    width: 40%;
+  }
+}
+
+@media (max-width: 420px) {
+  .spec-modal-backdrop {
+    padding: 0;
+  }
+
+  .spec-modal-panel {
+    height: 100svh;
+    max-height: 100svh;
+    border-radius: 0;
+  }
+
+  .spec-modal-head {
+    min-height: 58px;
+  }
+
+  .spec-modal-body {
+    padding: 10px;
+  }
+
+  .spec-table-title {
+    top: -10px;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .spec-table {
+    border-radius: 0 0 12px 12px;
+  }
+
+  .spec-table th,
+  .spec-table td {
+    display: block;
+    width: 100%;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .spec-table th {
+    padding-bottom: 5px;
+  }
+
+  .spec-table td {
+    padding-top: 5px;
+  }
+}
+
+/* Keep the PDP specs dialog centered in the viewport, including after long page scrolls. */
+.spec-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-items: center;
+  justify-items: center;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  padding: clamp(12px, 3vw, 24px);
+  background: oklch(0.18 0.045 250 / 0.66);
+}
+
+.spec-modal-panel {
+  margin: auto;
+  width: min(940px, calc(100vw - 24px));
+  height: auto;
+  max-height: min(86svh, 760px);
+}
+
+@media (max-width: 760px) {
+  .spec-modal-backdrop {
+    place-items: center;
+    align-items: center;
+    justify-items: center;
+    padding: 12px;
+  }
+
+  .spec-modal-panel {
+    width: min(100%, calc(100vw - 24px));
+    height: auto;
+    max-height: calc(100svh - 24px);
+    border-radius: 18px;
+  }
+}
+
+@media (max-width: 420px) {
+  .spec-modal-backdrop {
+    padding: 10px;
+  }
+
+  .spec-modal-panel {
+    width: calc(100vw - 20px);
+    height: auto;
+    max-height: calc(100svh - 20px);
+    border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line-soft));
+    border-radius: 18px;
+  }
+}
+

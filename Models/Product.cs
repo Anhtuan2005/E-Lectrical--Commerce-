@@ -25,6 +25,16 @@ public class Product
     public bool IsFeatured { get; set; }
     public bool IsDeleted { get; set; }
 
+    [EnumDataType(typeof(CpuSocket))]
+    public CpuSocket? Socket { get; set; }
+
+    [EnumDataType(typeof(MemoryStandard))]
+    public MemoryStandard? MemoryType { get; set; }
+
+    // PSU rated output, or the component's documented power budget. Null means unknown.
+    [Range(1, 5000)]
+    public int? PowerWatts { get; set; }
+
     [Range(0, 100)]
     public int DiscountPercent { get; set; }
 

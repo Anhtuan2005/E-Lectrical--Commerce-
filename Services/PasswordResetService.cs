@@ -72,43 +72,44 @@ public class PasswordResetService : IPasswordResetService
 
     public async Task<(bool Success, string? Error)> ResetPasswordAsync(string rawToken, string newPassword)
     {
-        var tokenHash = HashToken(rawToken);
-        var now = DateTime.UtcNow;
-
-        var resetToken = await _db.PasswordResetTokens
-            .FirstOrDefaultAsync(t => t.TokenHash == tokenHash);
-
-        if (resetToken is null)
+        if (string.IsNullOrWhiteSpace(rawToken))
             return (false, "Link đặt lại mật khẩu không hợp lệ.");
 
-        if (resetToken.UsedAt is not null)
-            return (false, "Link đặt lại mật khẩu đã được sử dụng.");
-
-        if (resetToken.ExpiredAt < now)
-            return (false, "Link đặt lại mật khẩu đã hết hạn. Vui lòng yêu cầu lại.");
-
-        var user = await _userManager.FindByIdAsync(resetToken.UserId);
-        if (user is null)
-            return (false, "Không tìm thấy tài khoản.");
-
-        // Xóa password cũ rồi set password mới
-        var removeResult = await _userManager.RemovePasswordAsync(user);
-        if (!removeResult.Succeeded)
-            return (false, "Không thể đặt lại mật khẩu. Vui lòng thử lại.");
-
-        var addResult = await _userManager.AddPasswordAsync(user, newPassword);
-        if (!addResult.Succeeded)
+        var tokenHash = HashToken(rawToken);
+        return await DatabaseTransaction.ExecuteAsync<(bool Success, string? Error)>(_db, async () =>
         {
-            var errors = string.Join(" ", addResult.Errors.Select(e => e.Description));
-            return (false, errors);
-        }
+            var userId = await _db.PasswordResetTokens.AsNoTracking()
+                .Where(token => token.TokenHash == tokenHash)
+                .Select(token => token.UserId).FirstOrDefaultAsync();
+            if (userId is null)
+                return (false, "Link đặt lại mật khẩu không hợp lệ.");
 
-        // Đánh dấu token đã dùng
-        resetToken.UsedAt = now;
-        await _db.SaveChangesAsync();
+            // Serialize all reset links for this user, then recheck the token under the lock.
+            var user = await _db.Users
+                .FromSqlInterpolated($"SELECT * FROM AspNetUsers WITH (UPDLOCK, ROWLOCK) WHERE Id = {userId}")
+                .FirstOrDefaultAsync();
+            if (user is null)
+                return (false, "Không tìm thấy tài khoản.");
 
-        _logger.LogInformation("Password reset completed for user {UserId}.", user.Id);
-        return (true, null);
+            var resetToken = await _db.PasswordResetTokens.AsNoTracking()
+                .FirstOrDefaultAsync(token => token.TokenHash == tokenHash);
+            if (resetToken is null || resetToken.UsedAt is not null)
+                return (false, "Link đặt lại mật khẩu đã được sử dụng.");
+
+            var now = DateTime.UtcNow;
+            if (resetToken.ExpiredAt <= now)
+                return (false, "Link đặt lại mật khẩu đã hết hạn. Vui lòng yêu cầu lại.");
+
+            // Identity validates the new password before changing its hash and security stamp.
+            var identityToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var result = await _userManager.ResetPasswordAsync(user, identityToken, newPassword);
+            if (!result.Succeeded)
+                return (false, string.Join(" ", result.Errors.Select(error => error.Description)));
+
+            await _db.PasswordResetTokens.Where(token => token.UserId == user.Id && token.UsedAt == null)
+                .ExecuteUpdateAsync(update => update.SetProperty(token => token.UsedAt, now));
+            return (true, null);
+        });
     }
 
     /// <summary>Tạo raw token 32 bytes → base64url (không có +/= gây lỗi URL).</summary>

@@ -1,0 +1,36 @@
+:root {
+  --bg: #ffffff;
+  --bg-soft: #f5f5f7;
+  --bg-card: #ffffff;
+  --ink: #1d1d1f;
+  --ink-muted: #6e6e73;
+  --ink-subtle: #a1a1a6;
+  --accent: #0071e3;
+  --accent-dark: #0051a8;
+  --accent-light: #e8f4fd;
+  --danger: #ff3b30;
+  --success: #34c759;
+  --warning: #ff9f0a;
+  --line: #d2d2d7;
+  --line-soft: #e8e8ed;
+  --accent-2: #6d28d9;
+  --tech-dark: #0a0e1a;
+  --tech-surface: #111827;
+  --tech-glow: rgba(0,113,227,0.28);
+  --r-sm: 8px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --s-sm: 0 2px 8px rgba(0,0,0,0.06);
+  --s-md: 0 8px 30px rgba(0,0,0,0.10);
+  --s-lg: 0 24px 64px rgba(0,0,0,0.14);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --t-fast: 0.15s;
+  --t-base: 0.25s;
+  --t-slow: 0.40s;
+  --scrollbar-track: oklch(0.94 0.012 250);
+  --scrollbar-thumb: oklch(0.57 0.17 247);
+  --scrollbar-thumb-strong: oklch(0.48 0.18 253);
+}
+

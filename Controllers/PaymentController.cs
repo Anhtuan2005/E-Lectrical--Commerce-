@@ -126,7 +126,7 @@ public class PaymentController : Controller
             return Json(new { RspCode = "01", Message = "Order not found" });
         }
 
-        var order = await _db.Orders.FirstOrDefaultAsync(row => row.Id == id);
+        var order = await _db.Orders.AsNoTracking().FirstOrDefaultAsync(row => row.Id == id);
         if (order is null)
         {
             return Json(new { RspCode = "01", Message = "Order not found" });
@@ -165,37 +165,40 @@ public class PaymentController : Controller
             return null;
         }
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
-        var order = await _db.Orders
-            .FromSqlInterpolated($"SELECT * FROM Orders WITH (UPDLOCK, ROWLOCK) WHERE Id = {id}")
-            .FirstOrDefaultAsync();
-        if (order is null)
+        var (order, shouldSendStatusEmail, shouldSendRefundEmail) = await DatabaseTransaction.ExecuteAsync<(Order? Order, bool StatusEmail, bool RefundEmail)>(_db, async () =>
         {
-            return null;
-        }
+            var order = await _db.Orders
+                .FromSqlInterpolated($"SELECT * FROM Orders WITH (UPDLOCK, ROWLOCK) WHERE Id = {id}")
+                .FirstOrDefaultAsync();
+            if (order is null)
+            {
+                return (null, false, false);
+            }
 
-        if (order.TotalAmount != response.Amount ||
-            !string.Equals(order.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
+            if (order.TotalAmount != response.Amount ||
+                !string.Equals(order.PaymentMethod, "VNPAY", StringComparison.OrdinalIgnoreCase))
+            {
+                return (null, false, false);
+            }
 
-        if (order.IsPaid)
-        {
-            return order;
-        }
+            if (order.IsPaid)
+            {
+                return (order, false, false);
+            }
 
-        if (!CanAcceptVnpayCallback(order))
-        {
-            return null;
-        }
+            if (!CanAcceptVnpayCallback(order))
+            {
+                return (null, false, false);
+            }
 
-        var oldRefundStatus = order.RefundStatus;
-        var shouldSendStatusEmail = ApplyPaymentResponse(response, order);
-        var shouldSendRefundEmail = oldRefundStatus != order.RefundStatus
-            && order.RefundStatus == RefundStatuses.PendingManual;
-        await _db.SaveChangesAsync();
-        await transaction.CommitAsync();
+            var oldRefundStatus = order.RefundStatus;
+            var shouldSendStatusEmail = ApplyPaymentResponse(response, order);
+            var shouldSendRefundEmail = oldRefundStatus != order.RefundStatus
+                && order.RefundStatus == RefundStatuses.PendingManual;
+            await _db.SaveChangesAsync();
+            return (order, shouldSendStatusEmail, shouldSendRefundEmail);
+        }, IsolationLevel.Serializable);
+        if (order is null) return null;
 
         if (response.IsSuccess)
         {

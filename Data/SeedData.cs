@@ -13,10 +13,18 @@ public static class SeedData
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var customerSegmentService = scope.ServiceProvider.GetRequiredService<ICustomerSegmentService>();
+        var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        var environment = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
+        var demoEnabled = configuration.GetValue<bool>("Demo:Enabled");
+        if (demoEnabled && environment.IsProduction())
+            throw new InvalidOperationException("Demo data is disabled in Production. Set Demo:Enabled=false.");
 
-        await MarkInitialMigrationForLegacyDatabaseAsync(db);
-        await db.Database.MigrateAsync();
+        if (configuration.GetValue<bool>("Database:MigrateOnStartup"))
+        {
+            if (await db.Database.CanConnectAsync())
+                await MarkInitialMigrationForLegacyDatabaseAsync(db);
+            await db.Database.MigrateAsync();
+        }
 
         foreach (var role in new[] { "Admin", "User" })
         {
@@ -26,6 +34,10 @@ public static class SeedData
             }
         }
 
+        await BootstrapAdminAsync(userManager, configuration);
+        if (!demoEnabled) return;
+
+        var customerSegmentService = scope.ServiceProvider.GetRequiredService<ICustomerSegmentService>();
         await EnsureUserAsync(userManager, "admin@shop.vn", "Quản trị viên", "Hồ Chí Minh", "0900000000", "Admin@123", "Admin");
         await EnsureUserAsync(userManager, "khachhang1@shop.vn", "Minh Anh", "Hà Nội", "0911111111", "User@123", "User");
         await EnsureUserAsync(userManager, "khachhang2@shop.vn", "Quốc Huy", "Đà Nẵng", "0911111112", "User@123", "User");
@@ -42,8 +54,51 @@ public static class SeedData
         await EnsureBannersAsync(db);
         await EnsureVouchersAsync(db);
         await RemoveIneligibleReviewsAsync(db);
+        await EnsureDemoOrdersAsync(db);
         await customerSegmentService.RefreshAsync();
         await EnsureSegmentVouchersAsync(db);
+    }
+
+    private static async Task EnsureDemoOrdersAsync(AppDbContext db)
+    {
+        if (await db.Orders.AnyAsync()) return;
+        var customer = await db.Users.SingleAsync(user => user.Email == "khachhang1@shop.vn");
+        var products = await db.Products.OrderBy(product => product.Id).Take(8).ToListAsync();
+        for (var index = 0; index < products.Count; index++)
+        {
+            var product = products[index];
+            var createdAt = DateTime.UtcNow.AddDays(index - 7);
+            var status = index == 7 ? OrderStatuses.Pending : index == 6 ? OrderStatuses.AwaitingPayment : OrderStatuses.Delivered;
+            db.Orders.Add(new Order
+            {
+                UserId = customer.Id, RecipientName = "Khách hàng demo", RecipientPhone = "0900000000",
+                ShippingAddress = "Địa chỉ minh họa, Hồ Chí Minh", Status = status,
+                PaymentMethod = index == 6 ? "VNPAY" : "COD", IsPaid = index < 6,
+                PaidAt = index < 6 ? createdAt.AddHours(2) : null, CreatedAt = createdAt, UpdatedAt = createdAt,
+                TotalAmount = product.SalePrice,
+                Items = new List<OrderItem> { new() { ProductId = product.Id, Quantity = 1, UnitPrice = product.SalePrice } }
+            });
+        }
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task BootstrapAdminAsync(UserManager<ApplicationUser> userManager, IConfiguration configuration)
+    {
+        var email = configuration["BootstrapAdmin:Email"]?.Trim();
+        var password = configuration["BootstrapAdmin:Password"];
+        if (string.IsNullOrWhiteSpace(email) && string.IsNullOrWhiteSpace(password)) return;
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+            throw new InvalidOperationException("Set both BootstrapAdmin:Email and BootstrapAdmin:Password using secrets.");
+
+        var existing = await userManager.FindByEmailAsync(email);
+        if (existing is not null)
+        {
+            if (!await userManager.IsInRoleAsync(existing, "Admin"))
+                throw new InvalidOperationException("Bootstrap admin email belongs to an existing customer. Use a new email.");
+            return;
+        }
+
+        await EnsureUserAsync(userManager, email, "Quản trị viên", "", "", password, "Admin");
     }
 
     private static async Task MarkInitialMigrationForLegacyDatabaseAsync(AppDbContext db)
@@ -83,12 +138,16 @@ END");
                 Address = address,
                 PhoneNumber = phone
             };
-            await userManager.CreateAsync(user, password);
+            var created = await userManager.CreateAsync(user, password);
+            if (!created.Succeeded)
+                throw new InvalidOperationException("Cannot create seed user: " + string.Join("; ", created.Errors.Select(error => error.Description)));
         }
 
         if (!await userManager.IsInRoleAsync(user, role))
         {
-            await userManager.AddToRoleAsync(user, role);
+            var assigned = await userManager.AddToRoleAsync(user, role);
+            if (!assigned.Succeeded)
+                throw new InvalidOperationException("Cannot assign seed role: " + string.Join("; ", assigned.Errors.Select(error => error.Description)));
         }
 
         if (!await userManager.GetLockoutEnabledAsync(user))
@@ -415,13 +474,43 @@ END");
 
         foreach (var product in products)
         {
-            if (!await db.Products.IgnoreQueryFilters().AnyAsync(row => row.Name == product.Name))
+            ApplyDemoComponentSpecs(product);
+            var existing = await db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(row => row.Name == product.Name);
+            if (existing is null) db.Products.Add(product);
+            else
             {
-                db.Products.Add(product);
+                // Fill missing demo metadata without replacing values entered by the admin.
+                existing.Socket ??= product.Socket;
+                existing.MemoryType ??= product.MemoryType;
+                existing.PowerWatts ??= product.PowerWatts;
             }
         }
 
         await db.SaveChangesAsync();
+    }
+
+    private static void ApplyDemoComponentSpecs(Product product)
+    {
+        // Exact entries in this demo catalog only; never infer production compatibility from names.
+        (CpuSocket? Socket, MemoryStandard? Memory, int? Watts) specs = product.Name switch
+        {
+            "AMD Ryzen 5 5600 CPU" => (CpuSocket.Am4, null, null),
+            "Intel Core i5-13400F CPU" => (CpuSocket.Lga1700, null, null),
+            "AMD Ryzen 7 7800X3D CPU" => (CpuSocket.Am5, null, null),
+            "ASUS TUF Gaming B550M-PLUS Mainboard" => (CpuSocket.Am4, MemoryStandard.Ddr4, null),
+            "MSI PRO B760M-A WiFi Mainboard DDR5" => (CpuSocket.Lga1700, MemoryStandard.Ddr5, null),
+            "Gigabyte B650 AORUS Elite AX Mainboard" => (CpuSocket.Am5, MemoryStandard.Ddr5, null),
+            "Kingston Fury Beast RAM DDR4 16GB 3200MHz" => (null, MemoryStandard.Ddr4, null),
+            "Corsair Vengeance RAM DDR5 32GB 5600MHz" => (null, MemoryStandard.Ddr5, null),
+            "G.Skill Trident Z5 RAM DDR5 64GB 6000MHz" => (null, MemoryStandard.Ddr5, null),
+            "Corsair CX550 550W PSU 80 Plus Bronze" => (null, null, 550),
+            "Cooler Master MWE Gold 750W PSU" => (null, null, 750),
+            "Seasonic Focus GX 850W PSU" => (null, null, 850),
+            _ => (null, null, null)
+        };
+        product.Socket = specs.Socket;
+        product.MemoryType = specs.Memory;
+        product.PowerWatts = specs.Watts;
     }
 
     private static async Task RemoveIneligibleReviewsAsync(AppDbContext db)

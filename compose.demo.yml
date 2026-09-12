@@ -1,0 +1,33 @@
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${DEMO_SQL_PASSWORD:?Set DEMO_SQL_PASSWORD before starting the demo}
+    volumes:
+      - demo-db:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+  web:
+    build: .
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Database__MigrateOnStartup: "true"
+      Demo__Enabled: "true"
+      Email__Enabled: "false"
+      ConnectionStrings__DefaultConnection: Server=db;Database=TechvoraDemo;User Id=sa;Password=${DEMO_SQL_PASSWORD};TrustServerCertificate=True
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - demo-keys:/app/App_Data/DataProtectionKeys
+      - demo-uploads:/app/wwwroot/uploads
+volumes:
+  demo-db:
+  demo-keys:
+  demo-uploads:

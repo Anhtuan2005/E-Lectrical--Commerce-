@@ -164,7 +164,10 @@ public class ProductService : IProductService
             Stock = model.Stock,
             DiscountPercent = model.DiscountPercent,
             CategoryId = model.CategoryId,
-            IsFeatured = model.IsFeatured
+            IsFeatured = model.IsFeatured,
+            Socket = model.Socket,
+            MemoryType = model.MemoryType,
+            PowerWatts = model.PowerWatts
         };
 
         ReplaceProductImages(product, BuildImageUrls(model, imageUrls), removeExisting: false);
@@ -193,6 +196,9 @@ public class ProductService : IProductService
         product.DiscountPercent = model.DiscountPercent;
         product.CategoryId = model.CategoryId;
         product.IsFeatured = model.IsFeatured;
+        product.Socket = model.Socket;
+        product.MemoryType = model.MemoryType;
+        product.PowerWatts = model.PowerWatts;
 
         var normalizedImageUrls = BuildImageUrls(model, imageUrls);
         if (normalizedImageUrls.Count > 0)

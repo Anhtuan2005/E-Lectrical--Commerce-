@@ -36,156 +36,157 @@ public class OrderService : IOrderService
 
     public async Task<Order> CreateOrderAsync(string userId, CheckoutViewModel model, string sessionId)
     {
-        var cart = await _cartService.GetCartEntityAsync(userId, sessionId);
-        if (cart is null || !cart.Items.Any())
+        var order = await DatabaseTransaction.ExecuteAsync(_db, async () =>
         {
-            throw new InvalidOperationException("Giỏ hàng đang trống.");
-        }
-
-        var selectedProductIds = model.SelectedProductIds
-            .Where(id => id > 0)
-            .Distinct()
-            .ToHashSet();
-        if (!selectedProductIds.Any())
-        {
-            throw new InvalidOperationException("Vui lòng chọn sản phẩm cần thanh toán.");
-        }
-
-        var checkoutItems = cart.Items
-            .Where(item => selectedProductIds.Contains(item.ProductId))
-            .ToList();
-        if (!checkoutItems.Any())
-        {
-            throw new InvalidOperationException("Các sản phẩm đã chọn không còn trong giỏ hàng.");
-        }
-
-        foreach (var item in checkoutItems)
-        {
-            if (item.Product is null || item.Product.Stock < item.Quantity)
+            var cart = await _cartService.GetCartEntityAsync(userId, sessionId);
+            if (cart is null || !cart.Items.Any())
             {
-                throw new InvalidOperationException($"Sản phẩm '{item.Product?.Name ?? "không xác định"}' không đủ hàng. Còn {item.Product?.Stock ?? 0} sản phẩm.");
-            }
-        }
-
-        await using var transaction = await _db.Database.BeginTransactionAsync();
-
-        var isVnpayOrder = IsVnpayPayment(model.PaymentMethod);
-        var crossSellUnitPrices = await _crossSellService.GetEligibleUnitPricesAsync(checkoutItems);
-        var order = new Order
-        {
-            UserId = userId,
-            RecipientName = model.RecipientName,
-            RecipientPhone = model.RecipientPhone,
-            ShippingAddress = model.ShippingAddress,
-            PaymentMethod = model.PaymentMethod,
-            Status = isVnpayOrder ? OrderStatuses.AwaitingPayment : OrderStatuses.Pending,
-            IsPaid = false,
-            PaidAt = null,
-            Items = checkoutItems.Select(item => new OrderItem
-            {
-                ProductId = item.ProductId,
-                Quantity = item.Quantity,
-                UnitPrice = crossSellUnitPrices.TryGetValue(item.ProductId, out var unitPrice)
-                    ? unitPrice
-                    : (item.Product?.SalePrice ?? item.Product?.Price ?? 0)
-            }).ToList()
-        };
-
-        var subtotal = order.Items.Sum(item => item.Quantity * item.UnitPrice);
-        var normalizedVoucherCode = NormalizeVoucherCode(model.VoucherCode);
-        int? appliedVoucherId = null;
-        if (normalizedVoucherCode is not null)
-        {
-            var now = DateTime.UtcNow;
-            var voucher = await _db.Vouchers.AsNoTracking().FirstOrDefaultAsync(row => row.Code == normalizedVoucherCode);
-            if (voucher is null || !voucher.IsActive)
-            {
-                throw new InvalidOperationException("Mã giảm giá không hợp lệ.");
+                throw new InvalidOperationException("Giỏ hàng đang trống.");
             }
 
-            if (voucher.StartDate > now || voucher.EndDate < now)
+            var selectedProductIds = model.SelectedProductIds
+                .Where(id => id > 0)
+                .Distinct()
+                .ToHashSet();
+            if (!selectedProductIds.Any())
             {
-                throw new InvalidOperationException("Mã giảm giá đã hết hạn hoặc chưa bắt đầu.");
+                throw new InvalidOperationException("Vui lòng chọn sản phẩm cần thanh toán.");
             }
 
-            if (voucher.UsedCount >= voucher.UsageLimit)
+            var checkoutItems = cart.Items
+                .Where(item => selectedProductIds.Contains(item.ProductId))
+                .ToList();
+            if (!checkoutItems.Any())
             {
-                throw new InvalidOperationException("Mã giảm giá đã hết lượt sử dụng.");
+                throw new InvalidOperationException("Các sản phẩm đã chọn không còn trong giỏ hàng.");
             }
 
-            if (subtotal < voucher.MinOrderAmount)
+            foreach (var item in checkoutItems)
             {
-                throw new InvalidOperationException($"Đơn hàng cần tối thiểu {voucher.MinOrderAmount:N0} ₫ để dùng mã này.");
+                if (item.Product is null || item.Product.Stock < item.Quantity)
+                {
+                    throw new InvalidOperationException($"Sản phẩm '{item.Product?.Name ?? "không xác định"}' không đủ hàng. Còn {item.Product?.Stock ?? 0} sản phẩm.");
+                }
             }
 
-            if (await _db.VoucherUsages.AnyAsync(usage => usage.VoucherId == voucher.Id && usage.UserId == userId))
+            var isVnpayOrder = IsVnpayPayment(model.PaymentMethod);
+            var crossSellUnitPrices = await _crossSellService.GetEligibleUnitPricesAsync(checkoutItems);
+            var order = new Order
+            {
+                UserId = userId,
+                RecipientName = model.RecipientName,
+                RecipientPhone = model.RecipientPhone,
+                ShippingAddress = model.ShippingAddress,
+                PaymentMethod = model.PaymentMethod,
+                Status = isVnpayOrder ? OrderStatuses.AwaitingPayment : OrderStatuses.Pending,
+                IsPaid = false,
+                PaidAt = null,
+                Items = checkoutItems.Select(item => new OrderItem
+                {
+                    ProductId = item.ProductId,
+                    Quantity = item.Quantity,
+                    UnitPrice = crossSellUnitPrices.TryGetValue(item.ProductId, out var unitPrice)
+                        ? unitPrice
+                        : (item.Product?.SalePrice ?? item.Product?.Price ?? 0)
+                }).ToList()
+            };
+
+            var subtotal = order.Items.Sum(item => item.Quantity * item.UnitPrice);
+            var normalizedVoucherCode = NormalizeVoucherCode(model.VoucherCode);
+            int? appliedVoucherId = null;
+            if (normalizedVoucherCode is not null)
+            {
+                var now = DateTime.UtcNow;
+                var voucher = await _db.Vouchers.AsNoTracking().FirstOrDefaultAsync(row => row.Code == normalizedVoucherCode);
+                if (voucher is null || !voucher.IsActive)
+                {
+                    throw new InvalidOperationException("Mã giảm giá không hợp lệ.");
+                }
+
+                if (voucher.StartDate > now || voucher.EndDate < now)
+                {
+                    throw new InvalidOperationException("Mã giảm giá đã hết hạn hoặc chưa bắt đầu.");
+                }
+
+                if (voucher.UsedCount >= voucher.UsageLimit)
+                {
+                    throw new InvalidOperationException("Mã giảm giá đã hết lượt sử dụng.");
+                }
+
+                if (subtotal < voucher.MinOrderAmount)
+                {
+                    throw new InvalidOperationException($"Đơn hàng cần tối thiểu {voucher.MinOrderAmount:N0} ₫ để dùng mã này.");
+                }
+
+                if (await _db.VoucherUsages.AnyAsync(usage => usage.VoucherId == voucher.Id && usage.UserId == userId))
+                {
+                    throw new InvalidOperationException("Bạn đã sử dụng mã giảm giá này.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(voucher.TargetUserId) && voucher.TargetUserId != userId)
+                {
+                    throw new InvalidOperationException("Mã giảm giá này chỉ áp dụng cho tài khoản được tặng.");
+                }
+
+                if (voucher.CustomerSegmentId.HasValue &&
+                    !await _customerSegmentService.UserBelongsToSegmentAsync(userId, voucher.CustomerSegmentId.Value))
+                {
+                    throw new InvalidOperationException("Mã giảm giá này chỉ áp dụng cho nhóm khách hàng phù hợp.");
+                }
+
+                var affected = await _db.Database.ExecuteSqlRawAsync(
+                    "UPDATE Vouchers SET UsedCount = UsedCount + 1 WHERE Id = {0} AND UsedCount < UsageLimit",
+                    voucher.Id);
+                if (affected == 0)
+                {
+                    throw new InvalidOperationException("Mã giảm giá vừa hết lượt sử dụng. Vui lòng chọn mã khác.");
+                }
+
+                order.DiscountAmount = CalculateDiscount(voucher, subtotal);
+                appliedVoucherId = voucher.Id;
+            }
+
+            var shippingQuote = _shippingFeeService.Calculate(model.Province, model.District, subtotal);
+            order.ShippingFee = shippingQuote.Fee;
+            order.TotalAmount = Math.Max(0, subtotal - order.DiscountAmount) + order.ShippingFee;
+
+            _db.Orders.Add(order);
+            if (appliedVoucherId.HasValue)
+            {
+                _db.VoucherUsages.Add(new VoucherUsage
+                {
+                    VoucherId = appliedVoucherId.Value,
+                    UserId = userId,
+                    Order = order
+                });
+            }
+
+            foreach (var item in checkoutItems)
+            {
+                var affected = await _db.Database.ExecuteSqlRawAsync(
+                    "UPDATE Products SET Stock = Stock - {0} WHERE Id = {1} AND Stock >= {0} AND IsDeleted = 0",
+                    item.Quantity,
+                    item.ProductId);
+                if (affected == 0)
+                {
+                    throw new InvalidOperationException($"Sản phẩm '{item.Product?.Name ?? "không xác định"}' vừa hết hàng. Vui lòng cập nhật giỏ hàng.");
+                }
+            }
+
+            _db.CartItems.RemoveRange(checkoutItems);
+            cart.UpdatedAt = DateTime.UtcNow;
+
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex) when (normalizedVoucherCode is not null && IsVoucherUsageUniqueViolation(ex))
             {
                 throw new InvalidOperationException("Bạn đã sử dụng mã giảm giá này.");
             }
-
-            if (!string.IsNullOrWhiteSpace(voucher.TargetUserId) && voucher.TargetUserId != userId)
-            {
-                throw new InvalidOperationException("Mã giảm giá này chỉ áp dụng cho tài khoản được tặng.");
-            }
-
-            if (voucher.CustomerSegmentId.HasValue &&
-                !await _customerSegmentService.UserBelongsToSegmentAsync(userId, voucher.CustomerSegmentId.Value))
-            {
-                throw new InvalidOperationException("Mã giảm giá này chỉ áp dụng cho nhóm khách hàng phù hợp.");
-            }
-
-            var affected = await _db.Database.ExecuteSqlRawAsync(
-                "UPDATE Vouchers SET UsedCount = UsedCount + 1 WHERE Id = {0} AND UsedCount < UsageLimit",
-                voucher.Id);
-            if (affected == 0)
-            {
-                throw new InvalidOperationException("Mã giảm giá vừa hết lượt sử dụng. Vui lòng chọn mã khác.");
-            }
-
-            order.DiscountAmount = CalculateDiscount(voucher, subtotal);
-            appliedVoucherId = voucher.Id;
-        }
-
-        var shippingQuote = _shippingFeeService.Calculate(model.Province, model.District, subtotal);
-        order.ShippingFee = shippingQuote.Fee;
-        order.TotalAmount = Math.Max(0, subtotal - order.DiscountAmount) + order.ShippingFee;
-
-        _db.Orders.Add(order);
-        if (appliedVoucherId.HasValue)
-        {
-            _db.VoucherUsages.Add(new VoucherUsage
-            {
-                VoucherId = appliedVoucherId.Value,
-                UserId = userId,
-                Order = order
-            });
-        }
-
-        foreach (var item in checkoutItems)
-        {
-            var affected = await _db.Database.ExecuteSqlRawAsync(
-                "UPDATE Products SET Stock = Stock - {0} WHERE Id = {1} AND Stock >= {0} AND IsDeleted = 0",
-                item.Quantity,
-                item.ProductId);
-            if (affected == 0)
-            {
-                throw new InvalidOperationException($"Sản phẩm '{item.Product?.Name ?? "không xác định"}' vừa hết hàng. Vui lòng cập nhật giỏ hàng.");
-            }
-        }
-
-        _db.CartItems.RemoveRange(checkoutItems);
-        cart.UpdatedAt = DateTime.UtcNow;
-
-        try
-        {
-            await _db.SaveChangesAsync();
-        }
-        catch (DbUpdateException ex) when (normalizedVoucherCode is not null && IsVoucherUsageUniqueViolation(ex))
-        {
-            throw new InvalidOperationException("Bạn đã sử dụng mã giảm giá này.");
-        }
-
-        await transaction.CommitAsync();
+            return order;
+        });
+        var isVnpayOrder = IsVnpayPayment(order.PaymentMethod);
         await _customerSegmentService.RefreshUserAsync(userId);
         _logger.LogInformation("Order {OrderId} created for user {UserId} with payment {PaymentMethod} and total {TotalAmount}", order.Id, userId, order.PaymentMethod, order.TotalAmount);
         await _orderEmailService.SendOrderCreatedAsync(order.Id);
@@ -357,60 +358,64 @@ public class OrderService : IOrderService
             return false;
         }
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
-        var order = await _db.Orders
-            .FromSqlInterpolated($"SELECT * FROM Orders WITH (UPDLOCK, ROWLOCK) WHERE Id = {id}")
-            .Include(row => row.ShippingInfo)
-            .Include(row => row.Items)
-            .FirstOrDefaultAsync();
-        if (order is null)
+        var change = await DatabaseTransaction.ExecuteAsync<(Order Order, string OldStatus, string OldRefundStatus)?>(_db, async () =>
         {
-            return false;
-        }
-
-        if (IsVnpayPayment(order.PaymentMethod) &&
-            !order.IsPaid &&
-            status is not (OrderStatuses.AwaitingPayment or OrderStatuses.Cancelled))
-        {
-            return false;
-        }
-
-        var oldStatus = order.Status;
-        if (oldStatus == OrderStatuses.Cancelled && status != OrderStatuses.Cancelled)
-        {
-            return false;
-        }
-
-        var oldRefundStatus = order.RefundStatus;
-        order.Status = status;
-        order.UpdatedAt = DateTime.UtcNow;
-
-        if (status == OrderStatuses.Shipping && order.ShippingInfo is not null && string.IsNullOrWhiteSpace(order.ShippingInfo.Status))
-        {
-            order.ShippingInfo.Status = ShippingStatuses.InTransit;
-        }
-        else if (status == OrderStatuses.Delivered && order.ShippingInfo is not null)
-        {
-            order.ShippingInfo.Status = ShippingStatuses.Delivered;
-        }
-
-        if (status == OrderStatuses.Cancelled)
-        {
-            MarkManualRefundRequiredIfNeeded(order, "Đơn VNPAY đã thanh toán bị huỷ bởi admin.");
-            if (oldStatus != OrderStatuses.Cancelled)
+            var order = await _db.Orders
+                .FromSqlInterpolated($"SELECT * FROM Orders WITH (UPDLOCK, ROWLOCK) WHERE Id = {id}")
+                .Include(row => row.ShippingInfo)
+                .Include(row => row.Items)
+                .FirstOrDefaultAsync();
+            if (order is null)
             {
-                foreach (var item in order.Items)
+                return null;
+            }
+
+            if (IsVnpayPayment(order.PaymentMethod) &&
+                !order.IsPaid &&
+                status is not (OrderStatuses.AwaitingPayment or OrderStatuses.Cancelled))
+            {
+                return null;
+            }
+
+            var oldStatus = order.Status;
+            if (oldStatus == OrderStatuses.Cancelled && status != OrderStatuses.Cancelled)
+            {
+                return null;
+            }
+
+            var oldRefundStatus = order.RefundStatus;
+            order.Status = status;
+            order.UpdatedAt = DateTime.UtcNow;
+
+            if (status == OrderStatuses.Shipping && order.ShippingInfo is not null && string.IsNullOrWhiteSpace(order.ShippingInfo.Status))
+            {
+                order.ShippingInfo.Status = ShippingStatuses.InTransit;
+            }
+            else if (status == OrderStatuses.Delivered && order.ShippingInfo is not null)
+            {
+                order.ShippingInfo.Status = ShippingStatuses.Delivered;
+            }
+
+            if (status == OrderStatuses.Cancelled)
+            {
+                MarkManualRefundRequiredIfNeeded(order, "Đơn VNPAY đã thanh toán bị huỷ bởi admin.");
+                if (oldStatus != OrderStatuses.Cancelled)
                 {
-                    await _db.Database.ExecuteSqlRawAsync(
-                        "UPDATE Products SET Stock = Stock + {0} WHERE Id = {1}",
-                        item.Quantity,
-                        item.ProductId);
+                    foreach (var item in order.Items)
+                    {
+                        await _db.Database.ExecuteSqlRawAsync(
+                            "UPDATE Products SET Stock = Stock + {0} WHERE Id = {1}",
+                            item.Quantity,
+                            item.ProductId);
+                    }
                 }
             }
-        }
 
-        await _db.SaveChangesAsync();
-        await transaction.CommitAsync();
+            await _db.SaveChangesAsync();
+            return (order, oldStatus, oldRefundStatus);
+        }, IsolationLevel.Serializable);
+        if (change is null) return false;
+        var (order, oldStatus, oldRefundStatus) = change.Value;
         await _customerSegmentService.RefreshUserAsync(order.UserId);
         _logger.LogInformation("Admin updated order {OrderId} status to {Status}", id, status);
 
@@ -496,34 +501,38 @@ public class OrderService : IOrderService
 
     public async Task<bool> CancelUserOrderAsync(int id, string userId, string? reason)
     {
-        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
-        var order = await _db.Orders
-            .FromSqlInterpolated($"SELECT * FROM Orders WITH (UPDLOCK, ROWLOCK) WHERE Id = {id} AND UserId = {userId}")
-            .Include(row => row.Items)
-            .FirstOrDefaultAsync();
-        if (order is null || order.Status is not (OrderStatuses.AwaitingPayment or OrderStatuses.Pending))
+        var change = await DatabaseTransaction.ExecuteAsync<(Order Order, string OldRefundStatus)?>(_db, async () =>
         {
-            return false;
-        }
+            var order = await _db.Orders
+                .FromSqlInterpolated($"SELECT * FROM Orders WITH (UPDLOCK, ROWLOCK) WHERE Id = {id} AND UserId = {userId}")
+                .Include(row => row.Items)
+                .FirstOrDefaultAsync();
+            if (order is null || order.Status is not (OrderStatuses.AwaitingPayment or OrderStatuses.Pending))
+            {
+                return null;
+            }
 
-        var oldRefundStatus = order.RefundStatus;
-        order.Status = OrderStatuses.Cancelled;
-        order.CancelledReason = string.IsNullOrWhiteSpace(reason)
-            ? "Khách hàng hủy đơn trước khi xác nhận."
-            : reason.Trim();
-        order.UpdatedAt = DateTime.UtcNow;
-        MarkManualRefundRequiredIfNeeded(order, "Đơn VNPAY đã thanh toán bị khách hàng huỷ.");
+            var oldRefundStatus = order.RefundStatus;
+            order.Status = OrderStatuses.Cancelled;
+            order.CancelledReason = string.IsNullOrWhiteSpace(reason)
+                ? "Khách hàng hủy đơn trước khi xác nhận."
+                : reason.Trim();
+            order.UpdatedAt = DateTime.UtcNow;
+            MarkManualRefundRequiredIfNeeded(order, "Đơn VNPAY đã thanh toán bị khách hàng huỷ.");
 
-        foreach (var item in order.Items)
-        {
-            await _db.Database.ExecuteSqlRawAsync(
-                "UPDATE Products SET Stock = Stock + {0} WHERE Id = {1}",
-                item.Quantity,
-                item.ProductId);
-        }
+            foreach (var item in order.Items)
+            {
+                await _db.Database.ExecuteSqlRawAsync(
+                    "UPDATE Products SET Stock = Stock + {0} WHERE Id = {1}",
+                    item.Quantity,
+                    item.ProductId);
+            }
 
-        await _db.SaveChangesAsync();
-        await transaction.CommitAsync();
+            await _db.SaveChangesAsync();
+            return (order, oldRefundStatus);
+        }, IsolationLevel.Serializable);
+        if (change is null) return false;
+        var (order, oldRefundStatus) = change.Value;
         _logger.LogInformation("User {UserId} cancelled order {OrderId}", userId, id);
         await _orderEmailService.SendOrderStatusChangedAsync(order.Id, OrderStatuses.Cancelled);
         await _notificationService.CreateAsync(

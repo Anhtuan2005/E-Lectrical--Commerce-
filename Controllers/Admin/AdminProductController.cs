@@ -92,6 +92,9 @@ public class AdminProductController : Controller
             ImageUrl = imageUrls.FirstOrDefault() ?? product.PrimaryImageUrl,
             ImageUrls = string.Join(Environment.NewLine, imageUrls),
             IsFeatured = product.IsFeatured,
+            Socket = product.Socket,
+            MemoryType = product.MemoryType,
+            PowerWatts = product.PowerWatts,
             Categories = await _productService.GetCategoriesAsync(),
             StockLogs = await _db.StockLogs
                 .Include(log => log.ChangedByUser)

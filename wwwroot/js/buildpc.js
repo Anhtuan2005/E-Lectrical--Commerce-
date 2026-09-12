@@ -133,7 +133,7 @@
     } catch (error) {
       console.error("Smart PC Builder error:", error);
       showNotice(error.message || "Chưa tạo được cấu hình. Bạn thử lại sau nhé.", "error");
-      if (summaryAdvisorText) summaryAdvisorText.textContent = error.message || "AI Advisor chưa có phản hồi.";
+      if (summaryAdvisorText) summaryAdvisorText.textContent = error.message || "Trợ lý cấu hình chưa có phản hồi.";
     } finally {
       setSmartLoading(false);
     }
@@ -242,7 +242,7 @@
 
     if (summaryAdvisorText) {
       var firstInsight = data.insights && data.insights.length ? data.insights[0] : data.message;
-      summaryAdvisorText.textContent = firstInsight || "AI Advisor đã cập nhật cấu hình.";
+      summaryAdvisorText.textContent = firstInsight || "Trợ lý cấu hình đã cập nhật cấu hình.";
     }
 
     refreshIcons();
@@ -252,7 +252,7 @@
     if (!smartCompatibility) return;
 
     if (!checks.length) {
-      smartCompatibility.innerHTML = '<div class="compat-check compat-check-info"><i data-lucide="circle-help" aria-hidden="true"></i><div><strong>Chưa có dữ liệu kiểm tra</strong><span>AI Advisor cần đủ linh kiện để đối chiếu.</span></div></div>';
+      smartCompatibility.innerHTML = '<div class="compat-check compat-check-info"><i data-lucide="circle-help" aria-hidden="true"></i><div><strong>Chưa có dữ liệu kiểm tra</strong><span>Trợ lý cấu hình cần đủ linh kiện để đối chiếu.</span></div></div>';
       return;
     }
 
@@ -304,7 +304,7 @@
     persistBuild();
 
     if (announce) {
-      showNotice("Đã áp dụng lại cấu hình AI Advisor.", "success");
+      showNotice("Đã áp dụng lại cấu hình Trợ lý cấu hình.", "success");
     }
   }
 

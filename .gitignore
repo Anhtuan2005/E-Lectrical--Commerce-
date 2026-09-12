@@ -10,6 +10,11 @@ App_Data/DataProtectionKeys/
 # Logs
 logs/
 *.log
+TestResults/
+artifacts/
+node_modules/
+wwwroot/uploads/
+.env
 
 # ASP.NET secrets
 appsettings.Development.json

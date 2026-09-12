@@ -1,0 +1,33 @@
+{
+  "css": [
+    "ClientAssets/css/foundation.css",
+    "ClientAssets/css/after-sales.css",
+    "ClientAssets/css/account-base.css",
+    "ClientAssets/css/pc-builder-base.css",
+    "ClientAssets/css/home.css",
+    "ClientAssets/css/storefront.css",
+    "ClientAssets/css/catalog.css",
+    "ClientAssets/css/account-split.css",
+    "ClientAssets/css/product-detail.css",
+    "ClientAssets/css/account-layout.css",
+    "ClientAssets/css/chat.css",
+    "ClientAssets/css/mobile-storefront.css",
+    "ClientAssets/css/product-specs.css",
+    "ClientAssets/css/smart-pc.css",
+    "ClientAssets/css/catalog-mobile.css",
+    "ClientAssets/css/compare.css",
+    "ClientAssets/css/status-pages.css"
+  ],
+  "js": [
+    "ClientAssets/js/bootstrap-and-cart-offers.js",
+    "ClientAssets/js/chat.js",
+    "ClientAssets/js/navigation.js",
+    "ClientAssets/js/wishlist-and-compare.js",
+    "ClientAssets/js/cart.js",
+    "ClientAssets/js/reviews.js",
+    "ClientAssets/js/checkout.js",
+    "ClientAssets/js/product-detail.js",
+    "ClientAssets/js/address.js",
+    "ClientAssets/js/notifications-and-order-map.js"
+  ]
+}

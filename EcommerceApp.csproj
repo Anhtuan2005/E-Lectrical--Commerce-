@@ -4,8 +4,16 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts/**;TestResults/**;node_modules/**</DefaultItemExcludes>
     <UserSecretsId>d148c32b-09c8-4bd6-a1b2-9d53c64d76b8</UserSecretsId>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="tests\**\*.cs" />
+    <Content Remove="tests\**" />
+    <Content Remove="ClientAssets/**;package.json;package-lock.json" />
+    <None Remove="tests\**" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="MailKit" Version="4.17.0" />

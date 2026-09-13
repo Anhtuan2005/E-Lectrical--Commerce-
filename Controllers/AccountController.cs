@@ -69,13 +69,18 @@ public class AccountController : Controller
                     }
                 }
 
-                if (isAdmin && string.IsNullOrWhiteSpace(returnUrl))
+                if (isAdmin && (string.IsNullOrWhiteSpace(returnUrl) || !Url.IsLocalUrl(returnUrl)))
                 {
                     return Redirect("/Admin/Dashboard");
                 }
             }
 
-            return LocalRedirect(returnUrl ?? Url.Action("Index", "Home")!);
+            if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+            {
+                return LocalRedirect(returnUrl);
+            }
+
+            return RedirectToAction("Index", "Home");
         }
 
         if (result.IsLockedOut)
@@ -115,7 +120,18 @@ public class AccountController : Controller
         var result = await _userManager.CreateAsync(user, model.Password);
         if (result.Succeeded)
         {
-            await _userManager.AddToRoleAsync(user, "User");
+            var roleResult = await _userManager.AddToRoleAsync(user, "User");
+            if (!roleResult.Succeeded)
+            {
+                await _userManager.DeleteAsync(user);
+                foreach (var error in roleResult.Errors)
+                {
+                    ModelState.AddModelError(string.Empty, error.Description);
+                }
+
+                return View(model);
+            }
+
             await _signInManager.SignInAsync(user, isPersistent: false);
             await _cartService.MergeGuestCartAsync(user.Id, HttpContext.Session.Id);
             return RedirectToAction("Index", "Home");
@@ -221,10 +237,20 @@ public class AccountController : Controller
             return View(model);
         }
 
-        user.FullName = model.FullName;
+        user.FullName = model.FullName.Trim();
         user.PhoneNumber = model.PhoneNumber;
-        user.Address = model.Address;
-        await _userManager.UpdateAsync(user);
+        user.Address = string.IsNullOrWhiteSpace(model.Address) ? null : model.Address.Trim();
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(string.Empty, error.Description);
+            }
+
+            return View(model);
+        }
+
         TempData["Success"] = "Đã cập nhật hồ sơ.";
         return RedirectToAction(nameof(Profile));
     }
@@ -241,7 +267,13 @@ public class AccountController : Controller
         }
 
         user.Address = null;
-        await _userManager.UpdateAsync(user);
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            TempData["Error"] = "Không thể xóa địa chỉ lúc này. Vui lòng thử lại.";
+            return RedirectToAction(nameof(Profile));
+        }
+
         TempData["Success"] = "Đã xóa địa chỉ đã lưu.";
         return RedirectToAction(nameof(Profile));
     }

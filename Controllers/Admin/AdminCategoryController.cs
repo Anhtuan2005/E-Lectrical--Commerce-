@@ -4,7 +4,6 @@ using EcommerceApp.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Text.RegularExpressions;
 
 namespace EcommerceApp.Controllers.Admin;
 
@@ -37,14 +36,20 @@ public class AdminCategoryController : Controller
 
     [HttpPost("Create")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(Category model)
+    public async Task<IActionResult> Create([Bind("Name,Description")] Category model)
     {
         ModelState.Remove(nameof(Category.Slug));
+        model.Name = (model.Name ?? string.Empty).Trim();
+        if (model.Name.Length == 0)
+        {
+            ModelState.AddModelError(nameof(Category.Name), "Vui lòng nhập tên danh mục");
+        }
         if (!ModelState.IsValid)
         {
             return View("~/Views/Admin/Category/Form.cshtml", model);
         }
 
+        model.Name = model.Name.Trim();
         model.Slug = await UniqueSlugAsync(model.Name);
         _db.Categories.Add(model);
         await _db.SaveChangesAsync();
@@ -61,9 +66,15 @@ public class AdminCategoryController : Controller
 
     [HttpPost("Edit/{id:int}")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, Category model)
+    public async Task<IActionResult> Edit(int id, [Bind("Name,Description")] Category model)
     {
+        model.Id = id;
         ModelState.Remove(nameof(Category.Slug));
+        model.Name = (model.Name ?? string.Empty).Trim();
+        if (model.Name.Length == 0)
+        {
+            ModelState.AddModelError(nameof(Category.Name), "Vui lòng nhập tên danh mục");
+        }
         if (!ModelState.IsValid)
         {
             return View("~/Views/Admin/Category/Form.cshtml", model);
@@ -105,7 +116,7 @@ public class AdminCategoryController : Controller
 
     private async Task<string> UniqueSlugAsync(string name, int? currentId = null)
     {
-        var slug = ToSlug(name);
+        var slug = SlugGenerator.Generate(name);
         if (string.IsNullOrWhiteSpace(slug))
         {
             slug = Guid.NewGuid().ToString("N")[..8];
@@ -121,11 +132,4 @@ public class AdminCategoryController : Controller
         return candidate;
     }
 
-    private static string ToSlug(string value)
-    {
-        var slug = value.Trim().ToLowerInvariant();
-        slug = Regex.Replace(slug, "[^a-z0-9\\s-]", "");
-        slug = Regex.Replace(slug, "\\s+", "-");
-        return slug.Trim('-');
-    }
 }

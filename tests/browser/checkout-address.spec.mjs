@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { signInDemo } from './auth.mjs';
 
 // Match the v1 address API contract while keeping CI independent of its uptime.
 // TECHVORA_ADDRESS_LIVE=true repeats these browser checks against the real API.
@@ -20,13 +21,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function openCheckout(page) {
-  await page.goto('/Account/Login');
-  await page.locator('#Email').fill('khachhang1@shop.vn');
-  await page.locator('#Password').fill('User@123');
-  await Promise.all([
-    page.waitForURL(url => !url.pathname.includes('/Login')),
-    page.locator('button[type=submit]').click()
-  ]);
+  await signInDemo(page);
   await page.goto('/Cart');
   let productId;
   const cartItem = page.locator('[name=selectedProductIds]').first();

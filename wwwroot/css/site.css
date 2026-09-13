@@ -4503,6 +4503,9 @@ progress { width: 100%; height: 8px; accent-color: var(--warning); }
 .shipping-fee-note { display: block; margin-top: 3px; color: var(--ink-muted); font-size: 12px; font-weight: 600; }
 .discount-line { display: none; color: var(--success); }
 .discount-line.show { display: flex; }
+[data-cart-cross-sell-summary][hidden],
+[data-cart-offer-note][hidden],
+[data-cart-regular-price][hidden] { display: none; }
 .voucher-box { display: grid; gap: 8px; }
 .voucher-box label { font-weight: 700; }
 .voucher-box div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }

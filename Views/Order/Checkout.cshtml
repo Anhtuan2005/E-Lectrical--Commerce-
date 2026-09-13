@@ -37,11 +37,11 @@
 
         <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
 
-        <label>Họ tên người nhận</label>
+        <label asp-for="RecipientName">Họ tên người nhận</label>
         <input asp-for="RecipientName" autocomplete="name" />
         <span asp-validation-for="RecipientName" class="field-error"></span>
 
-        <label>Số điện thoại</label>
+        <label asp-for="RecipientPhone">Số điện thoại</label>
         <input asp-for="RecipientPhone" autocomplete="tel" inputmode="tel" placeholder="VD: 0901234567" />
         <span asp-validation-for="RecipientPhone" class="field-error"></span>
 
@@ -54,7 +54,7 @@
 
         <div class="address-grid">
             <div>
-                <label>Tỉnh / Thành phố</label>
+                <label asp-for="Province">Tỉnh / Thành phố</label>
                 <select asp-for="Province" data-province-select data-current="@Model.Province">
                     <option value="">-- Chọn tỉnh thành --</option>
                     @foreach (var province in provinces)
@@ -65,21 +65,21 @@
                 <span asp-validation-for="Province" class="field-error"></span>
             </div>
             <div>
-                <label>Quận / Huyện</label>
+                <label asp-for="District">Quận / Huyện</label>
                 <select asp-for="District" data-district-select data-current="@Model.District">
                     <option value="">-- Chọn quận huyện --</option>
                 </select>
                 <span asp-validation-for="District" class="field-error"></span>
             </div>
             <div>
-                <label>Phường / Xã</label>
+                <label asp-for="Ward">Phường / Xã</label>
                 <select asp-for="Ward" data-ward-select data-current="@Model.Ward">
                     <option value="">-- Chọn phường xã --</option>
                 </select>
                 <span asp-validation-for="Ward" class="field-error"></span>
             </div>
             <div>
-                <label>Số nhà, tên đường</label>
+                <label asp-for="Street">Số nhà, tên đường</label>
                 <input asp-for="Street" placeholder="VD: 123 Nguyễn Trãi" />
                 <span asp-validation-for="Street" class="field-error"></span>
             </div>

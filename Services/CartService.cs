@@ -54,8 +54,9 @@ public class CartService : ICartService
 
     public async Task<int> GetCountAsync(string? userId, string sessionId)
     {
-        var cart = await GetCartEntityAsync(userId, sessionId);
-        return cart?.Items.Sum(item => item.Quantity) ?? 0;
+        return await FindCartQuery(userId, sessionId)
+            .Select(cart => cart.Items.Sum(item => (int?)item.Quantity) ?? 0)
+            .FirstOrDefaultAsync();
     }
 
     public async Task AddAsync(int productId, int quantity, string? userId, string sessionId, CartItemGroupInput? group = null)

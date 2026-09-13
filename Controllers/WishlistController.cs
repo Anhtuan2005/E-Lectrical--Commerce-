@@ -39,6 +39,11 @@ public class WishlistController : Controller
     public async Task<IActionResult> Toggle(int productId)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        if (!await _db.Products.AnyAsync(product => product.Id == productId))
+        {
+            return NotFound(new { message = "Sản phẩm không tồn tại hoặc đã ngừng bán." });
+        }
+
         var item = await _db.WishlistItems.FirstOrDefaultAsync(row => row.UserId == userId && row.ProductId == productId);
         var isWishlisted = item is null;
 

@@ -237,7 +237,7 @@ public sealed class GhnShippingService : IGhnShippingService
             return GhnShipmentDetailResult.Fail("Chưa cấu hình GHN Token/ShopId/BaseUrl.");
         }
 
-        var orderCode = trackingCode.Trim();
+        var orderCode = trackingCode?.Trim();
         if (string.IsNullOrWhiteSpace(orderCode))
         {
             return GhnShipmentDetailResult.Fail("Vui lòng nhập mã vận đơn GHN.");

@@ -1,14 +1,5 @@
 import { test, expect } from '@playwright/test';
-
-async function login(page) {
-  await page.goto('/Account/Login');
-  await page.locator('#Email').fill('khachhang1@shop.vn');
-  await page.locator('#Password').fill('User@123');
-  await Promise.all([
-    page.waitForURL(url => !url.pathname.includes('/Login')),
-    page.locator('button[type=submit]').click()
-  ]);
-}
+import { signInDemo as login } from './auth.mjs';
 
 test('buy now opens a direct checkout without changing the cart count', async ({ page }) => {
   await login(page);

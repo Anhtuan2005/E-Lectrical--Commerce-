@@ -2187,3 +2187,28 @@ input[type="checkbox"] {
     grid-template-columns: 1fr;
   }
 }
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 20px 0 4px;
+}
+.admin-pagination a,
+.admin-pagination span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid var(--adm-line);
+  border-radius: 10px;
+}
+.admin-pagination a { color: var(--adm-accent); font-weight: 700; }
+.admin-pagination a:hover { background: var(--adm-accent-soft); }
+.admin-pagination span { color: var(--adm-muted); opacity: .65; }
+.admin-pagination strong { color: var(--adm-ink); font-size: .88rem; }
+@media (max-width: 640px) {
+  .admin-pagination { gap: 8px; flex-wrap: wrap; }
+  .admin-pagination strong { order: -1; width: 100%; text-align: center; }
+}

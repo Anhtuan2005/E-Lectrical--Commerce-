@@ -9,7 +9,14 @@ public interface IOrderService
     Task<IEnumerable<Order>> GetUserOrdersAsync(string userId);
     Task<UserOrdersViewModel> GetUserOrderHistoryAsync(string userId, string? status, int page, int pageSize);
     Task<Order?> GetUserOrderAsync(int id, string userId);
-    Task<OrderListViewModel> GetOrdersAsync(string? status, string? customer, DateTime? fromDate, DateTime? toDate);
+    Task<OrderListViewModel> GetOrdersAsync(
+        string? status,
+        string? customer,
+        DateTime? fromDate,
+        DateTime? toDate,
+        int page = 1,
+        int pageSize = 50,
+        bool paginate = true);
     Task<Order?> GetOrderAsync(int id);
     Task<bool> UpdateStatusAsync(int id, string status);
     Task<int> ConfirmPendingOrdersAsync(IEnumerable<int> ids);

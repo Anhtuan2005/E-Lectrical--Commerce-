@@ -69,7 +69,7 @@ else
                                 var lineTotal = unitPrice * item.Quantity;
                                 <article class="cart-item" data-product-id="@item.ProductId">
                                     <label class="cart-select-cell" aria-label="Chọn @item.Product?.Name">
-                                        <input class="cart-select-input" type="checkbox" name="selectedProductIds" value="@item.ProductId" data-cart-item-select data-line-total="@lineTotal.ToString(CultureInfo.InvariantCulture)" checked />
+                                        <input class="cart-select-input" type="checkbox" name="selectedProductIds" value="@item.ProductId" data-cart-item-select data-line-total="@lineTotal.ToString(CultureInfo.InvariantCulture)" aria-label="Chọn @item.Product?.Name" checked />
                                         <span></span>
                                     </label>
                                     <img src="@item.Product?.PrimaryImageUrl" alt="@item.Product?.Name" loading="lazy" decoding="async" />
@@ -79,19 +79,12 @@ else
                                             <small class="cart-item-slot">@item.GroupItemLabel</small>
                                         }
                                         <h3>@item.Product?.Name</h3>
-                                        @if (hasCrossSellPrice)
-                                        {
-                                            <span><del>@regularPrice.ToString("N0") ₫</del> @unitPrice.ToString("N0") ₫</span>
-                                            <small class="cross-sell-note">Giá mua kèm</small>
-                                        }
-                                        else
-                                        {
-                                            <span>@unitPrice.ToString("N0") ₫</span>
-                                        }
+                                        <span><del data-cart-regular-price hidden="@(!hasCrossSellPrice)">@regularPrice.ToString("N0") ₫</del> <span data-cart-unit-price>@unitPrice.ToString("N0") ₫</span></span>
+                                        <small class="cross-sell-note" data-cart-offer-note hidden="@(!hasCrossSellPrice)">Giá mua kèm</small>
                                     </div>
                                     <div class="quantity-stepper cart-stepper">
                                         <button type="button" data-qty-minus>-</button>
-                                        <input class="cart-qty" type="number" min="0" max="@item.Product?.Stock" value="@item.Quantity" />
+                                        <input class="cart-qty" type="number" min="0" max="@item.Product?.Stock" value="@item.Quantity" aria-label="Số lượng @item.Product?.Name" />
                                         <button type="button" data-qty-plus>+</button>
                                     </div>
                                     <strong class="line-total">@lineTotal.ToString("N0") ₫</strong>
@@ -111,25 +104,18 @@ else
                     var lineTotal = unitPrice * item.Quantity;
                     <article class="cart-item" data-product-id="@item.ProductId">
                         <label class="cart-select-cell" aria-label="Chọn @item.Product?.Name">
-                            <input class="cart-select-input" type="checkbox" name="selectedProductIds" value="@item.ProductId" data-cart-item-select data-line-total="@lineTotal.ToString(CultureInfo.InvariantCulture)" checked />
+                            <input class="cart-select-input" type="checkbox" name="selectedProductIds" value="@item.ProductId" data-cart-item-select data-line-total="@lineTotal.ToString(CultureInfo.InvariantCulture)" aria-label="Chọn @item.Product?.Name" checked />
                             <span></span>
                         </label>
                         <img src="@item.Product?.PrimaryImageUrl" alt="@item.Product?.Name" loading="lazy" decoding="async" />
                         <div class="cart-item-copy">
                             <h3>@item.Product?.Name</h3>
-                            @if (hasCrossSellPrice)
-                            {
-                                <span><del>@regularPrice.ToString("N0") ₫</del> @unitPrice.ToString("N0") ₫</span>
-                                <small class="cross-sell-note">Giá mua kèm</small>
-                            }
-                            else
-                            {
-                                <span>@unitPrice.ToString("N0") ₫</span>
-                            }
+                            <span><del data-cart-regular-price hidden="@(!hasCrossSellPrice)">@regularPrice.ToString("N0") ₫</del> <span data-cart-unit-price>@unitPrice.ToString("N0") ₫</span></span>
+                            <small class="cross-sell-note" data-cart-offer-note hidden="@(!hasCrossSellPrice)">Giá mua kèm</small>
                         </div>
                         <div class="quantity-stepper cart-stepper">
                             <button type="button" data-qty-minus>-</button>
-                            <input class="cart-qty" type="number" min="0" max="@item.Product?.Stock" value="@item.Quantity" />
+                            <input class="cart-qty" type="number" min="0" max="@item.Product?.Stock" value="@item.Quantity" aria-label="Số lượng @item.Product?.Name" />
                             <button type="button" data-qty-plus>+</button>
                         </div>
                         <strong class="line-total">@lineTotal.ToString("N0") ₫</strong>
@@ -143,11 +129,8 @@ else
 
         <aside class="checkout-summary">
             <span>Thanh toán</span>
-            @if (Model.CrossSellDiscountAmount > 0)
-            {
-                <div class="summary-line"><span>Tạm tính gốc</span><strong>@Model.GrossTotal.ToString("N0") ₫</strong></div>
-                <div class="summary-line discount-line show"><span>Ưu đãi mua kèm</span><strong>-@Model.CrossSellDiscountAmount.ToString("N0") ₫</strong></div>
-            }
+            <div class="summary-line" data-cart-cross-sell-summary hidden="@(Model.CrossSellDiscountAmount <= 0)"><span>Tạm tính gốc</span><strong data-cart-gross-total>@Model.GrossTotal.ToString("N0") ₫</strong></div>
+            <div class="summary-line discount-line show" data-cart-cross-sell-summary hidden="@(Model.CrossSellDiscountAmount <= 0)"><span>Ưu đãi mua kèm</span><strong data-cart-cross-sell-discount>-@Model.CrossSellDiscountAmount.ToString("N0") ₫</strong></div>
             <div class="summary-line">
                 <span>Đã chọn</span>
                 <strong><span id="cart-selected-count">@Model.Items.Count()</span> mục</strong>

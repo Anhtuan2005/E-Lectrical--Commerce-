@@ -192,7 +192,7 @@ public class ProductController : Controller
         {
             await _cartService.AddAsync(productId, quantity, User.FindFirstValue(ClaimTypes.NameIdentifier), HttpContext.Session.Id);
             await _productInteractionService.TrackAsync(productId, ProductInteractionEvents.AddToCart, HttpContext);
-            TempData["Success"] = "ÄÃ£ thÃªm sáº£n pháº©m vÃ o giá» hÃ ng.";
+            TempData["Success"] = "Đã thêm sản phẩm vào giỏ hàng.";
         }
         catch (InvalidOperationException ex)
         {

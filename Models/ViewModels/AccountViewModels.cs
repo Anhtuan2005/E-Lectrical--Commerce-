@@ -19,16 +19,19 @@ public class LoginViewModel
 public class RegisterViewModel
 {
     [Required(ErrorMessage = "Vui lòng nhập họ tên")]
+    [StringLength(120, ErrorMessage = "Họ tên không được vượt quá 120 ký tự")]
     public string FullName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Vui lòng nhập email")]
     [EmailAddress(ErrorMessage = "Email không hợp lệ")]
+    [StringLength(256, ErrorMessage = "Email không được vượt quá 256 ký tự")]
     public string Email { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Vui lòng nhập số điện thoại")]
     [RegularExpression(@"^(03|07|08|09)\d{8}$", ErrorMessage = "Số điện thoại phải đúng định dạng di động Việt Nam")]
     public string PhoneNumber { get; set; } = string.Empty;
 
+    [StringLength(250, ErrorMessage = "Địa chỉ không được vượt quá 250 ký tự")]
     public string? Address { get; set; }
 
     [Required(ErrorMessage = "Vui lòng nhập mật khẩu")]
@@ -51,15 +54,17 @@ public class ForgotPasswordViewModel
 public class ProfileViewModel
 {
     [Required(ErrorMessage = "Vui lòng nhập họ tên")]
+    [StringLength(120, ErrorMessage = "Họ tên không được vượt quá 120 ký tự")]
     public string FullName { get; set; } = string.Empty;
 
+    [StringLength(256, ErrorMessage = "Email không được vượt quá 256 ký tự")]
     public string Email { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Vui lòng nhập số điện thoại")]
     [RegularExpression(@"^(03|07|08|09)\d{8}$", ErrorMessage = "Số điện thoại phải đúng định dạng di động Việt Nam")]
     public string PhoneNumber { get; set; } = string.Empty;
 
-    [StringLength(500)]
+    [StringLength(250, ErrorMessage = "Địa chỉ không được vượt quá 250 ký tự")]
     public string? Address { get; set; }
 }
 

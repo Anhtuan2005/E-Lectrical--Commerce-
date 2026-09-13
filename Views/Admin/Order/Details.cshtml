@@ -9,7 +9,7 @@
     <div class="admin-panel">
         <div class="panel-head">
             <h2>Thông tin đơn hàng</h2>
-            <a class="admin-button secondary" href="/Admin/Order/Print/@Model.Id" target="_blank">In phiếu</a>
+            <a class="admin-button secondary" href="/Admin/Order/Print/@Model.Id" target="_blank" rel="noopener">In phiếu</a>
         </div>
         <dl class="detail-list">
             <dt>Khách hàng</dt><dd>@Model.User?.FullName (@Model.User?.Email)</dd>
@@ -38,7 +38,7 @@
         </dl>
         <form asp-action="UpdateStatus" method="post" class="inline-form">
             <input type="hidden" name="id" value="@Model.Id" />
-            <select name="status">
+            <select name="status" aria-label="Trạng thái đơn hàng">
                 @foreach (var status in OrderStatuses.All.Where(status => EcommerceApp.Services.OrderLifecycle.CanTransition(Model, status)))
                 {
                     <option value="@status" selected="@(Model.Status == status)">@status</option>
@@ -50,8 +50,8 @@
         {
             <form asp-action="MarkRefunded" method="post" class="stack-form">
                 <input type="hidden" name="id" value="@Model.Id" />
-                <label>Ghi chú hoàn tiền thủ công</label>
-                <textarea name="note" rows="3" placeholder="VD: Đã hoàn qua VNPAY/manual banking, mã đối soát...">@Model.RefundNote</textarea>
+                <label for="refund-note">Ghi chú hoàn tiền thủ công</label>
+                <textarea id="refund-note" name="note" rows="3" placeholder="VD: Đã hoàn qua VNPAY/manual banking, mã đối soát...">@Model.RefundNote</textarea>
                 <button class="admin-button" type="submit">Đánh dấu đã hoàn tiền</button>
             </form>
         }
@@ -64,17 +64,17 @@
         {
         <form asp-action="AssignShipping" method="post" class="stack-form">
             <input type="hidden" name="id" value="@Model.Id" />
-            <label>Đơn vị vận chuyển</label>
-            <select name="carrier">
+            <label for="shipping-carrier">Đơn vị vận chuyển</label>
+            <select id="shipping-carrier" name="carrier">
                 @foreach (var carrier in new[] { "Giao Hàng Nhanh", "Giao Hàng Tiết Kiệm", "Viettel Post", "VNPost" })
                 {
                     <option value="@carrier" selected="@(Model.ShippingInfo?.Carrier == carrier)">@carrier</option>
                 }
             </select>
-            <label>Mã vận đơn</label>
-            <input name="trackingCode" value="@Model.ShippingInfo?.TrackingCode" maxlength="80" />
-            <label>Dự kiến giao</label>
-            <input type="date" name="estimatedDelivery" value="@Model.ShippingInfo?.EstimatedDelivery?.ToString("yyyy-MM-dd")" />
+            <label for="tracking-code">Mã vận đơn</label>
+            <input id="tracking-code" name="trackingCode" value="@Model.ShippingInfo?.TrackingCode" maxlength="80" />
+            <label for="estimated-delivery">Dự kiến giao</label>
+            <input id="estimated-delivery" type="date" name="estimatedDelivery" value="@Model.ShippingInfo?.EstimatedDelivery?.ToString("yyyy-MM-dd")" />
             <button class="admin-button" type="submit">Lưu vận chuyển</button>
         </form>
         }

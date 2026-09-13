@@ -326,18 +326,19 @@ public class OrderService : IOrderService
             .FirstOrDefaultAsync(order => order.Id == id && order.UserId == userId);
     }
 
-    public async Task<OrderListViewModel> GetOrdersAsync(string? status, string? customer, DateTime? fromDate, DateTime? toDate)
+    public async Task<OrderListViewModel> GetOrdersAsync(
+        string? status,
+        string? customer,
+        DateTime? fromDate,
+        DateTime? toDate,
+        int page = 1,
+        int pageSize = 50,
+        bool paginate = true)
     {
         var query = _db.Orders
             .AsNoTracking()
-            .AsSplitQuery()
             .Include(order => order.User)
             .Include(order => order.ShippingInfo)
-            .Include(order => order.VoucherUsage).ThenInclude(usage => usage!.Voucher)
-            .Include(order => order.ReturnWarrantyRequests)
-            .Include(order => order.Items)
-            .ThenInclude(item => item.Product)
-            .ThenInclude(product => product!.Images)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(status))
@@ -360,13 +361,26 @@ public class OrderService : IOrderService
             query = query.Where(order => order.CreatedAt.Date <= toDate.Value.Date);
         }
 
+        pageSize = Math.Clamp(pageSize, 1, 200);
+        var totalItems = await query.CountAsync();
+        var totalPages = Math.Max(1, (int)Math.Ceiling(totalItems / (double)pageSize));
+        page = Math.Clamp(page, 1, totalPages);
+        var orderedQuery = query.OrderByDescending(order => order.CreatedAt);
+        var orders = paginate
+            ? await orderedQuery.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync()
+            : await orderedQuery.ToListAsync();
+
         return new OrderListViewModel
         {
-            Orders = await query.OrderByDescending(order => order.CreatedAt).ToListAsync(),
+            Orders = orders,
             Status = status,
             Customer = customer,
             FromDate = fromDate,
-            ToDate = toDate
+            ToDate = toDate,
+            CurrentPage = paginate ? page : 1,
+            TotalPages = paginate ? totalPages : 1,
+            PageSize = pageSize,
+            TotalItems = totalItems
         };
     }
 

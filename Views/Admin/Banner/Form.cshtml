@@ -1,4 +1,4 @@
-@model Banner
+@model BannerFormViewModel
 @{
     Layout = "_AdminLayout";
     ViewData["Title"] = Model.Id == 0 ? "Thêm banner" : "Sửa banner";
@@ -7,13 +7,15 @@
 <section class="admin-panel narrow">
     <div class="panel-head"><h2>@ViewData["Title"]</h2></div>
     <form method="post" enctype="multipart/form-data" class="stack-form">
-        <label>Tiêu đề</label>
+        <div asp-validation-summary="ModelOnly" role="alert"></div>
+        <label asp-for="Title">Tiêu đề</label>
         <input asp-for="Title" />
         <span asp-validation-for="Title"></span>
-        <label>Mô tả</label>
+        <label asp-for="Subtitle">Mô tả</label>
         <textarea asp-for="Subtitle" rows="3"></textarea>
-        <label>URL ảnh hiện có</label>
+        <label asp-for="ImageUrl">URL ảnh hiện có</label>
         <input asp-for="ImageUrl" />
+        <span asp-validation-for="ImageUrl"></span>
         @if (!string.IsNullOrWhiteSpace(Model.ImageUrl))
         {
             <img class="admin-image-preview wide"
@@ -22,15 +24,22 @@
                  loading="lazy"
                  decoding="async" />
         }
-        <label>Tải ảnh mới</label>
-        <input type="file" name="imageFile" accept="image/*" />
-        <label>Link đích</label>
+        <label for="banner-image-file">Tải ảnh mới</label>
+        <input id="banner-image-file" type="file" name="imageFile" accept=".jpg,.jpeg,.png,.webp" />
+        @Html.ValidationMessage("imageFile")
+        <label asp-for="LinkUrl">Link đích</label>
         <input asp-for="LinkUrl" />
-        <label>Text nút</label>
+        <span asp-validation-for="LinkUrl"></span>
+        <label asp-for="ButtonText">Text nút</label>
         <input asp-for="ButtonText" />
-        <label>Thứ tự</label>
+        <span asp-validation-for="ButtonText"></span>
+        <label asp-for="SortOrder">Thứ tự</label>
         <input asp-for="SortOrder" type="number" />
         <label class="check-row"><input asp-for="IsActive" /> Đang bật</label>
         <button class="admin-button" type="submit">Lưu banner</button>
     </form>
 </section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

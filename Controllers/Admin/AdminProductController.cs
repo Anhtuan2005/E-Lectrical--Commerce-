@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using System.Text.RegularExpressions;
 
 namespace EcommerceApp.Controllers.Admin;
 
@@ -42,6 +41,11 @@ public class AdminProductController : Controller
     public async Task<IActionResult> Create(ProductFormViewModel model, IFormFile? imageFile, List<IFormFile>? imageFiles)
     {
         model.Categories = await _productService.GetCategoriesAsync();
+        if (!model.Categories.Any(category => category.Id == model.CategoryId))
+        {
+            ModelState.AddModelError(nameof(model.CategoryId), "Danh mục đã chọn không tồn tại.");
+        }
+
         if (!ModelState.IsValid)
         {
             return View("~/Views/Admin/Product/Form.cshtml", model);
@@ -112,6 +116,11 @@ public class AdminProductController : Controller
     {
         model.Id = id;
         model.Categories = await _productService.GetCategoriesAsync();
+        if (!model.Categories.Any(category => category.Id == model.CategoryId))
+        {
+            ModelState.AddModelError(nameof(model.CategoryId), "Danh mục đã chọn không tồn tại.");
+        }
+
         if (!ModelState.IsValid)
         {
             return View("~/Views/Admin/Product/Form.cshtml", model);
@@ -167,16 +176,27 @@ public class AdminProductController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateCategory(string name)
     {
-        if (!string.IsNullOrWhiteSpace(name))
+        var normalizedName = (name ?? string.Empty).Trim();
+        if (normalizedName.Length is > 0 and <= 100)
         {
-            var slug = ToSlug(name);
-            if (await _db.Categories.AnyAsync(category => category.Slug == slug))
+            var slug = SlugGenerator.Generate(normalizedName);
+            if (string.IsNullOrWhiteSpace(slug))
             {
-                slug = $"{slug}-{DateTime.UtcNow:yyyyMMddHHmmss}";
+                slug = Guid.NewGuid().ToString("N")[..8];
             }
-            _db.Categories.Add(new Category { Name = name.Trim(), Slug = slug });
+            var baseSlug = slug;
+            var suffix = 2;
+            while (await _db.Categories.AnyAsync(category => category.Slug == slug))
+            {
+                slug = $"{baseSlug}-{suffix++}";
+            }
+            _db.Categories.Add(new Category { Name = normalizedName, Slug = slug });
             await _db.SaveChangesAsync();
             TempData["Success"] = "Đã thêm danh mục.";
+        }
+        else
+        {
+            TempData["Error"] = "Tên danh mục phải có từ 1 đến 100 ký tự.";
         }
 
         return RedirectToAction(nameof(Index));
@@ -193,14 +213,6 @@ public class AdminProductController : Controller
             : "Không thể xoá danh mục còn sản phẩm, kể cả sản phẩm đã ẩn. Hãy chuyển sản phẩm sang danh mục khác trước.";
 
         return RedirectToAction(nameof(Index));
-    }
-
-    private static string ToSlug(string value)
-    {
-        var slug = value.Trim().ToLowerInvariant();
-        slug = Regex.Replace(slug, "[^a-z0-9\\s-]", "");
-        slug = Regex.Replace(slug, "\\s+", "-");
-        return string.IsNullOrWhiteSpace(slug) ? Guid.NewGuid().ToString("N")[..8] : slug;
     }
 
     private async Task<List<string>> SaveProductImagesAsync(IFormFile? imageFile, IReadOnlyCollection<IFormFile>? imageFiles)

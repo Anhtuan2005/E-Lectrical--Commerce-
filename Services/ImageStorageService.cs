@@ -71,9 +71,9 @@ public class ImageStorageService : IImageStorageService
             await using var input = file.OpenReadStream();
             image = await Image.LoadAsync(input, cancellationToken);
         }
-        catch (UnknownImageFormatException)
+        catch (Exception ex) when (ex is UnknownImageFormatException or InvalidImageContentException)
         {
-            throw new InvalidOperationException("Tệp tải lên không phải ảnh hợp lệ.");
+            throw new InvalidOperationException("Tệp tải lên không phải ảnh hợp lệ hoặc đã bị hỏng.", ex);
         }
 
         using (image)

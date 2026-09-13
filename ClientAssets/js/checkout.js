@@ -19,10 +19,36 @@ function initVoucher() {
   var savedCode = sessionStorage.getItem("techvoraVoucherCode");
   var savedInput = document.getElementById("voucherInput");
   if (savedCode && savedInput && !savedInput.value) savedInput.value = savedCode;
+  function clearVoucher() {
+    var code = document.getElementById("VoucherCode");
+    var discount = document.getElementById("DiscountAmount");
+    var line = document.getElementById("discountLine");
+    if (code) code.value = "";
+    if (discount) discount.value = "0";
+    if (line) line.classList.remove("show");
+    sessionStorage.removeItem("techvoraVoucherCode");
+    refreshCheckoutTotal();
+  }
+  if (savedInput) savedInput.addEventListener("input", function () {
+    clearVoucher();
+    var message = document.getElementById("voucherMessage");
+    if (message) message.textContent = "";
+  });
   button.addEventListener("click", function () {
+    if (button.disabled) return;
     var input = document.getElementById("voucherInput");
     var message = document.getElementById("voucherMessage");
     if (!input || !message) return;
+    clearVoucher();
+    if (!input.value.trim()) {
+      message.textContent = "Nhập mã giảm giá trước khi áp dụng.";
+      message.className = "voucher-message error";
+      return;
+    }
+    button.disabled = true;
+    input.disabled = true;
+    message.textContent = "Đang kiểm tra mã giảm giá...";
+    message.className = "voucher-message";
     var body = new URLSearchParams();
     body.append("code", input.value);
     var checkoutTotal = document.getElementById("checkoutTotal");
@@ -35,7 +61,11 @@ function initVoucher() {
       },
       body: body.toString()
     })
-      .then(function (response) { return response.json(); })
+      .then(function (response) {
+        if (response.redirected || response.status === 401) throw new Error("login-required");
+        if (!response.ok) throw new Error("voucher-failed");
+        return response.json();
+      })
       .then(function (data) {
         message.textContent = data.message;
         message.className = "voucher-message " + (data.valid ? "success" : "error");
@@ -51,6 +81,16 @@ function initVoucher() {
         refreshCheckoutTotal();
         showToast(data.message, "success");
         sessionStorage.removeItem("techvoraVoucherCode");
+      })
+      .catch(function (error) {
+        message.textContent = error.message === "login-required"
+          ? "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."
+          : "Chưa thể kiểm tra mã giảm giá. Vui lòng thử lại.";
+        message.className = "voucher-message error";
+      })
+      .finally(function () {
+        button.disabled = false;
+        input.disabled = false;
       });
   });
   if (savedCode && savedInput) {
@@ -60,7 +100,9 @@ function initVoucher() {
   }
 }
 
+var checkoutShippingRequestId = 0;
 function updateCheckoutShippingFee() {
+  var requestId = ++checkoutShippingRequestId;
   var total = document.getElementById("checkoutTotal");
   var feeText = document.getElementById("shippingFeeText");
   var feeNote = document.getElementById("shippingFeeNote");
@@ -88,8 +130,12 @@ function updateCheckoutShippingFee() {
   if (buyNowQuantity && buyNowQuantity.value) query.append("buyNowQuantity", buyNowQuantity.value);
 
   fetch("/Order/ShippingFee?" + query.toString(), { headers: { Accept: "application/json" } })
-    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      if (!response.ok || response.redirected) throw new Error("shipping-failed");
+      return response.json();
+    })
     .then(function (data) {
+      if (requestId !== checkoutShippingRequestId) return;
       total.dataset.shippingFee = String(data.fee || 0);
       feeText.textContent = data.formattedFee || formatVnd(data.fee || 0);
       if (feeNote) {
@@ -99,7 +145,11 @@ function updateCheckoutShippingFee() {
       refreshCheckoutTotal();
     })
     .catch(function () {
+      if (requestId !== checkoutShippingRequestId) return;
+      total.dataset.shippingFee = "0";
+      feeText.textContent = "Chưa xác định";
       if (feeNote) feeNote.textContent = "Chưa tính được phí vận chuyển.";
+      refreshCheckoutTotal();
     });
 }
 

@@ -10,8 +10,8 @@
         <a class="admin-button" href="/Admin/Product/Create">Thêm sản phẩm</a>
     </div>
     <form class="admin-filters" method="get">
-        <input name="search" value="@Model.Search" placeholder="Tìm sản phẩm" />
-        <select name="categoryId">
+        <input name="search" value="@Model.Search" placeholder="Tìm sản phẩm" aria-label="Tìm sản phẩm" />
+        <select name="categoryId" aria-label="Lọc theo danh mục">
             <option value="">Tất cả danh mục</option>
             @foreach (var category in Model.Categories)
             {
@@ -54,7 +54,7 @@
     <div class="panel-head"><h2>Danh mục</h2></div>
     <form action="/Admin/Product/CreateCategory" method="post" class="admin-filters">
         @Html.AntiForgeryToken()
-        <input name="name" placeholder="Tên danh mục mới" />
+        <input name="name" placeholder="Tên danh mục mới" aria-label="Tên danh mục mới" maxlength="120" required />
         <button class="admin-button" type="submit">Thêm danh mục</button>
     </form>
     <div class="category-admin-list">

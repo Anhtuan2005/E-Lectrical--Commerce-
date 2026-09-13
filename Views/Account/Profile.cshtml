@@ -15,18 +15,18 @@
         <h1>Hồ sơ cá nhân</h1>
         <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
 
-        <label>Họ tên</label>
+        <label asp-for="FullName">Họ tên</label>
         <input asp-for="FullName" />
         <span asp-validation-for="FullName" class="field-error"></span>
 
-        <label>Email</label>
+        <label asp-for="Email">Email</label>
         <input asp-for="Email" readonly />
 
-        <label>Số điện thoại</label>
+        <label asp-for="PhoneNumber">Số điện thoại</label>
         <input asp-for="PhoneNumber" />
         <span asp-validation-for="PhoneNumber" class="field-error"></span>
 
-        <label>Địa chỉ mặc định</label>
+        <label asp-for="Address">Địa chỉ mặc định</label>
         <textarea asp-for="Address" rows="3"></textarea>
         <span asp-validation-for="Address" class="field-error"></span>
 

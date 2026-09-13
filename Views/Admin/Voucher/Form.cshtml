@@ -8,20 +8,26 @@
 <section class="admin-panel narrow">
     <div class="panel-head"><h2>@ViewData["Title"]</h2></div>
     <form method="post" class="stack-form">
-        <label>Mã voucher</label>
+        <div asp-validation-summary="ModelOnly" role="alert"></div>
+        <label asp-for="Code">Mã voucher</label>
         <input asp-for="Code" />
         <span asp-validation-for="Code"></span>
-        <label>Loại giảm giá</label>
+        <label asp-for="Type">Loại giảm giá</label>
         <select asp-for="Type" asp-items="Html.GetEnumSelectList<VoucherType>()"></select>
-        <label>Giá trị</label>
-        <input asp-for="Value" type="number" min="0" step="1000" />
-        <label>Đơn tối thiểu</label>
+        <span asp-validation-for="Type"></span>
+        <label asp-for="Value">Giá trị</label>
+        <input asp-for="Value" type="number" min="0.01" step="0.01" />
+        <span asp-validation-for="Value"></span>
+        <label asp-for="MinOrderAmount">Đơn tối thiểu</label>
         <input asp-for="MinOrderAmount" type="number" min="0" step="1000" />
-        <label>Giảm tối đa</label>
+        <span asp-validation-for="MinOrderAmount"></span>
+        <label asp-for="MaxDiscount">Giảm tối đa</label>
         <input asp-for="MaxDiscount" type="number" min="0" step="1000" />
-        <label>Giới hạn lượt dùng</label>
+        <span asp-validation-for="MaxDiscount"></span>
+        <label asp-for="UsageLimit">Giới hạn lượt dùng</label>
         <input asp-for="UsageLimit" type="number" min="1" />
-        <label>Nhóm khách áp dụng</label>
+        <span asp-validation-for="UsageLimit"></span>
+        <label asp-for="CustomerSegmentId">Nhóm khách áp dụng</label>
         <select asp-for="CustomerSegmentId">
             <option value="">Tất cả khách hàng</option>
             @foreach (var segment in customerSegments)
@@ -29,10 +35,13 @@
                 <option value="@segment.Id">@segment.Name</option>
             }
         </select>
-        <label>Ngày bắt đầu</label>
+        <span asp-validation-for="CustomerSegmentId"></span>
+        <label asp-for="StartDate">Ngày bắt đầu</label>
         <input asp-for="StartDate" type="datetime-local" />
-        <label>Ngày kết thúc</label>
+        <span asp-validation-for="StartDate"></span>
+        <label asp-for="EndDate">Ngày kết thúc</label>
         <input asp-for="EndDate" type="datetime-local" />
+        <span asp-validation-for="EndDate"></span>
         <label class="check-row"><input asp-for="IsActive" /> Đang bật</label>
         <button class="admin-button" type="submit">Lưu voucher</button>
     </form>

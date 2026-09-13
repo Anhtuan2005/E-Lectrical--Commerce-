@@ -88,6 +88,7 @@ public class ProductService : IProductService
 
         var totalItems = await query.CountAsync();
         var totalPages = Math.Max(1, (int)Math.Ceiling(totalItems / (double)pageSize));
+        page = Math.Min(page, totalPages);
         var products = await query
             .Skip((page - 1) * pageSize)
             .Take(pageSize)

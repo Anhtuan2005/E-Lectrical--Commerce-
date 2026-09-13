@@ -64,6 +64,11 @@ public class HomeController : Controller
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public IActionResult Status(int code)
     {
+        if (code is < 400 or > 599)
+        {
+            code = StatusCodes.Status500InternalServerError;
+        }
+
         Response.StatusCode = code;
         ViewData["StatusCode"] = code;
         if (code >= 500)

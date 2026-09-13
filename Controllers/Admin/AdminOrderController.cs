@@ -33,9 +33,9 @@ public class AdminOrderController : Controller
     }
 
     [HttpGet("")]
-    public async Task<IActionResult> Index(string? status, string? customer, DateTime? fromDate, DateTime? toDate)
+    public async Task<IActionResult> Index(string? status, string? customer, DateTime? fromDate, DateTime? toDate, int page = 1)
     {
-        return View("~/Views/Admin/Order/Index.cshtml", await _orderService.GetOrdersAsync(status, customer, fromDate, toDate));
+        return View("~/Views/Admin/Order/Index.cshtml", await _orderService.GetOrdersAsync(status, customer, fromDate, toDate, page));
     }
 
     [HttpGet("{id:int}")]
@@ -150,12 +150,21 @@ public class AdminOrderController : Controller
     [HttpGet("ExportCsv")]
     public async Task<IActionResult> ExportCsv(string? status, string? customer, DateTime? fromDate, DateTime? toDate)
     {
-        var model = await _orderService.GetOrdersAsync(status, customer, fromDate, toDate);
+        var model = await _orderService.GetOrdersAsync(status, customer, fromDate, toDate, paginate: false);
         var csv = new StringBuilder();
-        csv.AppendLine("MaDon,KhachHang,Email,TrangThai,HoanTien,TongTien,NgayDat,VanChuyen,MaVanDon");
+        csv.AppendLine(CsvFormatter.Row("MaDon", "KhachHang", "Email", "TrangThai", "HoanTien", "TongTien", "NgayDat", "VanChuyen", "MaVanDon"));
         foreach (var order in model.Orders)
         {
-            csv.AppendLine($"{order.Id},\"{order.User?.FullName}\",{order.User?.Email},\"{order.Status}\",\"{order.RefundStatus}\",{order.TotalAmount},{order.CreatedAt:yyyy-MM-dd},\"{order.ShippingInfo?.Carrier}\",\"{order.ShippingInfo?.TrackingCode}\"");
+            csv.AppendLine(CsvFormatter.Row(
+                order.Id,
+                order.User?.FullName,
+                order.User?.Email,
+                order.Status,
+                order.RefundStatus,
+                order.TotalAmount,
+                order.CreatedAt,
+                order.ShippingInfo?.Carrier,
+                order.ShippingInfo?.TrackingCode));
         }
 
         return File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray(), "text/csv", $"don-hang-{DateTime.Now:yyyyMMddHHmm}.csv");
@@ -164,7 +173,15 @@ public class AdminOrderController : Controller
     [HttpGet("NewCount")]
     public async Task<IActionResult> NewCount(long since)
     {
-        var sinceDate = DateTimeOffset.FromUnixTimeMilliseconds(since).UtcDateTime;
+        DateTime sinceDate;
+        try
+        {
+            sinceDate = DateTimeOffset.FromUnixTimeMilliseconds(since).UtcDateTime;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return BadRequest(new { error = "Mốc thời gian không hợp lệ." });
+        }
         var count = await _db.Orders.CountAsync(order =>
             (order.CreatedAt > sinceDate && order.Status != OrderStatuses.AwaitingPayment) ||
             (order.PaymentMethod == "VNPAY" && order.IsPaid && order.Status == OrderStatuses.Pending && order.PaidAt > sinceDate));

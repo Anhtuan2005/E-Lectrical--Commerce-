@@ -45,9 +45,10 @@ public class AdminVoucherController : Controller
 
     [HttpPost("Create")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(Voucher model)
+    public async Task<IActionResult> Create([Bind("Code,Type,Value,MinOrderAmount,MaxDiscount,UsageLimit,StartDate,EndDate,IsActive,CustomerSegmentId")] Voucher model)
     {
-        model.Code = model.Code.Trim().ToUpperInvariant();
+        model.Code = (model.Code ?? string.Empty).Trim().ToUpperInvariant();
+        await ValidateReferencesAndCodeAsync(model);
         if (!ModelState.IsValid)
         {
             await LoadSegmentOptionsAsync();
@@ -55,7 +56,16 @@ public class AdminVoucherController : Controller
         }
 
         _db.Vouchers.Add(model);
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            ModelState.AddModelError(nameof(Voucher.Code), "Mã voucher đã tồn tại hoặc dữ liệu không thể lưu.");
+            await LoadSegmentOptionsAsync();
+            return View("~/Views/Admin/Voucher/Form.cshtml", model);
+        }
         TempData["Success"] = "Đã tạo voucher.";
         return RedirectToAction(nameof(Index));
     }
@@ -75,7 +85,7 @@ public class AdminVoucherController : Controller
 
     [HttpPost("Edit/{id:int}")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, Voucher model)
+    public async Task<IActionResult> Edit(int id, [Bind("Code,Type,Value,MinOrderAmount,MaxDiscount,UsageLimit,StartDate,EndDate,IsActive,CustomerSegmentId")] Voucher model)
     {
         var voucher = await _db.Vouchers.FindAsync(id);
         if (voucher is null)
@@ -83,7 +93,21 @@ public class AdminVoucherController : Controller
             return NotFound();
         }
 
-        voucher.Code = model.Code.Trim().ToUpperInvariant();
+        model.Id = id;
+        model.Code = (model.Code ?? string.Empty).Trim().ToUpperInvariant();
+        await ValidateReferencesAndCodeAsync(model, id);
+        if (model.UsageLimit < voucher.UsedCount)
+        {
+            ModelState.AddModelError(nameof(Voucher.UsageLimit), $"Giới hạn không thể thấp hơn {voucher.UsedCount} lượt đã dùng.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            await LoadSegmentOptionsAsync();
+            return View("~/Views/Admin/Voucher/Form.cshtml", model);
+        }
+
+        voucher.Code = model.Code;
         voucher.Type = model.Type;
         voucher.Value = model.Value;
         voucher.MinOrderAmount = model.MinOrderAmount;
@@ -105,8 +129,23 @@ public class AdminVoucherController : Controller
         var voucher = await _db.Vouchers.FindAsync(id);
         if (voucher is not null)
         {
+            if (await _db.VoucherUsages.AnyAsync(usage => usage.VoucherId == id))
+            {
+                TempData["Error"] = "Không thể xóa voucher đã được sử dụng. Hãy tắt voucher để giữ lịch sử đơn hàng.";
+                return RedirectToAction(nameof(Index));
+            }
             _db.Vouchers.Remove(voucher);
-            await _db.SaveChangesAsync();
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                // A checkout may have used the voucher after the check above.
+                _db.Entry(voucher).State = EntityState.Unchanged;
+                TempData["Error"] = "Không thể xóa voucher lúc này. Hãy tải lại danh sách và thử tắt voucher.";
+                return RedirectToAction(nameof(Index));
+            }
             TempData["Success"] = "Đã xoá voucher.";
         }
 
@@ -133,5 +172,20 @@ public class AdminVoucherController : Controller
             .AsNoTracking()
             .OrderBy(segment => segment.Name)
             .ToListAsync();
+    }
+
+    private async Task ValidateReferencesAndCodeAsync(Voucher model, int? currentId = null)
+    {
+        if (!string.IsNullOrWhiteSpace(model.Code)
+            && await _db.Vouchers.AnyAsync(voucher => voucher.Code == model.Code && voucher.Id != currentId))
+        {
+            ModelState.AddModelError(nameof(Voucher.Code), "Mã voucher đã tồn tại.");
+        }
+
+        if (model.CustomerSegmentId.HasValue
+            && !await _db.CustomerSegments.AnyAsync(segment => segment.Id == model.CustomerSegmentId.Value))
+        {
+            ModelState.AddModelError(nameof(Voucher.CustomerSegmentId), "Nhóm khách hàng không tồn tại.");
+        }
     }
 }

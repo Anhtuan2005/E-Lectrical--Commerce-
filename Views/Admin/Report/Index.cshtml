@@ -20,6 +20,10 @@
 </section>
 
 <section class="admin-panel report-filter-panel">
+    @if (ViewData["ReportFilterError"] is string filterError)
+    {
+        <div class="admin-alert warning" role="alert">@filterError</div>
+    }
     <div class="report-summary">
         <div>
             <div class="panel-head">

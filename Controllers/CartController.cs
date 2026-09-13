@@ -1,6 +1,7 @@
 using EcommerceApp.Services;
 using EcommerceApp.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using System.Security.Claims;
 
 namespace EcommerceApp.Controllers;
@@ -26,6 +27,9 @@ public class CartController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Add(int productId, int quantity = 1)
     {
+        if (!ModelState.IsValid || productId <= 0 || quantity <= 0)
+            return await CartJson("Sản phẩm hoặc số lượng không hợp lệ.", false);
+
         if (User.IsInRole("Admin"))
         {
             return await CartJson("Tài khoản admin chỉ được xem và kiểm tra, không thể mua hàng.", false);
@@ -46,8 +50,11 @@ public class CartController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Update(int productId, int quantity)
+    public async Task<IActionResult> Update(int productId, [BindRequired] int quantity)
     {
+        if (!ModelState.IsValid || productId <= 0 || quantity < 0)
+            return await CartJson("Số lượng phải là số nguyên từ 0 trở lên.", false);
+
         if (User.IsInRole("Admin"))
         {
             return await CartJson("Tài khoản admin chỉ được xem và kiểm tra, không thể chỉnh giỏ hàng.", false);
@@ -62,6 +69,9 @@ public class CartController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Remove(int productId)
     {
+        if (!ModelState.IsValid || productId <= 0)
+            return await CartJson("Sản phẩm không hợp lệ.", false);
+
         if (User.IsInRole("Admin"))
         {
             return await CartJson("Tài khoản admin chỉ được xem và kiểm tra, không thể chỉnh giỏ hàng.", false);
@@ -82,10 +92,17 @@ public class CartController : Controller
             message,
             itemCount = cart.ItemCount,
             total = cart.Total.ToString("N0") + " ₫",
+            grossTotal = cart.GrossTotal.ToString("N0") + " ₫",
+            crossSellDiscount = cart.CrossSellDiscountAmount.ToString("N0") + " ₫",
+            hasCrossSellDiscount = cart.CrossSellDiscountAmount > 0,
             items = cart.Items.Select(item => new
             {
                 productId = item.ProductId,
                 quantity = item.Quantity,
+                stock = item.Product?.Stock ?? 0,
+                unitPrice = cart.GetUnitPrice(item).ToString("N0") + " ₫",
+                regularUnitPrice = cart.GetRegularUnitPrice(item).ToString("N0") + " ₫",
+                hasCrossSellPrice = cart.GetUnitPrice(item) < cart.GetRegularUnitPrice(item),
                 lineTotal = (cart.GetUnitPrice(item) * item.Quantity).ToString("N0") + " ₫",
                 lineTotalValue = cart.GetUnitPrice(item) * item.Quantity
             }),

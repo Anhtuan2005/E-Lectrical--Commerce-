@@ -36,9 +36,19 @@ public class VoucherController : Controller
     [EnableRateLimiting("voucher")]
     public async Task<IActionResult> Validate(string code, decimal? subtotalOverride = null)
     {
+        const decimal maxDatabaseAmount = 9_999_999_999_999_999.99m;
+        if (!ModelState.IsValid || subtotalOverride is < 0 or > maxDatabaseAmount)
+        {
+            return BadRequest(new { valid = false, message = "Số tiền tạm tính không hợp lệ." });
+        }
+
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var cart = await _cartService.GetCartAsync(userId, HttpContext.Session.Id);
-        var subtotal = subtotalOverride is > 0 ? subtotalOverride.Value : cart.Total;
+        var subtotal = subtotalOverride ?? cart.Total;
+        if (subtotal is < 0 or > maxDatabaseAmount)
+        {
+            return BadRequest(new { valid = false, message = "Số tiền tạm tính không hợp lệ." });
+        }
         var normalizedCode = (code ?? string.Empty).Trim().ToUpperInvariant();
         var voucher = await _db.Vouchers.AsNoTracking().FirstOrDefaultAsync(row => row.Code == normalizedCode);
 

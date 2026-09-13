@@ -8,11 +8,11 @@
     <div class="panel-head"><h2>@ViewData["Title"]</h2></div>
     <form method="post" class="stack-form">
         @Html.AntiForgeryToken()
-        <label>Tên danh mục</label>
+        <label asp-for="Name">Tên danh mục</label>
         <input asp-for="Name" />
         <span asp-validation-for="Name"></span>
 
-        <label>Mô tả</label>
+        <label asp-for="Description">Mô tả</label>
         <textarea asp-for="Description" rows="4"></textarea>
         <span asp-validation-for="Description"></span>
 

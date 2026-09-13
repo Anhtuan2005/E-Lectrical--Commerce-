@@ -12,21 +12,21 @@
         </div>
     </div>
     <form class="admin-filters" method="get">
-        <select name="status">
+        <select name="status" aria-label="Lọc theo trạng thái">
             <option value="">Tất cả trạng thái</option>
             @foreach (var status in Model.Statuses)
             {
                 <option value="@status" selected="@(Model.Status == status)">@status</option>
             }
         </select>
-        <select name="type">
+        <select name="type" aria-label="Lọc theo loại yêu cầu">
             <option value="">Tất cả loại yêu cầu</option>
             @foreach (var type in Model.Types)
             {
                 <option value="@type" selected="@(Model.Type == type)">@type</option>
             }
         </select>
-        <input name="query" value="@Model.Query" placeholder="Mã đơn, tên, email hoặc SĐT" />
+        <input name="query" value="@Model.Query" placeholder="Mã đơn, tên, email hoặc SĐT" aria-label="Tìm yêu cầu" />
         <button class="admin-button" type="submit">Lọc</button>
     </form>
 </section>

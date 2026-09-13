@@ -5,8 +5,7 @@ namespace EcommerceApp.Services;
 
 public class ShippingFeeService : IShippingFeeService
 {
-    private const decimal FreeShippingThreshold = 30_000_000m;
-    private const decimal ReducedShippingThreshold = 15_000_000m;
+    private const decimal FreeShippingThreshold = 500_000m;
 
     private static readonly string[] SameDayProvinces = { "ho chi minh" };
     private static readonly string[] NearProvinces = { "binh duong", "dong nai", "long an", "ba ria vung tau" };
@@ -66,13 +65,8 @@ public class ShippingFeeService : IShippingFeeService
                 Fee = 0m,
                 Zone = zone,
                 Eta = eta,
-                Message = "Miễn phí vận chuyển cho đơn từ 30.000.000 ₫."
+                Message = "Miễn phí vận chuyển cho đơn từ 500.000 ₫."
             };
-        }
-
-        if (subtotal >= ReducedShippingThreshold)
-        {
-            fee = Math.Max(0m, fee - 10_000m);
         }
 
         return new ShippingFeeQuote

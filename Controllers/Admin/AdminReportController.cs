@@ -21,15 +21,43 @@ public class AdminReportController : Controller
     [HttpGet("")]
     public async Task<IActionResult> Index(string period = "30", DateTime? fromDate = null, DateTime? toDate = null)
     {
-        var end = (toDate ?? DateTime.UtcNow).Date.AddDays(1);
+        period = period is "7" or "30" or "90" or "365" or "custom" ? period : "30";
+        var today = DateTime.UtcNow.Date;
+        var selectedEnd = (toDate ?? today).Date;
+        if (selectedEnd > today)
+        {
+            selectedEnd = today;
+            ViewData["ReportFilterError"] = "Ngày kết thúc trong tương lai đã được đưa về hôm nay.";
+        }
+        else if (selectedEnd < DateTime.UnixEpoch.Date)
+        {
+            selectedEnd = DateTime.UnixEpoch.Date;
+            ViewData["ReportFilterError"] = "Ngày kết thúc quá cũ đã được đưa về 01/01/1970.";
+        }
+
+        var end = selectedEnd.AddDays(1);
         var start = period switch
         {
             "7" => end.AddDays(-7),
             "90" => end.AddMonths(-3),
             "365" => end.AddYears(-1),
-            "custom" => (fromDate ?? end.AddDays(-30)).Date,
+            "custom" => (fromDate ?? selectedEnd.AddDays(-29)).Date,
             _ => end.AddDays(-30)
         };
+
+        if (period == "custom" && start > selectedEnd)
+        {
+            start = selectedEnd.AddDays(-29);
+            ViewData["ReportFilterError"] = "Từ ngày phải trước hoặc bằng đến ngày. Báo cáo đang hiển thị 30 ngày gần nhất.";
+        }
+
+        var earliestAllowed = selectedEnd.AddDays(-365);
+        if (start < earliestAllowed)
+        {
+            start = earliestAllowed;
+            ViewData["ReportFilterError"] = "Khoảng tùy chọn được giới hạn tối đa 366 ngày.";
+        }
+
         var previousStart = start.AddDays(-(end - start).TotalDays);
 
         var revenueOrders = _db.Orders.WithRecognizedRevenue();

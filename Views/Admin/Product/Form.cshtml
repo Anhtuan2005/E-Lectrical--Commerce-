@@ -18,19 +18,19 @@
             <a class="admin-link" asp-action="Edit" asp-route-id="@Model.Id">Tải lại dữ liệu mới nhất</a>
         }
         <input asp-for="RowVersion" type="hidden" />
-        <label>Tên sản phẩm</label>
+        <label asp-for="Name">Tên sản phẩm</label>
         <input asp-for="Name" />
         <span asp-validation-for="Name"></span>
 
-        <label>Mô tả</label>
+        <label asp-for="Description">Mô tả</label>
         <textarea asp-for="Description" rows="5"></textarea>
         <span asp-validation-for="Description"></span>
 
-        <label>Giá</label>
+        <label asp-for="Price">Giá</label>
         <input asp-for="Price" type="number" min="0" />
         <span asp-validation-for="Price"></span>
 
-        <label>Tồn kho</label>
+        <label asp-for="Stock">Tồn kho</label>
         <input asp-for="Stock" type="number" min="0" readonly="@(Model.Id != 0)" />
         @if (Model.Id != 0)
         {
@@ -38,17 +38,18 @@
         }
         <span asp-validation-for="Stock"></span>
 
-        <label>Giảm giá (%)</label>
+        <label asp-for="DiscountPercent">Giảm giá (%)</label>
         <input asp-for="DiscountPercent" type="number" min="0" max="100" />
         <span asp-validation-for="DiscountPercent"></span>
 
-        <label>Danh mục</label>
+        <label asp-for="CategoryId">Danh mục</label>
         <select asp-for="CategoryId">
             @foreach (var category in Model.Categories)
             {
                 <option value="@category.Id">@category.Name</option>
             }
         </select>
+        <span asp-validation-for="CategoryId"></span>
 
         <fieldset>
             <legend>Thông số linh kiện PC</legend>
@@ -69,7 +70,7 @@
             <small class="form-hint">Với PSU: công suất cấp. Với CPU/VGA: mức công suất dùng để dự trù nguồn.</small>
         </fieldset>
 
-        <label>Thư viện ảnh</label>
+        <label asp-for="ImageUrls">Thư viện ảnh</label>
         <textarea asp-for="ImageUrls" rows="6" placeholder="Mỗi dòng một URL ảnh. Dòng đầu là ảnh chính."></textarea>
         <span asp-validation-for="ImageUrls"></span>
         <small class="form-hint">Có thể dùng URL ảnh ngoài hoặc upload ảnh mới bên dưới. Hệ thống tự bỏ URL trùng.</small>
@@ -90,9 +91,9 @@
             </div>
         }
 
-        <label>Tải ảnh mới</label>
-        <input type="file" name="imageFiles" accept="image/*" multiple />
-        <span class="field-validation-valid" data-valmsg-for="imageFiles" data-valmsg-replace="true"></span>
+        <label for="product-image-files">Tải ảnh mới</label>
+        <input id="product-image-files" type="file" name="imageFiles" accept=".jpg,.jpeg,.png,.webp" multiple />
+        @Html.ValidationMessage("imageFiles")
         <small class="form-hint">Chọn tối đa 8 ảnh. Ảnh upload sẽ được nén WebP và nối vào cuối thư viện.</small>
 
         <label class="check-row"><input asp-for="IsFeatured" /> Sản phẩm nổi bật</label>

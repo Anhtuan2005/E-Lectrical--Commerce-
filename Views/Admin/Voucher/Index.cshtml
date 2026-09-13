@@ -24,7 +24,7 @@
                 <tr>
                     <td><strong>@voucher.Code</strong></td>
                     <td>@(voucher.Type == VoucherType.Percent ? "Phần trăm" : "Tiền mặt")</td>
-                    <td>@(voucher.Type == VoucherType.Percent ? $"{voucher.Value:N0}%" : $"{voucher.Value:N0} ₫")</td>
+                    <td>@(voucher.Type == VoucherType.Percent ? $"{voucher.Value:0.##}%" : $"{voucher.Value:N0} ₫")</td>
                     <td>@voucher.UsedCount/@voucher.UsageLimit</td>
                     <td>
                         @if (!string.IsNullOrWhiteSpace(voucher.TargetUserId))

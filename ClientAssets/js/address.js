@@ -290,14 +290,14 @@ function initAddressDropdowns() {
 
     if (cachedProvince) {
       currentProvince = cachedProvince.name;
-      fillAddressSelect(province, "-- Chá»n tá»‰nh thÃ nh --", addressCache.provinces || [], currentProvince);
+      fillAddressSelect(province, "-- Chọn tỉnh thành --", addressCache.provinces || [], currentProvince);
       return Promise.resolve(String(cachedProvince.code));
     }
 
     return fetchAddressJson(addressApiBase + "/p/" + encodeURIComponent(provinceCode))
       .then(function (item) {
         currentProvince = item.name;
-        fillAddressSelect(province, "-- Chá»n tá»‰nh thÃ nh --", addressCache.provinces || [item], currentProvince);
+        fillAddressSelect(province, "-- Chọn tỉnh thành --", addressCache.provinces || [item], currentProvince);
         return String(item.code);
       })
       .catch(function () {
@@ -321,7 +321,7 @@ function initAddressDropdowns() {
 
     return loadProvinces().then(function () {
       if (currentProvince) {
-        fillAddressSelect(province, "-- Chá»n tá»‰nh thÃ nh --", addressCache.provinces || [], currentProvince);
+        fillAddressSelect(province, "-- Chọn tỉnh thành --", addressCache.provinces || [], currentProvince);
         return selectedAddressCode(province);
       }
 

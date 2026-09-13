@@ -54,12 +54,27 @@ test('voucher input and apply button remain on one row on mobile', async ({ page
   expect(productId).toBeTruthy();
   await page.goto(`/Order/Checkout?buyNowProductId=${productId}&buyNowQuantity=1`);
 
-  const input = await page.locator('#voucherInput').boundingBox();
-  const button = await page.locator('#applyVoucher').boundingBox();
-  expect(input).not.toBeNull();
-  expect(button).not.toBeNull();
-  expect(Math.abs(input.y - button.y)).toBeLessThan(2);
   await expect(page.locator('#applyVoucher')).toHaveText('Áp dụng');
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page.locator('#voucherInput')).toBeVisible();
+  await expect(page.locator('#applyVoucher')).toBeVisible();
+  // Read both rectangles in one frame: pageIn moves their common ancestor,
+  // so separate boundingBox calls can report a false vertical difference.
+  await expect.poll(() => page.locator('.voucher-box').evaluate(box => {
+    const input = box.querySelector('#voucherInput').getBoundingClientRect();
+    const buttonElement = box.querySelector('#applyVoucher');
+    const button = buttonElement.getBoundingClientRect();
+    const text = document.createRange();
+    text.selectNodeContents(buttonElement);
+    return {
+      aligned: Math.abs(input.y - button.y) < 2,
+      sideBySide: input.right <= button.left,
+      textOnOneLine: text.getClientRects().length === 1,
+      withinViewport: input.left >= 0 && button.right <= window.innerWidth
+    };
+  }), { message: 'Voucher input and single-line button must fit side by side on mobile' }).toEqual({
+    aligned: true, sideBySide: true, textOnOneLine: true, withinViewport: true
+  });
   if (process.env.TECHVORA_CAPTURE_UI === 'true') {
     await page.locator('.voucher-box').screenshot({ path: 'artifacts/voucher-mobile-fixed.png' });
   }

@@ -26,6 +26,29 @@ appsettings.Development.json
 .idea/
 .vscode/
 
+# Local Codex work files
+.codex-*/
+outputs/
+
+# Internal development and QA tooling
+.github/
+ClientAssets/
+scripts/
+tests/
+docs/*.md
+docs/adr/
+
+# Optional container and frontend toolchain
+.dockerignore
+Dockerfile
+compose*.yml
+package.json
+package-lock.json
+playwright.config.*
+
+# Internal product notes
+PRODUCT.md
+
 # OS
 .DS_Store
 Thumbs.db

@@ -1,32 +1,29 @@
-# Techvora — ASP.NET Core E-Commerce
+# Techvora — Cửa hàng điện thoại ASP.NET Core
 
-Website bán thiết bị công nghệ được xây dựng bằng **ASP.NET Core 8 MVC, EF Core, SQL Server và ASP.NET Core Identity**. Giao diện tiếng Việt, hỗ trợ desktop và mobile.
+Website bán điện thoại được xây dựng bằng **ASP.NET Core 8 MVC, EF Core, SQL Server và ASP.NET Core Identity**. Giao diện tiếng Việt, hỗ trợ desktop và mobile.
 
-![Trang chủ Techvora](docs/screenshots/home.png)
+![Trang chủ Techvora với dữ liệu demo](docs/screenshots/home.png)
+
+Ảnh demo khác: [trang quản trị](docs/screenshots/admin.png). [Chạy demo local](#demo-local) · [xem bằng chứng 82 test](evidence/backend-tests.md). Repo chưa có video hoặc URL triển khai công khai.
 
 ## Chức năng nổi bật
 
 | Luồng | Chức năng |
 | --- | --- |
 | Mua sắm | Tìm kiếm, lọc/sắp xếp, phân trang, wishlist, so sánh và giỏ hàng |
-| Đặt hàng | Voucher, COD, VNPAY sandbox, hủy đơn và mua lại |
-| Vận chuyển | Tích hợp GHN, theo dõi đơn, đổi trả và bảo hành |
-| Quản trị | Sản phẩm, danh mục, tồn kho, đơn hàng, báo cáo và người dùng |
-| Smart PC Builder | Đề xuất cấu hình theo ngân sách và kiểm tra tương thích linh kiện |
-| Gợi ý sản phẩm | Gợi ý theo hành vi và chatbot Gemini khi có cấu hình API |
+| Đặt hàng | Checkout với địa chỉ giao hàng và thanh toán COD |
+| Quản trị | Sản phẩm, danh mục, ảnh, thông số và banner |
 
-![Smart PC Builder](docs/screenshots/pc-builder.png)
-
-![Dashboard quản trị](docs/screenshots/admin.png)
+Bản chạy mặc định chỉ bật **Sprint 1**. Mã nguồn Sprint 2–3 vẫn được giữ lại sau cổng phát hành để có thể khôi phục mà không cần chép lại file.
 
 ## Công nghệ
 
-- ASP.NET Core 8 MVC, Razor Views và SignalR
+- ASP.NET Core 8 MVC và Razor Views
 - Entity Framework Core 8, SQL Server và ASP.NET Core Identity
 - HTML, CSS và JavaScript; asset dùng để chạy đã có sẵn trong `wwwroot`
-- Tích hợp tùy chọn: VNPAY, GHN, SMTP và Gemini
+- SMTP tùy chọn cho luồng đặt lại mật khẩu
 
-## Chạy dự án
+## Demo local
 
 Yêu cầu: **.NET SDK 8+** và **SQL Server** có quyền tạo database. Không cần cài Node.js hoặc Docker để chạy ứng dụng.
 
@@ -55,17 +52,30 @@ Mở [http://localhost:5009](http://localhost:5009).
 
 `Demo:Enabled` mặc định là `false` và không được phép bật trong môi trường Production. Khi dùng xong, xóa biến demo bằng `Remove-Item Env:Demo__Enabled`.
 
+Để xem luồng chính: đăng nhập tài khoản khách, chọn sản phẩm và đặt hàng COD; sau đó đăng nhập admin để xem đơn và tồn kho. Những tình huống khó tái hiện bằng giao diện như hai khách tranh món cuối hoặc callback thanh toán lặp được kiểm tra bằng [integration tests](tests/EcommerceApp.Tests/OrderPaymentTests.cs), không phải trong bản demo mặc định.
+
 ## Cấu trúc chính
 
 ```text
 Controllers/     Điều hướng request, phân quyền và trả View/JSON
 Data/            DbContext, migrations và dữ liệu demo
-Hubs/            Cập nhật thời gian thực bằng SignalR
 Models/          Entity và ViewModel
 Services/        Nghiệp vụ và tích hợp dịch vụ ngoài
 Views/           Giao diện Razor cho storefront và trang quản trị
-wwwroot/         CSS, JavaScript, hình ảnh và mô hình 3D
+wwwroot/         CSS, JavaScript và hình ảnh giao diện
 ```
+
+Controller xử lý request và quyền truy cập; service giữ nghiệp vụ; EF Core ghi SQL Server. Checkout, tồn kho và voucher dùng transaction. Mã nguồn Sprint 2 xử lý callback VNPAY bằng cách kiểm tra chữ ký/số tiền rồi khóa và đọc lại trạng thái đơn để xử lý callback lặp.
+
+## Kiểm thử
+
+Project test nằm tại [`tests/EcommerceApp.Tests`](tests/EcommerceApp.Tests) và cần SQL Server để chạy integration tests. Mỗi lần chạy tạo database `TechvoraTests_*` riêng, migrate rồi xóa database đó sau test. Trên máy có SQL Server local với Windows Authentication:
+
+```powershell
+dotnet test tests/EcommerceApp.Tests/EcommerceApp.Tests.csproj
+```
+
+Nếu dùng SQL Server khác, đặt `TECHVORA_TEST_SQLSERVER` thành connection string của server test trước khi chạy. Lần kiểm tra local gần nhất: **82/82 test pass**; có test cho hai khách tranh món cuối, callback VNPAY lặp/đến sau hủy, hoàn kho đúng một lần, phân quyền admin và reset mật khẩu. [Lệnh, kết quả và mã test tiêu biểu](evidence/backend-tests.md) giúp kiểm chứng; [workflow CI](.github/workflows/portfolio-tests.yml) được cấu hình để chạy bộ test trên SQL Server 2022.
 
 ## Cấu hình tùy chọn
 
@@ -73,12 +83,22 @@ Dùng `dotnet user-secrets` khi phát triển và biến môi trường khi tri�
 
 | Cấu hình | Mục đích |
 | --- | --- |
+| `Release:ActiveSprint` | Sprint cao nhất được bật; mặc định `1` |
 | `ConnectionStrings:DefaultConnection` | Kết nối SQL Server |
 | `Demo:Enabled` | Tạo dữ liệu demo; mặc định `false` |
 | `BootstrapAdmin:Email`, `BootstrapAdmin:Password` | Tạo tài khoản quản trị ban đầu |
-| `Vnpay:*` | Thanh toán VNPAY sandbox |
 | `Email:*` | Gửi email đặt lại mật khẩu |
-| `Ghn:*` | Tạo và theo dõi vận đơn GHN |
-| `Gemini:ApiKey`, `Gemini:Model` | Chatbot hỗ trợ khách hàng |
 
-Các tích hợp ngoài được tắt hoặc hoạt động ở chế độ dự phòng khi chưa cung cấp thông tin xác thực, nên không bắt buộc để chạy bản demo cục bộ.
+Email được tắt khi chưa cung cấp thông tin xác thực, nên không bắt buộc để chạy bản demo cục bộ.
+
+## Bật lại Sprint 2–3
+
+Đặt `Release:ActiveSprint` thành `2` để bật Sprint 1 + 2, hoặc thành `3` để bật toàn bộ. Có thể dùng biến môi trường rồi khởi động lại ứng dụng:
+
+```powershell
+$env:Release__ActiveSprint = "2"
+dotnet run --project EcommerceApp.csproj
+```
+
+Ở chế độ Sprint 1, route Sprint 2–3 trả `404`; menu và tiến trình nền tương ứng cũng không hoạt động. Build PC không thuộc backlog của đề tài điện thoại nên luôn bị khóa. Xác thực, phân quyền, chống CSRF và rate limit nền tảng vẫn được giữ để ứng dụng an toàn.
+# TechvoraLab

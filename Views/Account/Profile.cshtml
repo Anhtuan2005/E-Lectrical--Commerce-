@@ -8,7 +8,10 @@
         <partial name="_TechvoraLogo" />
         <a class="active" asp-action="Profile">Hồ sơ</a>
         <a asp-action="ChangePassword">Đổi mật khẩu</a>
-        <a asp-controller="Order" asp-action="History">Đơn hàng của tôi</a>
+        @if (SprintFeatures.IsEnabled(2))
+        {
+            <a asp-controller="Order" asp-action="History">Đơn hàng của tôi</a>
+        }
     </aside>
     <form asp-action="Profile" method="post" class="form-panel account-form">
         @Html.AntiForgeryToken()

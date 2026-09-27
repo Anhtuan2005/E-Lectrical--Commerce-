@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EcommerceApp.Controllers.Admin;
 
+[EcommerceApp.Services.MinimumSprint(2)]
 [Authorize(Roles = "Admin")]
 [Route("Admin/Review")]
 public class AdminReviewController : Controller

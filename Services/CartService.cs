@@ -9,11 +9,15 @@ public class CartService : ICartService
 {
     private readonly AppDbContext _db;
     private readonly ICrossSellService _crossSellService;
+    private readonly ISprintFeatureService? _sprintFeatures;
+    private readonly ICatalogScope? _catalogScope;
 
-    public CartService(AppDbContext db, ICrossSellService crossSellService)
+    public CartService(AppDbContext db, ICrossSellService crossSellService, ISprintFeatureService? sprintFeatures = null, ICatalogScope? catalogScope = null)
     {
         _db = db;
         _crossSellService = crossSellService;
+        _sprintFeatures = sprintFeatures;
+        _catalogScope = catalogScope;
     }
 
     public async Task<CartViewModel> GetCartAsync(string? userId, string sessionId, IEnumerable<int>? productIds = null)
@@ -22,8 +26,11 @@ public class CartService : ICartService
         await _db.Entry(cart).Collection(c => c.Items).Query()
             .Include(item => item.Product)
             .ThenInclude(product => product!.Images)
+            .Include(item => item.Product)
+            .ThenInclude(product => product!.Category)
             .LoadAsync();
         var items = cart.Items
+            .Where(item => _catalogScope is null || _catalogScope.IsPhoneCategory(item.Product?.Category?.Slug))
             .OrderBy(item => string.IsNullOrWhiteSpace(item.GroupKey))
             .ThenBy(item => item.GroupKey)
             .ThenBy(item => item.GroupSortOrder ?? 999)
@@ -35,11 +42,17 @@ public class CartService : ICartService
             items = items.Where(item => selectedProductIds.Contains(item.ProductId)).ToList();
         }
 
+        var crossSellEnabled = _sprintFeatures?.IsEnabled(3) ?? true;
         return new CartViewModel
         {
             Items = items,
-            CrossSellUnitPrices = await _crossSellService.GetEligibleUnitPricesAsync(items),
-            CrossSellSuggestions = await _crossSellService.GetSuggestionsAsync(items)
+            PromotionsEnabled = crossSellEnabled,
+            CrossSellUnitPrices = crossSellEnabled
+                ? await _crossSellService.GetEligibleUnitPricesAsync(items)
+                : new Dictionary<int, decimal>(),
+            CrossSellSuggestions = crossSellEnabled
+                ? await _crossSellService.GetSuggestionsAsync(items)
+                : Array.Empty<CrossSellSuggestionViewModel>()
         };
     }
 
@@ -49,20 +62,31 @@ public class CartService : ICartService
             .Include(cart => cart.Items)
             .ThenInclude(item => item.Product)
             .ThenInclude(product => product!.Images)
+            .Include(cart => cart.Items)
+            .ThenInclude(item => item.Product)
+            .ThenInclude(product => product!.Category)
             .FirstOrDefaultAsync();
     }
 
     public async Task<int> GetCountAsync(string? userId, string sessionId)
     {
-        return await FindCartQuery(userId, sessionId)
-            .Select(cart => cart.Items.Sum(item => (int?)item.Quantity) ?? 0)
+        var query = FindCartQuery(userId, sessionId);
+        return await query
+            .Select(cart => cart.Items
+                .Where(item => _catalogScope == null || (item.Product != null && item.Product.Category != null
+                    && (item.Product.Category.Slug == PhoneCatalogScope.RootSlug
+                        || item.Product.Category.Slug.StartsWith("dien-thoai-"))))
+                .Sum(item => (int?)item.Quantity) ?? 0)
             .FirstOrDefaultAsync();
     }
 
     public async Task AddAsync(int productId, int quantity, string? userId, string sessionId, CartItemGroupInput? group = null)
     {
         if (quantity <= 0) throw new InvalidOperationException("Số lượng thêm vào giỏ phải lớn hơn 0.");
-        var product = await _db.Products.FirstOrDefaultAsync(row => row.Id == productId);
+        var products = _db.Products.Include(product => product.Category).AsQueryable();
+        if (_catalogScope is not null)
+            products = _catalogScope.Products(products);
+        var product = await products.FirstOrDefaultAsync(row => row.Id == productId);
         if (product is null || product.Stock <= 0)
         {
             throw new InvalidOperationException("Sản phẩm hiện không còn hàng.");

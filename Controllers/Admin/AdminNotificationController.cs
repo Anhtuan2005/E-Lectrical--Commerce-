@@ -6,6 +6,7 @@ using System.Security.Claims;
 
 namespace EcommerceApp.Controllers.Admin;
 
+[MinimumSprint(2)]
 [Authorize(Roles = "Admin")]
 [Route("Admin/Notification")]
 public class AdminNotificationController : Controller

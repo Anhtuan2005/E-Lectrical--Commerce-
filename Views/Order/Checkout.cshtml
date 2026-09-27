@@ -85,22 +85,28 @@
             </div>
         </div>
 
-        <div class="payment-choice">
+        <div class="payment-choice @(!SprintFeatures.IsEnabled(2) ? "payment-choice-single" : null)">
             <label class="payment-option">
                 <input asp-for="PaymentMethod" type="radio" value="COD" />
                 <span class="payment-icon">COD</span>
-                <span><strong>Thanh toán khi nhận hàng</strong><small>Kiểm tra hàng rồi thanh toán trực tiếp.</small></span>
+                <span><strong>Thanh toán khi nhận hàng</strong><small>Thanh toán trực tiếp khi đơn hàng được giao tới.</small></span>
             </label>
-            <label class="payment-option">
-                <input asp-for="PaymentMethod" type="radio" value="VNPAY" />
-                <span class="payment-icon">VNPAY</span>
-                <span><strong>VNPAY</strong><small>Bạn sẽ được chuyển sang cổng VNPAY bảo mật.</small></span>
-            </label>
+            @if (SprintFeatures.IsEnabled(2))
+            {
+                <label class="payment-option">
+                    <input asp-for="PaymentMethod" type="radio" value="VNPAY" />
+                    <span class="payment-icon">VNPAY</span>
+                    <span><strong>VNPAY</strong><small>Bạn sẽ được chuyển sang cổng VNPAY bảo mật.</small></span>
+                </label>
+            }
         </div>
         <span asp-validation-for="PaymentMethod" class="field-error"></span>
 
-        <input asp-for="VoucherCode" type="hidden" id="VoucherCode" />
-        <input asp-for="DiscountAmount" type="hidden" id="DiscountAmount" />
+        @if (SprintFeatures.IsEnabled(2))
+        {
+            <input asp-for="VoucherCode" type="hidden" id="VoucherCode" />
+            <input asp-for="DiscountAmount" type="hidden" id="DiscountAmount" />
+        }
         <button class="btn-primary checkout-submit" type="submit" id="checkoutSubmit">Đặt hàng</button>
     </form>
 
@@ -127,7 +133,7 @@
                 <b>@((price * item.Quantity).ToString("N0")) ₫</b>
             </div>
         }
-        @if (Model.Cart.CrossSellSuggestions.Any())
+        @if (SprintFeatures.IsEnabled(3) && Model.Cart.CrossSellSuggestions.Any())
         {
             <section class="checkout-cross-sell">
                 <div class="checkout-cross-sell-head">
@@ -174,18 +180,21 @@
             <span>Phí vận chuyển <small class="shipping-fee-note" id="shippingFeeNote">Chọn địa điểm để cập nhật phí.</small></span>
             <strong id="shippingFeeText">@shippingFee.ToString("N0") ₫</strong>
         </div>
-        <div class="voucher-box">
-            <label for="voucherInput">Mã giảm giá</label>
-            <div>
-                <input id="voucherInput" placeholder="WELCOME10" />
-                <button class="btn-ghost" type="button" id="applyVoucher">Áp dụng</button>
+        @if (SprintFeatures.IsEnabled(2))
+        {
+            <div class="voucher-box">
+                <label for="voucherInput">Mã giảm giá</label>
+                <div>
+                    <input id="voucherInput" placeholder="WELCOME10" />
+                    <button class="btn-ghost" type="button" id="applyVoucher">Áp dụng</button>
+                </div>
+                <span class="voucher-message" id="voucherMessage"></span>
             </div>
-            <span class="voucher-message" id="voucherMessage"></span>
-        </div>
-        <div class="summary-line discount-line" id="discountLine">
-            <span>Giảm giá</span>
-            <strong id="discountText">0 ₫</strong>
-        </div>
+            <div class="summary-line discount-line" id="discountLine">
+                <span>Giảm giá</span>
+                <strong id="discountText">0 ₫</strong>
+            </div>
+        }
         <strong class="summary-total" id="checkoutTotal" data-subtotal="@subtotal" data-shipping-fee="@shippingFee">@total.ToString("N0") ₫</strong>
     </aside>
 </section>

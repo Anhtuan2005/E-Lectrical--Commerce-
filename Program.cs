@@ -17,6 +17,7 @@ using System.IO.Compression;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+var activeSprint = Math.Clamp(builder.Configuration.GetValue("Release:ActiveSprint", 1), 1, 3);
 
 var viCulture = CultureInfo.GetCultureInfo("vi-VN");
 CultureInfo.DefaultThreadCurrentCulture = viCulture;
@@ -179,11 +180,13 @@ builder.Services.AddRateLimiter(options =>
 });
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.Configure<SprintFeatureOptions>(builder.Configuration.GetSection("Release"));
+builder.Services.AddSingleton<ISprintFeatureService, SprintFeatureService>();
+builder.Services.AddSingleton<ICatalogScope, PhoneCatalogScope>();
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
 builder.Services.Configure<GhnOptions>(builder.Configuration.GetSection("Ghn"));
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductSpecService, ProductSpecService>();
-builder.Services.AddScoped<ISmartPcBuildService, SmartPcBuildService>();
 builder.Services.AddScoped<IProductInteractionService, ProductInteractionService>();
 builder.Services.AddScoped<IRecommendationService, RecommendationService>();
 builder.Services.AddScoped<IImageStorageService, ImageStorageService>();
@@ -209,9 +212,15 @@ builder.Services.AddHttpClient<IAiChatService, GeminiChatService>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(35);
 });
-builder.Services.AddHostedService<AbandonedCartRecoveryHostedService>();
 builder.Services.AddScoped<OrderPaymentExpiryService>();
-builder.Services.AddHostedService<OrderPaymentExpiryHostedService>();
+if (activeSprint >= 2)
+{
+    builder.Services.AddHostedService<OrderPaymentExpiryHostedService>();
+}
+if (activeSprint >= 3)
+{
+    builder.Services.AddHostedService<AbandonedCartRecoveryHostedService>();
+}
 
 builder.Services.AddControllersWithViews();
 builder.Services.AddSignalR();
@@ -251,6 +260,17 @@ try
     });
 
     app.UseRouting();
+    app.Use(async (context, next) =>
+    {
+        var requirements = context.GetEndpoint()?.Metadata.GetOrderedMetadata<MinimumSprintAttribute>();
+        if (requirements?.Any(requirement => activeSprint < requirement.Sprint) == true)
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        await next(context);
+    });
     app.UseRequestLocalization(new RequestLocalizationOptions
     {
         DefaultRequestCulture = new Microsoft.AspNetCore.Localization.RequestCulture(viCulture),
@@ -263,46 +283,52 @@ try
     app.UseRateLimiter();
     app.UseAuthorization();
 
-    app.MapGet("/health/live", () => Results.Ok(new
+    if (activeSprint >= 3)
     {
-        status = "Healthy",
-        service = "Techvora",
-        checkedAt = DateTimeOffset.UtcNow
-    })).AllowAnonymous();
-
-    app.MapGet("/health/ready", async (AppDbContext db, CancellationToken cancellationToken) =>
-    {
-        try
+        app.MapGet("/health/live", () => Results.Ok(new
         {
-            var canConnect = await db.Database.CanConnectAsync(cancellationToken);
-            if (canConnect)
-            {
-                return Results.Ok(new
-                {
-                    status = "Ready",
-                    service = "Techvora",
-                    checks = new { database = "Healthy" },
-                    checkedAt = DateTimeOffset.UtcNow
-                });
-            }
-        }
-        catch
-        {
-        }
-
-        return Results.Json(new
-        {
-            status = "NotReady",
+            status = "Healthy",
             service = "Techvora",
-            checks = new { database = "Unhealthy" },
             checkedAt = DateTimeOffset.UtcNow
-        }, statusCode: StatusCodes.Status503ServiceUnavailable);
-    }).AllowAnonymous();
+        })).AllowAnonymous();
+
+        app.MapGet("/health/ready", async (AppDbContext db, CancellationToken cancellationToken) =>
+        {
+            try
+            {
+                var canConnect = await db.Database.CanConnectAsync(cancellationToken);
+                if (canConnect)
+                {
+                    return Results.Ok(new
+                    {
+                        status = "Ready",
+                        service = "Techvora",
+                        checks = new { database = "Healthy" },
+                        checkedAt = DateTimeOffset.UtcNow
+                    });
+                }
+            }
+            catch
+            {
+            }
+
+            return Results.Json(new
+            {
+                status = "NotReady",
+                service = "Techvora",
+                checks = new { database = "Unhealthy" },
+                checkedAt = DateTimeOffset.UtcNow
+            }, statusCode: StatusCodes.Status503ServiceUnavailable);
+        }).AllowAnonymous();
+    }
 
     app.MapControllerRoute(
         name: "default",
         pattern: "{controller=Home}/{action=Index}/{id?}");
-    app.MapHub<AdminNotificationHub>("/hubs/admin-notifications");
+    if (activeSprint >= 2)
+    {
+        app.MapHub<AdminNotificationHub>("/hubs/admin-notifications");
+    }
 
     await SeedData.InitializeAsync(app.Services);
 

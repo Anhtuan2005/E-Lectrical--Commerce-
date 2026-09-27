@@ -14,35 +14,60 @@ public class HomeController : Controller
     private readonly ILogger<HomeController> _logger;
     private readonly IProductService _productService;
     private readonly IRecommendationService _recommendationService;
+    private readonly ISprintFeatureService _sprintFeatures;
     private readonly AppDbContext _db;
+    private readonly ICatalogScope? _catalogScope;
 
-    public HomeController(ILogger<HomeController> logger, IProductService productService, IRecommendationService recommendationService, AppDbContext db)
+    public HomeController(ILogger<HomeController> logger, IProductService productService, IRecommendationService recommendationService, ISprintFeatureService sprintFeatures, AppDbContext db, ICatalogScope? catalogScope = null)
     {
         _logger = logger;
         _productService = productService;
         _recommendationService = recommendationService;
+        _sprintFeatures = sprintFeatures;
         _db = db;
+        _catalogScope = catalogScope;
     }
 
     public async Task<IActionResult> Index()
     {
+        var banners = await _db.Banners
+            .Where(banner => banner.IsActive)
+            .OrderBy(banner => banner.SortOrder)
+            .ToListAsync();
+        if (_catalogScope is not null)
+            banners = banners.Where(_catalogScope.IsPhoneBanner).ToList();
+
+        var productNameQuery = _db.Products.AsNoTracking().AsQueryable();
+        if (_catalogScope is not null)
+            productNameQuery = _catalogScope.Products(productNameQuery);
+        var productNames = await productNameQuery.Select(product => product.Name).ToListAsync();
+
+        var flashSaleQuery = _db.Products
+            .Include(product => product.Category)
+            .Include(product => product.Images)
+            .AsQueryable();
+        if (_catalogScope is not null)
+            flashSaleQuery = _catalogScope.Products(flashSaleQuery);
+
         var model = new HomeViewModel
         {
-            Banners = await _db.Banners.Where(banner => banner.IsActive).OrderBy(banner => banner.SortOrder).Take(3).ToListAsync(),
-            Categories = await _productService.GetCategoriesAsync(),
+            Banners = banners,
+            Brands = PhoneBrandCatalog.Summarize(productNames),
             FeaturedProducts = await _productService.GetFeaturedProductsAsync(8),
-            PersonalizedProducts = await _recommendationService.GetRecommendationsAsync(
-                User.FindFirstValue(ClaimTypes.NameIdentifier),
-                HttpContext.Session.Id,
-                take: 8),
-            FlashSaleProducts = await _db.Products
-                .Include(product => product.Category)
-                .Include(product => product.Images)
-                .Where(product => product.DiscountPercent > 0 && product.Stock > 0)
-                .OrderByDescending(product => product.DiscountPercent)
-                .ThenBy(product => product.Price)
-                .Take(6)
-                .ToListAsync(),
+            PersonalizedProducts = _sprintFeatures.IsEnabled(3)
+                ? await _recommendationService.GetRecommendationsAsync(
+                    User.FindFirstValue(ClaimTypes.NameIdentifier),
+                    HttpContext.Session.Id,
+                    take: 8)
+                : Array.Empty<Product>(),
+            FlashSaleProducts = _sprintFeatures.IsEnabled(3)
+                ? await flashSaleQuery
+                    .Where(product => product.DiscountPercent > 0 && product.Stock > 0)
+                    .OrderByDescending(product => product.DiscountPercent)
+                    .ThenBy(product => product.Price)
+                    .Take(6)
+                    .ToListAsync()
+                : Array.Empty<Product>(),
             LatestProducts = await _productService.GetLatestProductsAsync(10)
         };
 

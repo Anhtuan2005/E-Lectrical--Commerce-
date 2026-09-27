@@ -7,6 +7,7 @@ using System.Text;
 
 namespace EcommerceApp.Controllers;
 
+[MinimumSprint(2)]
 [AllowAnonymous]
 [Route("shipping")]
 public class GhnWebhookController : Controller

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace EcommerceApp.Controllers;
 
+[MinimumSprint(3)]
 public class AiChatController : Controller
 {
     private readonly IAiChatService _aiChatService;

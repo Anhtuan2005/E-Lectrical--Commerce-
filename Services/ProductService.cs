@@ -8,19 +8,23 @@ namespace EcommerceApp.Services;
 public class ProductService : IProductService
 {
     private readonly AppDbContext _db;
+    private readonly ICatalogScope? _catalogScope;
+    private readonly ISprintFeatureService? _sprintFeatures;
 
-    public ProductService(AppDbContext db)
+    public ProductService(AppDbContext db, ICatalogScope? catalogScope = null, ISprintFeatureService? sprintFeatures = null)
     {
         _db = db;
+        _catalogScope = catalogScope;
+        _sprintFeatures = sprintFeatures;
     }
 
     public async Task<ProductViewModel> GetPagedProductsAsync(string? search, int? categoryId, decimal? minPrice, decimal? maxPrice, string? sortBy, int page, int pageSize)
     {
         page = Math.Max(page, 1);
-        var query = _db.Products
+        var query = ScopedProducts(_db.Products
             .Include(product => product.Category)
             .Include(product => product.Images)
-            .AsQueryable();
+            .AsQueryable());
 
         var searchTerms = ProductSearchIndex.QueryTerms(search);
         foreach (var term in searchTerms)
@@ -34,16 +38,17 @@ public class ProductService : IProductService
             query = query.Where(product => product.CategoryId == categoryId.Value);
         }
 
+        var promotionsEnabled = _sprintFeatures?.IsEnabled(3) ?? true;
         if (minPrice.HasValue)
         {
-            query = query.Where(product => (product.DiscountPercent > 0
+            query = query.Where(product => (promotionsEnabled && product.DiscountPercent > 0
                 ? Math.Round(product.Price * (100 - product.DiscountPercent) / 100m, 0)
                 : product.Price) >= minPrice.Value);
         }
 
         if (maxPrice.HasValue)
         {
-            query = query.Where(product => (product.DiscountPercent > 0
+            query = query.Where(product => (promotionsEnabled && product.DiscountPercent > 0
                 ? Math.Round(product.Price * (100 - product.DiscountPercent) / 100m, 0)
                 : product.Price) <= maxPrice.Value);
         }
@@ -69,12 +74,12 @@ public class ProductService : IProductService
                 .ThenByDescending(product => product.CreatedAt),
             "newest" => query.OrderByDescending(product => product.CreatedAt),
             "price_asc" => query
-                .OrderBy(product => product.DiscountPercent > 0
+                .OrderBy(product => promotionsEnabled && product.DiscountPercent > 0
                     ? Math.Round(product.Price * (100 - product.DiscountPercent) / 100m, 0)
                     : product.Price)
                 .ThenByDescending(product => product.CreatedAt),
             "price_desc" => query
-                .OrderByDescending(product => product.DiscountPercent > 0
+                .OrderByDescending(product => promotionsEnabled && product.DiscountPercent > 0
                     ? Math.Round(product.Price * (100 - product.DiscountPercent) / 100m, 0)
                     : product.Price)
                 .ThenByDescending(product => product.CreatedAt),
@@ -93,11 +98,15 @@ public class ProductService : IProductService
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
+        var catalogProductNames = await ScopedProducts(_db.Products.AsNoTracking())
+            .Select(product => product.Name)
+            .ToListAsync();
 
         return new ProductViewModel
         {
             Products = products,
             Categories = await GetCategoriesAsync(),
+            Brands = PhoneBrandCatalog.Summarize(catalogProductNames),
             Search = search,
             CategoryId = categoryId,
             MinPrice = minPrice,
@@ -112,9 +121,9 @@ public class ProductService : IProductService
 
     public async Task<IEnumerable<Product>> GetFeaturedProductsAsync(int count)
     {
-        return await _db.Products
+        return await ScopedProducts(_db.Products
             .Include(product => product.Category)
-            .Include(product => product.Images)
+            .Include(product => product.Images))
             .Where(product => product.IsFeatured)
             .OrderByDescending(product => product.CreatedAt)
             .Take(count)
@@ -123,9 +132,9 @@ public class ProductService : IProductService
 
     public async Task<IEnumerable<Product>> GetLatestProductsAsync(int count)
     {
-        return await _db.Products
+        return await ScopedProducts(_db.Products
             .Include(product => product.Category)
-            .Include(product => product.Images)
+            .Include(product => product.Images))
             .OrderByDescending(product => product.CreatedAt)
             .Take(count)
             .ToListAsync();
@@ -133,9 +142,9 @@ public class ProductService : IProductService
 
     public async Task<IEnumerable<Product>> GetRelatedProductsAsync(int productId, int categoryId, int take = 8)
     {
-        return await _db.Products
+        return await ScopedProducts(_db.Products
             .Include(product => product.Category)
-            .Include(product => product.Images.OrderBy(image => image.SortOrder))
+            .Include(product => product.Images.OrderBy(image => image.SortOrder)))
             .Where(product => product.CategoryId == categoryId && product.Id != productId)
             .OrderByDescending(product => product.IsFeatured)
             .ThenByDescending(product => product.CreatedAt)
@@ -145,19 +154,22 @@ public class ProductService : IProductService
 
     public async Task<IEnumerable<Category>> GetCategoriesAsync()
     {
-        return await _db.Categories.Include(category => category.Products).OrderBy(category => category.Name).ToListAsync();
+        return await ScopedCategories(_db.Categories.Include(category => category.Products))
+            .OrderBy(category => category.Name)
+            .ToListAsync();
     }
 
     public async Task<Product?> GetProductAsync(int id)
     {
-        return await _db.Products
+        return await ScopedProducts(_db.Products
             .Include(product => product.Category)
-            .Include(product => product.Images.OrderBy(image => image.SortOrder))
+            .Include(product => product.Images.OrderBy(image => image.SortOrder)))
             .FirstOrDefaultAsync(product => product.Id == id);
     }
 
     public async Task<Product> CreateProductAsync(ProductFormViewModel model, IEnumerable<string?> imageUrls)
     {
+        await EnsureAllowedCategoryAsync(model.CategoryId);
         var product = new Product
         {
             Name = model.Name,
@@ -183,6 +195,7 @@ public class ProductService : IProductService
 
     public async Task UpdateProductAsync(ProductFormViewModel model, IEnumerable<string?> imageUrls)
     {
+        await EnsureAllowedCategoryAsync(model.CategoryId);
         byte[] version;
         try { version = Convert.FromBase64String(model.RowVersion ?? ""); }
         catch (FormatException) { throw new DbUpdateConcurrencyException("Phiên bản sản phẩm không hợp lệ."); }
@@ -226,6 +239,8 @@ public class ProductService : IProductService
             return Task.FromResult(false);
         return DatabaseTransaction.ExecuteAsync(_db, async () =>
         {
+            if (_catalogScope is not null && !await ScopedProducts(_db.Products).AnyAsync(product => product.Id == id))
+                return false;
             var updated = await _db.Database.ExecuteSqlInterpolatedAsync($"""
                 UPDATE Products SET Stock = Stock + {change}
                 WHERE Id = {id} AND IsDeleted = 0
@@ -241,8 +256,28 @@ public class ProductService : IProductService
 
     public async Task DeleteProductAsync(int id)
     {
-        await _db.Products.IgnoreQueryFilters().Where(product => product.Id == id)
+        var query = _db.Products.IgnoreQueryFilters().Where(product => product.Id == id);
+        if (_catalogScope is not null)
+        {
+            query = ScopedProducts(query);
+        }
+        await query
             .ExecuteUpdateAsync(setters => setters.SetProperty(product => product.IsDeleted, true));
+    }
+
+    private IQueryable<Product> ScopedProducts(IQueryable<Product> query) =>
+        _catalogScope?.Products(query) ?? query;
+
+    private IQueryable<Category> ScopedCategories(IQueryable<Category> query) =>
+        _catalogScope?.Categories(query) ?? query;
+
+    private async Task EnsureAllowedCategoryAsync(int categoryId)
+    {
+        if (_catalogScope is not null
+            && !await ScopedCategories(_db.Categories).AnyAsync(category => category.Id == categoryId))
+        {
+            throw new InvalidOperationException("Chỉ được quản lý sản phẩm thuộc danh mục điện thoại.");
+        }
     }
 
     private static List<string> BuildImageUrls(ProductFormViewModel model, IEnumerable<string?> uploadedImageUrls)

@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EcommerceApp.Controllers.Admin;
 
+[EcommerceApp.Services.MinimumSprint(3)]
 [Authorize(Roles = "Admin")]
 [Route("Admin/Report")]
 public class AdminReportController : Controller

@@ -20,8 +20,10 @@ public class OrderService : IOrderService
     private readonly IUserNotificationService _notificationService;
     private readonly IHubContext<AdminNotificationHub> _adminNotificationHub;
     private readonly ILogger<OrderService> _logger;
+    private readonly ISprintFeatureService? _sprintFeatures;
+    private readonly ICatalogScope? _catalogScope;
 
-    public OrderService(AppDbContext db, ICartService cartService, IShippingFeeService shippingFeeService, IOrderEmailService orderEmailService, ICustomerSegmentService customerSegmentService, ICrossSellService crossSellService, IUserNotificationService notificationService, IHubContext<AdminNotificationHub> adminNotificationHub, ILogger<OrderService> logger)
+    public OrderService(AppDbContext db, ICartService cartService, IShippingFeeService shippingFeeService, IOrderEmailService orderEmailService, ICustomerSegmentService customerSegmentService, ICrossSellService crossSellService, IUserNotificationService notificationService, IHubContext<AdminNotificationHub> adminNotificationHub, ILogger<OrderService> logger, ISprintFeatureService? sprintFeatures = null, ICatalogScope? catalogScope = null)
     {
         _db = db;
         _cartService = cartService;
@@ -32,10 +34,17 @@ public class OrderService : IOrderService
         _notificationService = notificationService;
         _adminNotificationHub = adminNotificationHub;
         _logger = logger;
+        _sprintFeatures = sprintFeatures;
+        _catalogScope = catalogScope;
     }
 
     public async Task<Order> CreateOrderAsync(string userId, CheckoutViewModel model, string sessionId)
     {
+        if (!IsEnabled(2) && !string.Equals(model.PaymentMethod, "COD", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Sprint 1 chỉ hỗ trợ thanh toán khi nhận hàng (COD).");
+        }
+
         var order = await DatabaseTransaction.ExecuteAsync(_db, async () =>
         {
             Cart? cart = null;
@@ -48,7 +57,10 @@ public class OrderService : IOrderService
                     throw new InvalidOperationException("Sản phẩm mua ngay không hợp lệ.");
                 }
 
-                var product = await _db.Products.FirstOrDefaultAsync(row => row.Id == model.BuyNowProductId.Value);
+                var products = _db.Products.Include(product => product.Category).AsQueryable();
+                if (_catalogScope is not null)
+                    products = _catalogScope.Products(products);
+                var product = await products.FirstOrDefaultAsync(row => row.Id == model.BuyNowProductId.Value);
                 if (product is null || product.Stock < quantity)
                 {
                     throw new InvalidOperationException($"Sản phẩm mua ngay không đủ hàng. Còn {product?.Stock ?? 0} sản phẩm.");
@@ -77,7 +89,8 @@ public class OrderService : IOrderService
                 }
 
                 checkoutItems = cart.Items
-                    .Where(item => selectedProductIds.Contains(item.ProductId))
+                    .Where(item => selectedProductIds.Contains(item.ProductId)
+                        && (_catalogScope is null || _catalogScope.IsPhoneCategory(item.Product?.Category?.Slug)))
                     .ToList();
                 if (!checkoutItems.Any())
                 {
@@ -96,7 +109,7 @@ public class OrderService : IOrderService
             }
 
             var isVnpayOrder = IsVnpayPayment(model.PaymentMethod);
-            var crossSellUnitPrices = model.BuyNowProductId.HasValue
+            var crossSellUnitPrices = model.BuyNowProductId.HasValue || !IsEnabled(3)
                 ? new Dictionary<int, decimal>()
                 : await _crossSellService.GetEligibleUnitPricesAsync(checkoutItems);
             var order = new Order
@@ -116,12 +129,14 @@ public class OrderService : IOrderService
                     Quantity = item.Quantity,
                     UnitPrice = crossSellUnitPrices.TryGetValue(item.ProductId, out var unitPrice)
                         ? unitPrice
-                        : (item.Product?.SalePrice ?? item.Product?.Price ?? 0)
+                        : item.Product is null
+                            ? 0
+                            : IsEnabled(3) ? item.Product.SalePrice : item.Product.Price
                 }).ToList()
             };
 
             var subtotal = order.Items.Sum(item => item.Quantity * item.UnitPrice);
-            var normalizedVoucherCode = NormalizeVoucherCode(model.VoucherCode);
+            var normalizedVoucherCode = IsEnabled(2) ? NormalizeVoucherCode(model.VoucherCode) : null;
             int? appliedVoucherId = null;
             if (normalizedVoucherCode is not null)
             {
@@ -219,9 +234,17 @@ public class OrderService : IOrderService
             return order;
         });
         var isVnpayOrder = IsVnpayPayment(order.PaymentMethod);
-        await _customerSegmentService.RefreshUserAsync(userId);
+        if (IsEnabled(3))
+        {
+            await _customerSegmentService.RefreshUserAsync(userId);
+        }
         _logger.LogInformation("Order {OrderId} created for user {UserId} with payment {PaymentMethod} and total {TotalAmount}", order.Id, userId, order.PaymentMethod, order.TotalAmount);
         await _orderEmailService.SendOrderCreatedAsync(order.Id);
+
+        if (!IsEnabled(2))
+        {
+            return order;
+        }
 
         if (isVnpayOrder)
         {
@@ -245,6 +268,8 @@ public class OrderService : IOrderService
 
         return order;
     }
+
+    private bool IsEnabled(int sprint) => _sprintFeatures?.IsEnabled(sprint) ?? true;
 
     public async Task<IEnumerable<Order>> GetUserOrdersAsync(string userId)
     {

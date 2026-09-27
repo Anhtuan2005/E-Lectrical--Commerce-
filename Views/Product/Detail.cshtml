@@ -4,10 +4,12 @@
 @{
     ViewData["Title"] = Model.Product.Name;
     var product = Model.Product;
+    var promotionEnabled = SprintFeatures.IsEnabled(3);
+    var displayPrice = promotionEnabled ? product.SalePrice : product.Price;
     var stockClass = product.Stock == 0 ? "out" : product.Stock <= 5 ? "low" : "ok";
     var stockText = product.Stock == 0 ? "Hết hàng" : $"Còn {product.Stock} sản phẩm";
-    var formattedSalePrice = product.SalePrice.ToString("N0");
-    var socialDescription = $"Giá: {formattedSalePrice}đ";
+    var formattedDisplayPrice = displayPrice.ToString("N0");
+    var socialDescription = $"Giá: {formattedDisplayPrice}đ";
     var seoDescription = $"{product.Name}. {socialDescription}. {stockText}. Mua hàng chính hãng tại Techvora.";
     ViewData["MetaDescription"] = seoDescription.Length > 160
         ? $"{seoDescription[..157]}..."
@@ -18,24 +20,24 @@
     ViewData["OgDescription"] = socialDescription;
     ViewData["OgImage"] = product.PrimaryImageUrl;
     ViewData["OgImageAlt"] = $"Ảnh {product.Name}";
-    ViewData["ProductPriceAmount"] = product.SalePrice.ToString("0.##", CultureInfo.InvariantCulture);
+    ViewData["ProductPriceAmount"] = displayPrice.ToString("0.##", CultureInfo.InvariantCulture);
     ViewData["ProductPriceCurrency"] = "VND";
     var gallery = BuildProductGallery(product);
     var discountAmount = Math.Max(0, product.Price - product.SalePrice);
     var productCode = $"TVR-{product.Id:0000}";
-    var productSalePriceValue = product.SalePrice.ToString(CultureInfo.InvariantCulture);
-    var isFlashSale = product.DiscountPercent > 0 && product.Stock > 0;
+    var productSalePriceValue = displayPrice.ToString(CultureInfo.InvariantCulture);
+    var isFlashSale = promotionEnabled && product.DiscountPercent > 0 && product.Stock > 0;
     var reviewPhotoCount = Model.Reviews.Sum(review => review.Images.Count);
     var stockDisabled = product.Stock == 0 ? "true" : "false";
     var isAdminViewer = User.IsInRole("Admin");
     var brandSpec = Model.TechnicalSpecs.FirstOrDefault(spec => spec.Label == "Hãng sản xuất")?.Value ?? "Techvora Select";
-    var warrantySpec = Model.TechnicalSpecs.FirstOrDefault(spec => spec.Label == "Bảo hành")?.Value ?? "12 tháng";
+    var displayBrand = PhoneBrandCatalog.Resolve(product.Name)?.Name ?? brandSpec;
 }
 
 <nav class="pdp-breadcrumb breadcrumb">
     <a asp-controller="Home" asp-action="Index">Trang chủ</a>
     <span>›</span>
-    <a asp-controller="Product" asp-action="Index" asp-route-categoryId="@product.CategoryId">@product.Category?.Name</a>
+    <a asp-controller="Product" asp-action="Index" asp-route-search="@(PhoneBrandCatalog.Resolve(product.Name)?.SearchTerm)">@displayBrand</a>
     <span>›</span>
     <strong>@product.Name</strong>
 </nav>
@@ -44,13 +46,15 @@
     @Html.AntiForgeryToken()
     <aside class="pdp-left">
         <div class="pdp-gallery-card">
-            <img class="main-product-image" id="mainProductImage" src="@gallery.First()" alt="@product.Name" loading="eager" decoding="async" fetchpriority="high" />
+            <img class="main-product-image" id="mainProductImage" src="@gallery.First()" alt="@product.Name" loading="eager" decoding="async" fetchpriority="high"
+                 onerror="this.onerror=null;this.src='/images/placeholder.svg';" />
         </div>
         <div class="thumb-row pdp-thumbs">
             @foreach (var image in gallery.Select((url, index) => new { url, index }))
             {
                 <button type="button" class="thumb @(image.index == 0 ? "active" : "")" data-gallery-thumb="@image.url">
-                    <img src="@image.url" alt="@product.Name ảnh @(image.index + 1)" loading="lazy" decoding="async" />
+                    <img src="@image.url" alt="@product.Name ảnh @(image.index + 1)" loading="lazy" decoding="async"
+                         onerror="this.onerror=null;this.src='/images/placeholder.svg';" />
                 </button>
             }
         </div>
@@ -71,26 +75,29 @@
             </div>
             <div class="pdp-side-row">
                 <span><i data-lucide="credit-card" aria-hidden="true"></i></span>
-                <div><strong>COD và VNPAY</strong><small>Thanh toán an toàn, xác nhận nhanh</small></div>
+                <div><strong>@(SprintFeatures.IsEnabled(2) ? "COD và VNPAY" : "Thanh toán COD")</strong><small>Thanh toán an toàn, xác nhận nhanh</small></div>
             </div>
         </div>
 
-        <div class="pdp-side-card">
-            <div class="pdp-side-head">
-                <strong>Dịch vụ</strong>
-                <span>?</span>
+        @if (SprintFeatures.IsEnabled(2))
+        {
+            <div class="pdp-side-card">
+                <div class="pdp-side-head">
+                    <strong>Dịch vụ</strong>
+                    <span>?</span>
+                </div>
+                <div class="pdp-side-row"><span><i data-lucide="rotate-ccw" aria-hidden="true"></i></span><div><strong>Đổi trả 7 ngày</strong><small>Áp dụng theo chính sách sản phẩm</small></div></div>
+                <div class="pdp-side-row"><span><i data-lucide="shield-check" aria-hidden="true"></i></span><div><strong>Bảo hành 12 tháng</strong><small>Sản phẩm chính hãng Techvora</small></div></div>
             </div>
-            <div class="pdp-side-row"><span><i data-lucide="rotate-ccw" aria-hidden="true"></i></span><div><strong>Đổi trả 7 ngày</strong><small>Áp dụng theo chính sách sản phẩm</small></div></div>
-            <div class="pdp-side-row"><span><i data-lucide="shield-check" aria-hidden="true"></i></span><div><strong>Bảo hành 12 tháng</strong><small>Sản phẩm chính hãng Techvora</small></div></div>
-        </div>
+        }
 
         <div class="pdp-seller-card">
             <small>Bán bởi</small>
             <strong>Techvora Store</strong>
             <div>
-                <span><b>94%</b><small>Đánh giá tốt</small></span>
-                <span><b>100%</b><small>Giao đúng hẹn</small></span>
-                <span><b>98%</b><small>Phản hồi nhanh</small></span>
+                <span><b>100%</b><small>Hàng chính hãng</small></span>
+                <span><b>COD</b><small>Thanh toán nhận hàng</small></span>
+                <span><b>Rõ</b><small>Giá và tồn kho</small></span>
             </div>
         </div>
     </aside>
@@ -98,7 +105,7 @@
     <section class="pdp-main">
         <div class="pdp-title-row">
             <div>
-                <span class="eyebrow">@product.Category?.Name</span>
+                <span class="eyebrow">@displayBrand</span>
                 <h1>@product.Name</h1>
             </div>
             <div class="pdp-icon-actions">
@@ -126,16 +133,19 @@
         </div>
 
         <div class="pdp-rating-line">
-            @RenderStars(Model.AverageRating)
-            <strong>@(Model.ReviewCount == 0 ? "Chưa có đánh giá" : $"{Model.AverageRating:0.#}/5 sao")</strong>
-            <span>@Model.ReviewCount đánh giá</span>
-            <span>•</span>
+            @if (SprintFeatures.IsEnabled(2))
+            {
+                @RenderStars(Model.AverageRating)
+                <strong>@(Model.ReviewCount == 0 ? "Chưa có đánh giá" : $"{Model.AverageRating:0.#}/5 sao")</strong>
+                <span>@Model.ReviewCount đánh giá</span>
+                <span>•</span>
+            }
             <span>@stockText</span>
         </div>
 
         <div class="pdp-price-block">
-            <strong>@product.SalePrice.ToString("N0") ₫</strong>
-            @if (product.DiscountPercent > 0)
+            <strong>@displayPrice.ToString("N0") ₫</strong>
+            @if (promotionEnabled && product.DiscountPercent > 0)
             {
                 <span>@product.Price.ToString("N0") ₫</span>
                 <em>-@product.DiscountPercent%</em>
@@ -157,16 +167,26 @@
         }
 
         <div class="product-info-tabs pdp-tabs">
-            <div class="product-tabs">
-                <button class="tab-btn active" type="button" data-tab="description">Thông tin</button>
-                <button class="tab-btn" type="button" data-tab="reviews">Đánh giá</button>
-            </div>
+            @if (SprintFeatures.IsEnabled(2))
+            {
+                <div class="product-tabs">
+                    <button class="tab-btn active" type="button" data-tab="description">Thông tin</button>
+                    <button class="tab-btn" type="button" data-tab="reviews">Đánh giá</button>
+                </div>
+            }
+            else
+            {
+                <h2 class="pdp-static-section-title">Thông tin sản phẩm</h2>
+            }
             <div class="tab-panel active" data-tab-panel="description">
                 <dl class="pdp-facts">
-                    <div><dt>Thương hiệu</dt><dd>@brandSpec</dd></div>
-                    <div><dt>Danh mục</dt><dd>@product.Category?.Name</dd></div>
+                    <div><dt>Thương hiệu</dt><dd>@displayBrand</dd></div>
                     <div><dt>Tình trạng</dt><dd>Hàng mới</dd></div>
-                    <div><dt>Bảo hành</dt><dd>@warrantySpec</dd></div>
+                    @if (SprintFeatures.IsEnabled(2))
+                    {
+                        var warrantySpec = Model.TechnicalSpecs.FirstOrDefault(spec => spec.Label == "Bảo hành")?.Value ?? "12 tháng";
+                        <div><dt>Bảo hành</dt><dd>@warrantySpec</dd></div>
+                    }
                 </dl>
                 <h2>Mô tả sản phẩm</h2>
                 <p>@product.Description</p>
@@ -178,10 +198,15 @@
                 <ul class="pdp-spec-list">
                     <li>Mã sản phẩm: @productCode</li>
                     <li>Kho hiện tại: @stockText</li>
-                    <li>Hỗ trợ thanh toán COD, chuyển khoản và VNPAY</li>
-                    <li>Đổi trả nhanh trong 7 ngày nếu sản phẩm lỗi từ nhà sản xuất</li>
+                    <li>@(SprintFeatures.IsEnabled(2) ? "Hỗ trợ thanh toán COD, chuyển khoản và VNPAY" : "Hỗ trợ thanh toán khi nhận hàng (COD)")</li>
+                    @if (SprintFeatures.IsEnabled(2))
+                    {
+                        <li>Đổi trả nhanh trong 7 ngày nếu sản phẩm lỗi từ nhà sản xuất</li>
+                    }
                 </ul>
             </div>
+            @if (SprintFeatures.IsEnabled(2))
+            {
             <div class="tab-panel" data-tab-panel="reviews">
                 <div class="review-summary">
                     <div class="avg-score">
@@ -288,11 +313,12 @@
                     <button class="btn-ghost load-more-reviews" type="button" data-load-reviews>Xem thêm đánh giá</button>
                 }
             </div>
+            }
         </div>
     </section>
 
     <aside class="pdp-order-card" data-product-price="@productSalePriceValue">
-        @if (product.DiscountPercent > 0)
+        @if (promotionEnabled && product.DiscountPercent > 0)
         {
             <div class="pdp-sale-ribbon">
                 <strong>@product.DiscountPercent% OFF</strong>
@@ -313,10 +339,10 @@
         }
         <div class="pdp-order-lines">
             <div><span>Mã sản phẩm</span><strong>@productCode</strong></div>
-            <div><span>Danh mục</span><strong>@product.Category?.Name</strong></div>
+            <div><span>Thương hiệu</span><strong>@displayBrand</strong></div>
             <div><span>Tình trạng</span><strong class="@stockClass">@stockText</strong></div>
-            <div><span>Giá bán</span><strong>@product.SalePrice.ToString("N0") ₫</strong></div>
-            @if (product.DiscountPercent > 0)
+            <div><span>Giá bán</span><strong>@displayPrice.ToString("N0") ₫</strong></div>
+            @if (promotionEnabled && product.DiscountPercent > 0)
             {
                 <div><span>Giảm giá</span><strong>@product.DiscountPercent% (@discountAmount.ToString("N0") ₫)</strong></div>
             }
@@ -326,10 +352,10 @@
         {
             <div class="pdp-admin-note">
                 <strong>Chế độ xem admin</strong>
-                <span>Admin chỉ kiểm tra thông tin sản phẩm, không thêm giỏ, không mua hàng và không đánh giá.</span>
+                <span>Admin chỉ kiểm tra thông tin sản phẩm, không thể thực hiện thao tác mua hàng.</span>
             </div>
         }
-        else if (Model.IsAuthenticated)
+        else if (SprintFeatures.IsEnabled(2) && Model.IsAuthenticated)
         {
             <div class="pdp-coupon-box">
                 <label for="pdpCouponInput">Mã giảm giá</label>
@@ -340,7 +366,7 @@
                 <small id="pdpCouponMessage">Mã hợp lệ sẽ được tự áp dụng ở checkout.</small>
             </div>
         }
-        else
+        else if (SprintFeatures.IsEnabled(2))
         {
             <div class="pdp-coupon-box pdp-coupon-login">
                 <strong>Mã giảm giá</strong>
@@ -350,7 +376,7 @@
         }
         @if (!isAdminViewer)
         {
-            <div class="pdp-subtotal"><span>Tạm tính</span><strong id="pdpSubtotal">@product.SalePrice.ToString("N0") ₫</strong></div>
+            <div class="pdp-subtotal"><span>Tạm tính</span><strong id="pdpSubtotal">@displayPrice.ToString("N0") ₫</strong></div>
             <button class="btn-primary pdp-buy" type="button" id="btnAddCart" data-detail-add-cart data-product-id="@product.Id" data-stock-disabled="@stockDisabled" @(product.Stock == 0 ? "disabled" : "")>
                 @(product.Stock == 0 ? "Hết hàng" : "Thêm vào giỏ")
             </button>
@@ -359,7 +385,7 @@
     </aside>
 </section>
 
-@if (Model.RecommendedProducts.Any())
+@if (SprintFeatures.IsEnabled(3) && Model.RecommendedProducts.Any())
 {
     <section class="section reveal pdp-related-section">
         <div class="section-heading">
@@ -405,9 +431,10 @@
         </header>
         <div class="spec-modal-body">
             <div class="spec-modal-product" id="specModalProduct">
-                <img src="@gallery.First()" alt="@product.Name" loading="lazy" decoding="async" />
+                <img src="@gallery.First()" alt="@product.Name" loading="lazy" decoding="async"
+                     onerror="this.onerror=null;this.src='/images/placeholder.svg';" />
                 <div>
-                    <span>@product.Category?.Name</span>
+                    <span>@displayBrand</span>
                     <strong>@product.Name</strong>
                 </div>
             </div>
@@ -482,93 +509,6 @@
 
     private static IEnumerable<string> GetFallbackGallery(Product product)
     {
-        var slug = product.Category?.Slug?.ToLowerInvariant() ?? string.Empty;
-        var name = product.Name.ToLowerInvariant();
-        if (name.Contains("cpu") || slug == "cpu")
-        {
-            return new[]
-            {
-                "https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1555617981-dac3880eac6e?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=900&q=80"
-            };
-        }
-
-        return slug switch
-        {
-            "dien-thoai" => new[]
-            {
-                "https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=900&q=80"
-            },
-            "laptop" => new[]
-            {
-                "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?auto=format&fit=crop&w=900&q=80"
-            },
-            "phu-kien" => new[]
-            {
-                "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1618384887929-16ec33fab9ef?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1527814050087-3793815479db?auto=format&fit=crop&w=900&q=80"
-            },
-            "man-hinh" => new[]
-            {
-                "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1616588589676-62b3bd4ff6d2?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1547082299-de196ea013d6?auto=format&fit=crop&w=900&q=80"
-            },
-            "dong-ho-thong-minh" => new[]
-            {
-                "https://images.unsplash.com/photo-1434493789847-2f02dc6ca35d?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1557438159-51eec7a6c9e8?auto=format&fit=crop&w=900&q=80"
-            },
-            "vga" => new[]
-            {
-                "https://images.unsplash.com/photo-1591488320449-011701bb6704?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1587202372775-e229f172b9d7?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1587302912306-cf1ed9c33146?auto=format&fit=crop&w=900&q=80"
-            },
-            "ram" => new[]
-            {
-                "https://images.unsplash.com/photo-1562976540-1502c2145186?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1612198188060-c7c2a3b66eae?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1592664474496-8f55b99e7ef6?auto=format&fit=crop&w=900&q=80"
-            },
-            "ssd" => new[]
-            {
-                "https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1611175140159-8f22dfb8ce2b?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1601737487795-dab272f52420?auto=format&fit=crop&w=900&q=80"
-            },
-            "mainboard" => new[]
-            {
-                "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1562408590-e32931084e23?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1597852074816-d933c7d2b988?auto=format&fit=crop&w=900&q=80"
-            },
-            "psu" => new[]
-            {
-                "https://images.unsplash.com/photo-1624705002806-5d72df19c3ad?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1600348712270-5af9e3590f66?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1624705002806-5d72df19c3ad?auto=format&fit=crop&w=900&q=80&sat=-20"
-            },
-            "case" => new[]
-            {
-                "https://images.unsplash.com/photo-1587202372634-32705e3bf49c?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1616588589676-62b3bd4ff6d2?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1593640408182-31c70c8268f5?auto=format&fit=crop&w=900&q=80"
-            },
-            "cooling" => new[]
-            {
-                "https://images.unsplash.com/photo-1605648916361-9bc12ad6a569?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1587202372775-e229f172b9d7?auto=format&fit=crop&w=900&q=80",
-                "https://images.unsplash.com/photo-1605648916361-9bc12ad6a569?auto=format&fit=crop&w=900&q=80&sat=-20"
-            },
-            _ => new[] { product.PrimaryImageUrl }
-        };
+        return new[] { product.PrimaryImageUrl };
     }
 }

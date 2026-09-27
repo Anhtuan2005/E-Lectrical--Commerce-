@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EcommerceApp.Controllers.Admin;
 
+[MinimumSprint(3)]
 [Authorize(Roles = "Admin")]
 [Route("Admin/ReturnWarranty")]
 public class AdminReturnWarrantyController : Controller

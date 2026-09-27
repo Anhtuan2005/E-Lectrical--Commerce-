@@ -18,6 +18,7 @@ public class OrderController : Controller
     private readonly IGhnShippingService _ghnShippingService;
     private readonly IProductService _productService;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ISprintFeatureService _sprintFeatures;
     private readonly ILogger<OrderController> _logger;
 
     public OrderController(
@@ -28,6 +29,7 @@ public class OrderController : Controller
         IGhnShippingService ghnShippingService,
         IProductService productService,
         UserManager<ApplicationUser> userManager,
+        ISprintFeatureService sprintFeatures,
         ILogger<OrderController> logger)
     {
         _orderService = orderService;
@@ -37,6 +39,7 @@ public class OrderController : Controller
         _ghnShippingService = ghnShippingService;
         _productService = productService;
         _userManager = userManager;
+        _sprintFeatures = sprintFeatures;
         _logger = logger;
     }
 
@@ -149,6 +152,16 @@ public class OrderController : Controller
         }
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        if (!_sprintFeatures.IsEnabled(2))
+        {
+            if (!string.Equals(model.PaymentMethod, "COD", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest("Sprint 1 chỉ hỗ trợ thanh toán khi nhận hàng (COD).");
+            }
+
+            model.VoucherCode = null;
+            model.DiscountAmount = 0;
+        }
         model.SelectedProductIds = NormalizeSelectedProductIds(model.SelectedProductIds);
         if (model.BuyNowProductId.HasValue)
         {
@@ -196,6 +209,12 @@ public class OrderController : Controller
                 return Redirect(_vnpayService.CreatePaymentUrl(order, HttpContext));
             }
 
+            if (!_sprintFeatures.IsEnabled(2))
+            {
+                TempData["Success"] = $"Đặt hàng COD thành công. Mã đơn: #DH{order.Id:D4}.";
+                return RedirectToAction("Index", "Home");
+            }
+
             return RedirectToAction(nameof(Confirmation), new { id = order.Id });
         }
         catch (InvalidOperationException ex)
@@ -205,6 +224,7 @@ public class OrderController : Controller
         }
     }
 
+    [MinimumSprint(2)]
     public async Task<IActionResult> Confirmation(int id)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -223,12 +243,14 @@ public class OrderController : Controller
         return View(order);
     }
 
+    [MinimumSprint(2)]
     public async Task<IActionResult> History(string? status, int page = 1)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         return View(await _orderService.GetUserOrderHistoryAsync(userId, status, page, 10));
     }
 
+    [MinimumSprint(2)]
     public async Task<IActionResult> Detail(int id)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -259,6 +281,7 @@ public class OrderController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [MinimumSprint(2)]
     public async Task<IActionResult> Cancel(int id, string? reason, string? returnStatus)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -275,6 +298,7 @@ public class OrderController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [MinimumSprint(2)]
     public async Task<IActionResult> Reorder(int id)
     {
         if (User.IsInRole("Admin"))
@@ -335,6 +359,7 @@ public class OrderController : Controller
 
         return new CartViewModel
         {
+            PromotionsEnabled = _sprintFeatures.IsEnabled(3),
             Items = new[]
             {
                 new CartItem { ProductId = product.Id, Product = product, Quantity = quantity }

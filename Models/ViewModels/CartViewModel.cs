@@ -3,6 +3,7 @@ namespace EcommerceApp.Models.ViewModels;
 public class CartViewModel
 {
     public IEnumerable<CartItem> Items { get; set; } = Enumerable.Empty<CartItem>();
+    public bool PromotionsEnabled { get; set; } = true;
     public IReadOnlyDictionary<int, decimal> CrossSellUnitPrices { get; set; } = new Dictionary<int, decimal>();
     public IReadOnlyList<CrossSellSuggestionViewModel> CrossSellSuggestions { get; set; } = Array.Empty<CrossSellSuggestionViewModel>();
     public IReadOnlyList<CartItemGroupViewModel> ItemGroups => Items
@@ -38,7 +39,9 @@ public class CartViewModel
 
     public decimal GetRegularUnitPrice(CartItem item)
     {
-        return item.Product?.SalePrice ?? item.Product?.Price ?? 0;
+        return item.Product is null
+            ? 0
+            : PromotionsEnabled ? item.Product.SalePrice : item.Product.Price;
     }
 
     public decimal GetGroupTotal(CartItemGroupViewModel group)

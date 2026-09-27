@@ -2,7 +2,10 @@
 @inject EcommerceApp.Services.IUserNotificationService NotificationService
 @{
     var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-    var adminUnreadCount = string.IsNullOrWhiteSpace(adminUserId) ? 0 : await NotificationService.GetUnreadCountAsync(adminUserId);
+    var adminUnreadCount = !SprintFeatures.IsEnabled(2) || string.IsNullOrWhiteSpace(adminUserId)
+        ? 0
+        : await NotificationService.GetUnreadCountAsync(adminUserId);
+    var adminHome = SprintFeatures.IsEnabled(2) ? "/Admin/Dashboard" : "/Admin/Product";
 }
 <!DOCTYPE html>
 <html lang="vi">
@@ -23,24 +26,33 @@
         <link rel="stylesheet" href="~/css/admin.min.css" asp-append-version="true" />
     </environment>
 </head>
-<body>
+<body data-active-sprint="@SprintFeatures.ActiveSprint">
     <aside class="adm-sidebar">
-        <a class="adm-brand" href="/Admin/Dashboard" aria-label="Techvora Admin">
+        <a class="adm-brand" href="@adminHome" aria-label="Techvora Admin">
             <partial name="_TechvoraLogo" />
         </a>
         <nav class="adm-nav" aria-label="Điều hướng quản trị">
-            <a class="adm-nav-item" href="/Admin/Dashboard"><i class="bi bi-speedometer2"></i><span>Dashboard</span></a>
-            <a class="adm-nav-item" href="/Admin/Order"><i class="bi bi-bag-check"></i><span>Đơn hàng</span><em id="new-order-badge"></em></a>
-            <a class="adm-nav-item" href="/Admin/ReturnWarranty"><i class="bi bi-shield-check"></i><span>Đổi trả/Bảo hành</span></a>
+            @if (SprintFeatures.IsEnabled(2))
+            {
+                <a class="adm-nav-item" href="/Admin/Dashboard"><i class="bi bi-speedometer2"></i><span>Dashboard</span></a>
+                <a class="adm-nav-item" href="/Admin/Order"><i class="bi bi-bag-check"></i><span>Đơn hàng</span><em id="new-order-badge"></em></a>
+            }
             <a class="adm-nav-item" href="/Admin/Product"><i class="bi bi-box-seam"></i><span>Sản phẩm</span></a>
             <a class="adm-nav-item" href="/Admin/Category"><i class="bi bi-tags"></i><span>Danh mục</span></a>
             <a class="adm-nav-item" href="/Admin/Banner"><i class="bi bi-images"></i><span>Banner</span></a>
-            <a class="adm-nav-item" href="/Admin/Voucher"><i class="bi bi-ticket-perforated"></i><span>Voucher</span></a>
-            <a class="adm-nav-item" href="/Admin/CustomerSegment"><i class="bi bi-person-lines-fill"></i><span>Nhóm khách</span></a>
-            <a class="adm-nav-item" href="/Admin/Report"><i class="bi bi-graph-up-arrow"></i><span>Báo cáo</span></a>
-            <a class="adm-nav-item" href="/Admin/Shipping"><i class="bi bi-truck"></i><span>Vận chuyển</span></a>
-            <a class="adm-nav-item" href="/Admin/Review"><i class="bi bi-star-half"></i><span>Review</span></a>
-            <a class="adm-nav-item" href="/Admin/User"><i class="bi bi-people"></i><span>Người dùng</span></a>
+            @if (SprintFeatures.IsEnabled(2))
+            {
+                <a class="adm-nav-item" href="/Admin/Shipping"><i class="bi bi-truck"></i><span>Vận chuyển</span></a>
+                <a class="adm-nav-item" href="/Admin/Review"><i class="bi bi-star-half"></i><span>Review</span></a>
+            }
+            @if (SprintFeatures.IsEnabled(3))
+            {
+                <a class="adm-nav-item" href="/Admin/ReturnWarranty"><i class="bi bi-shield-check"></i><span>Đổi trả/Bảo hành</span></a>
+                <a class="adm-nav-item" href="/Admin/Voucher"><i class="bi bi-ticket-perforated"></i><span>Voucher</span></a>
+                <a class="adm-nav-item" href="/Admin/CustomerSegment"><i class="bi bi-person-lines-fill"></i><span>Nhóm khách</span></a>
+                <a class="adm-nav-item" href="/Admin/Report"><i class="bi bi-graph-up-arrow"></i><span>Báo cáo</span></a>
+                <a class="adm-nav-item" href="/Admin/User"><i class="bi bi-people"></i><span>Người dùng</span></a>
+            }
         </nav>
     </aside>
     <div class="adm-main">
@@ -50,11 +62,14 @@
                 <strong>@ViewData["Title"]</strong>
             </div>
             <div class="adm-header-actions">
-                <a class="adm-ghost adm-notification-link" href="/Admin/Notification">
-                    <i class="bi bi-bell"></i>
-                    Thông báo
-                    <em id="admin-notification-badge">@(adminUnreadCount > 0 ? adminUnreadCount.ToString() : string.Empty)</em>
-                </a>
+                @if (SprintFeatures.IsEnabled(2))
+                {
+                    <a class="adm-ghost adm-notification-link" href="/Admin/Notification">
+                        <i class="bi bi-bell"></i>
+                        Thông báo
+                        <em id="admin-notification-badge">@(adminUnreadCount > 0 ? adminUnreadCount.ToString() : string.Empty)</em>
+                    </a>
+                }
                 <a class="adm-ghost" asp-controller="Home" asp-action="Index"><i class="bi bi-house"></i> Trang chủ</a>
                 <form asp-controller="Account" asp-action="Logout" method="post">
                     @Html.AntiForgeryToken()
@@ -76,7 +91,10 @@
             @RenderBody()
         </main>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
+    @if (SprintFeatures.IsEnabled(2))
+    {
+        <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
+    }
     <environment include="Development">
         <script src="~/js/admin.js" asp-append-version="true"></script>
     </environment>

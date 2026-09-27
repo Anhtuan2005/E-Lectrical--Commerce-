@@ -15,19 +15,22 @@ public class AccountController : Controller
     private readonly ICartService _cartService;
     private readonly IAbandonedCartRecoveryService _abandonedCartRecoveryService;
     private readonly IPasswordResetService _passwordResetService;
+    private readonly ISprintFeatureService _sprintFeatures;
 
     public AccountController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         ICartService cartService,
         IAbandonedCartRecoveryService abandonedCartRecoveryService,
-        IPasswordResetService passwordResetService)
+        IPasswordResetService passwordResetService,
+        ISprintFeatureService sprintFeatures)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _cartService = cartService;
         _abandonedCartRecoveryService = abandonedCartRecoveryService;
         _passwordResetService = passwordResetService;
+        _sprintFeatures = sprintFeatures;
     }
 
     public IActionResult Login(string? returnUrl = null)
@@ -60,7 +63,7 @@ public class AccountController : Controller
             {
                 await _cartService.MergeGuestCartAsync(user.Id, HttpContext.Session.Id);
                 var isAdmin = await _userManager.IsInRoleAsync(user, "Admin");
-                if (!isAdmin)
+                if (!isAdmin && _sprintFeatures.IsEnabled(3))
                 {
                     var reminder = await _abandonedCartRecoveryService.GetLoginReminderAsync(user.Id);
                     if (reminder is not null)
@@ -71,7 +74,7 @@ public class AccountController : Controller
 
                 if (isAdmin && (string.IsNullOrWhiteSpace(returnUrl) || !Url.IsLocalUrl(returnUrl)))
                 {
-                    return Redirect("/Admin/Dashboard");
+                    return Redirect(_sprintFeatures.IsEnabled(2) ? "/Admin/Dashboard" : "/Admin/Product");
                 }
             }
 

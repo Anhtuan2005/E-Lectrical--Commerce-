@@ -10,10 +10,12 @@ public class RecommendationService : IRecommendationService
     private const int PurchaseLookbackDays = 365;
 
     private readonly AppDbContext _db;
+    private readonly ICatalogScope? _catalogScope;
 
-    public RecommendationService(AppDbContext db)
+    public RecommendationService(AppDbContext db, ICatalogScope? catalogScope = null)
     {
         _db = db;
+        _catalogScope = catalogScope;
     }
 
     public async Task<IReadOnlyList<Product>> GetRecommendationsAsync(
@@ -176,8 +178,7 @@ public class RecommendationService : IRecommendationService
         if (seedScores.Any())
         {
             var seedProductIds = seedScores.Keys.ToHashSet();
-            var seedProducts = await _db.Products
-                .AsNoTracking()
+            var seedProducts = await ScopedProducts(_db.Products.AsNoTracking())
                 .Where(product => seedProductIds.Contains(product.Id))
                 .Select(product => new { product.Id, product.CategoryId })
                 .ToListAsync(cancellationToken);
@@ -187,8 +188,7 @@ public class RecommendationService : IRecommendationService
                     group => group.Key,
                     group => group.Sum(product => seedScores[product.Id]));
 
-            var categoryCandidateIds = await _db.Products
-                .AsNoTracking()
+            var categoryCandidateIds = await ScopedProducts(_db.Products.AsNoTracking())
                 .Where(product => product.Stock > 0
                     && !excludedIds.Contains(product.Id)
                     && categoryWeights.Keys.Contains(product.CategoryId))
@@ -201,8 +201,7 @@ public class RecommendationService : IRecommendationService
             }
         }
 
-        var candidates = await _db.Products
-            .AsNoTracking()
+        var candidates = await ScopedProducts(_db.Products.AsNoTracking())
             .Where(product => product.Stock > 0 && !excludedIds.Contains(product.Id))
             .Select(product => new
             {
@@ -237,10 +236,9 @@ public class RecommendationService : IRecommendationService
             return Array.Empty<Product>();
         }
 
-        var products = await _db.Products
-            .AsNoTracking()
+        var products = await ScopedProducts(_db.Products.AsNoTracking()
             .Include(product => product.Category)
-            .Include(product => product.Images.OrderBy(image => image.SortOrder))
+            .Include(product => product.Images.OrderBy(image => image.SortOrder)))
             .Where(product => rankedIds.Contains(product.Id))
             .ToDictionaryAsync(product => product.Id, cancellationToken);
 
@@ -249,6 +247,9 @@ public class RecommendationService : IRecommendationService
             .Select(productId => products[productId])
             .ToList();
     }
+
+    private IQueryable<Product> ScopedProducts(IQueryable<Product> query) =>
+        _catalogScope?.Products(query) ?? query;
 
     private static void AddScore(Dictionary<int, decimal> scores, int productId, decimal score)
     {

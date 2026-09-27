@@ -246,6 +246,7 @@ function saveBannerSort(tbody) {
 }
 
 function initOrderNotifications() {
+  if (Number(document.body.dataset.activeSprint || "1") < 2) return;
   var lastCheck = Date.now();
   var realtimeConnected = false;
 

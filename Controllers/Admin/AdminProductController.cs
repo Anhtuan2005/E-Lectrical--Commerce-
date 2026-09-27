@@ -16,12 +16,14 @@ public class AdminProductController : Controller
     private readonly IProductService _productService;
     private readonly IImageStorageService _imageStorage;
     private readonly AppDbContext _db;
+    private readonly ICatalogScope? _catalogScope;
 
-    public AdminProductController(IProductService productService, IImageStorageService imageStorage, AppDbContext db)
+    public AdminProductController(IProductService productService, IImageStorageService imageStorage, AppDbContext db, ICatalogScope? catalogScope = null)
     {
         _productService = productService;
         _imageStorage = imageStorage;
         _db = db;
+        _catalogScope = catalogScope;
     }
 
     [HttpGet("")]
@@ -162,6 +164,7 @@ public class AdminProductController : Controller
 
     [HttpPost("AdjustStock/{id:int}")]
     [ValidateAntiForgeryToken]
+    [MinimumSprint(2)]
     public async Task<IActionResult> AdjustStock(int id, int change, string reason)
     {
         var updated = ModelState.IsValid && await _productService.AdjustStockAsync(
@@ -177,7 +180,8 @@ public class AdminProductController : Controller
     public async Task<IActionResult> CreateCategory(string name)
     {
         var normalizedName = (name ?? string.Empty).Trim();
-        if (normalizedName.Length is > 0 and <= 100)
+        if (normalizedName.Length is > 0 and <= 100
+            && (_catalogScope is null || _catalogScope.IsPhoneCategoryName(normalizedName)))
         {
             var slug = SlugGenerator.Generate(normalizedName);
             if (string.IsNullOrWhiteSpace(slug))
@@ -196,7 +200,7 @@ public class AdminProductController : Controller
         }
         else
         {
-            TempData["Error"] = "Tên danh mục phải có từ 1 đến 100 ký tự.";
+            TempData["Error"] = "Tên danh mục phải có từ 1 đến 100 ký tự và bắt đầu bằng 'Điện thoại'.";
         }
 
         return RedirectToAction(nameof(Index));
@@ -206,6 +210,9 @@ public class AdminProductController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteCategory(int id)
     {
+        if (_catalogScope is not null
+            && !await _catalogScope.Categories(_db.Categories).AnyAsync(category => category.Id == id))
+            return NotFound();
         var result = await CategoryDeletion.DeleteAsync(_db, id);
         if (result == CategoryDeleteResult.NotFound) return NotFound();
         TempData[result == CategoryDeleteResult.Deleted ? "Success" : "Error"] = result == CategoryDeleteResult.Deleted

@@ -13,21 +13,30 @@ public class WishlistController : Controller
 {
     private readonly AppDbContext _db;
     private readonly IProductInteractionService _productInteractionService;
+    private readonly ISprintFeatureService _sprintFeatures;
+    private readonly ICatalogScope? _catalogScope;
 
-    public WishlistController(AppDbContext db, IProductInteractionService productInteractionService)
+    public WishlistController(AppDbContext db, IProductInteractionService productInteractionService, ISprintFeatureService sprintFeatures, ICatalogScope? catalogScope = null)
     {
         _db = db;
         _productInteractionService = productInteractionService;
+        _sprintFeatures = sprintFeatures;
+        _catalogScope = catalogScope;
     }
 
     [HttpGet]
     public async Task<IActionResult> Index()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        var items = await _db.WishlistItems
+        var query = _db.WishlistItems
             .Include(item => item.Product)
             .ThenInclude(product => product!.Category)
-            .Where(item => item.UserId == userId)
+            .Where(item => item.UserId == userId);
+        if (_catalogScope is not null)
+            query = query.Where(item => item.Product != null && item.Product.Category != null
+                && (item.Product.Category.Slug == PhoneCatalogScope.RootSlug
+                    || item.Product.Category.Slug.StartsWith("dien-thoai-")));
+        var items = await query
             .OrderByDescending(item => item.AddedAt)
             .ToListAsync();
 
@@ -39,7 +48,10 @@ public class WishlistController : Controller
     public async Task<IActionResult> Toggle(int productId)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        if (!await _db.Products.AnyAsync(product => product.Id == productId))
+        var products = _db.Products.AsQueryable();
+        if (_catalogScope is not null)
+            products = _catalogScope.Products(products);
+        if (!await products.AnyAsync(product => product.Id == productId))
         {
             return NotFound(new { message = "Sản phẩm không tồn tại hoặc đã ngừng bán." });
         }
@@ -57,11 +69,19 @@ public class WishlistController : Controller
         }
 
         await _db.SaveChangesAsync();
-        await _productInteractionService.TrackAsync(
-            productId,
-            isWishlisted ? ProductInteractionEvents.WishlistAdd : ProductInteractionEvents.WishlistRemove,
-            HttpContext);
-        var count = await _db.WishlistItems.CountAsync(row => row.UserId == userId);
+        if (_sprintFeatures.IsEnabled(3))
+        {
+            await _productInteractionService.TrackAsync(
+                productId,
+                isWishlisted ? ProductInteractionEvents.WishlistAdd : ProductInteractionEvents.WishlistRemove,
+                HttpContext);
+        }
+        var countQuery = _db.WishlistItems.Where(row => row.UserId == userId);
+        if (_catalogScope is not null)
+            countQuery = countQuery.Where(item => item.Product != null && item.Product.Category != null
+                && (item.Product.Category.Slug == PhoneCatalogScope.RootSlug
+                    || item.Product.Category.Slug.StartsWith("dien-thoai-")));
+        var count = await countQuery.CountAsync();
 
         return Json(new
         {

@@ -8,6 +8,7 @@ using System.Security.Claims;
 
 namespace EcommerceApp.Controllers.Admin;
 
+[MinimumSprint(3)]
 [Authorize(Roles = "Admin")]
 [Route("Admin/User")]
 public class AdminUserController : Controller

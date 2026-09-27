@@ -15,6 +15,7 @@ public static class SeedData
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
         var environment = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
+        var sprintFeatures = scope.ServiceProvider.GetService<ISprintFeatureService>();
         var demoEnabled = configuration.GetValue<bool>("Demo:Enabled");
         if (demoEnabled && environment.IsProduction())
             throw new InvalidOperationException("Demo data is disabled in Production. Set Demo:Enabled=false.");
@@ -35,6 +36,17 @@ public static class SeedData
         }
 
         await BootstrapAdminAsync(userManager, configuration);
+
+        var seedPhoneCatalog = configuration.GetValue<bool>("Catalog:SeedPhoneCatalog");
+        if (seedPhoneCatalog || demoEnabled)
+        {
+            var categories = await EnsureCategoriesAsync(db);
+            await EnsureProductsAsync(db, categories);
+            await EnsureProductGalleryImagesAsync(db);
+            await ProductSearchIndex.RebuildAsync(db);
+            await EnsureBannersAsync(db);
+        }
+
         if (!demoEnabled) return;
 
         var customerSegmentService = scope.ServiceProvider.GetRequiredService<ICustomerSegmentService>();
@@ -45,25 +57,32 @@ public static class SeedData
         await EnsureUserAsync(userManager, "khachhang4@shop.vn", "Hoàng Nam", "Cần Thơ", "0911111114", "User@123", "User");
         await EnsureUserAsync(userManager, "khachhang5@shop.vn", "Linh Chi", "Hải Phòng", "0911111115", "User@123", "User");
 
-        var categories = await EnsureCategoriesAsync(db);
-        await EnsureProductsAsync(db, categories);
-        await EnsurePcBuildProductsAsync(db);
-        await EnsureProductGalleryImagesAsync(db);
-        await EnsureCrossSellOffersAsync(db);
-        await ProductSearchIndex.RebuildAsync(db);
-        await EnsureBannersAsync(db);
-        await EnsureVouchersAsync(db);
-        await RemoveIneligibleReviewsAsync(db);
-        await EnsureDemoOrdersAsync(db);
-        await customerSegmentService.RefreshAsync();
-        await EnsureSegmentVouchersAsync(db);
+        if (sprintFeatures?.IsEnabled(2) == true)
+        {
+            await EnsureVouchersAsync(db);
+            await RemoveIneligibleReviewsAsync(db);
+            await EnsureDemoOrdersAsync(db);
+        }
+        if (sprintFeatures?.IsEnabled(3) == true)
+        {
+            await EnsureDiscountsAsync(db);
+            await EnsureCrossSellOffersAsync(db);
+            await customerSegmentService.RefreshAsync();
+            await EnsureSegmentVouchersAsync(db);
+        }
     }
 
     private static async Task EnsureDemoOrdersAsync(AppDbContext db)
     {
         if (await db.Orders.AnyAsync()) return;
         var customer = await db.Users.SingleAsync(user => user.Email == "khachhang1@shop.vn");
-        var products = await db.Products.OrderBy(product => product.Id).Take(8).ToListAsync();
+        var products = await db.Products
+            .Where(product => product.Category != null
+                && (product.Category.Slug == PhoneCatalogScope.RootSlug
+                    || product.Category.Slug.StartsWith("dien-thoai-")))
+            .OrderBy(product => product.Id)
+            .Take(8)
+            .ToListAsync();
         for (var index = 0; index < products.Count; index++)
         {
             var product = products[index];
@@ -165,19 +184,14 @@ END");
     {
         var seeds = new[]
         {
-            new Category { Name = "Điện thoại", Slug = "dien-thoai" },
-            new Category { Name = "Laptop", Slug = "laptop" },
-            new Category { Name = "Phụ kiện", Slug = "phu-kien" },
-            new Category { Name = "Màn hình", Slug = "man-hinh" },
-            new Category { Name = "Đồng hồ thông minh", Slug = "dong-ho-thong-minh" },
-            new Category { Name = "CPU", Slug = "cpu" },
-            new Category { Name = "VGA", Slug = "vga" },
-            new Category { Name = "RAM", Slug = "ram" },
-            new Category { Name = "SSD", Slug = "ssd" },
-            new Category { Name = "Mainboard", Slug = "mainboard" },
-            new Category { Name = "PSU", Slug = "psu" },
-            new Category { Name = "Case", Slug = "case" },
-            new Category { Name = "Cooling", Slug = "cooling" }
+            new Category { Name = "Điện thoại Apple", Slug = "dien-thoai-apple" },
+            new Category { Name = "Điện thoại Samsung", Slug = "dien-thoai-samsung" },
+            new Category { Name = "Điện thoại Xiaomi", Slug = "dien-thoai-xiaomi" },
+            new Category { Name = "Điện thoại OPPO", Slug = "dien-thoai-oppo" },
+            new Category { Name = "Điện thoại vivo", Slug = "dien-thoai-vivo" },
+            new Category { Name = "Điện thoại realme", Slug = "dien-thoai-realme" },
+            new Category { Name = "Điện thoại Google Pixel", Slug = "dien-thoai-google-pixel" },
+            new Category { Name = "Điện thoại Sony Xperia", Slug = "dien-thoai-sony-xperia" }
         };
 
         foreach (var seed in seeds)
@@ -189,71 +203,70 @@ END");
         }
 
         await db.SaveChangesAsync();
-        return await db.Categories.OrderBy(category => category.Id).ToListAsync();
+        var seedSlugs = seeds.Select(category => category.Slug).ToArray();
+        return await db.Categories
+            .Where(category => seedSlugs.Contains(category.Slug))
+            .OrderBy(category => category.Id)
+            .ToListAsync();
     }
 
     private static async Task EnsureProductsAsync(AppDbContext db, List<Category> categories)
     {
-        if (await db.Products.IgnoreQueryFilters().CountAsync() >= 30)
-        {
-            await EnsureDiscountsAsync(db);
-            return;
-        }
-
-        var phone = categories.First(category => category.Slug == "dien-thoai");
-        var laptop = categories.First(category => category.Slug == "laptop");
-        var accessory = categories.First(category => category.Slug == "phu-kien");
-        var monitor = categories.First(category => category.Slug == "man-hinh");
-        var watch = categories.First(category => category.Slug == "dong-ho-thong-minh");
+        var categoryIds = categories.ToDictionary(category => category.Slug, category => category.Id);
 
         var products = new[]
         {
-            P("iPhone 15 Pro", "Camera 48MP, chip A17 Pro, khung titan nhẹ và bền.", 28990000, 18, "https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=900&q=80", phone.Id, true, 30),
-            P("Samsung Galaxy S24", "Màn hình rực rỡ, AI tiện dụng, pin bền cho cả ngày.", 21990000, 25, "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&w=900&q=80", phone.Id, true, 29),
-            P("Xiaomi 14", "Cấu hình mạnh, sạc nhanh, camera Leica gọn trong tay.", 14990000, 32, "https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=900&q=80", phone.Id, false, 28),
-            P("OPPO Reno 11", "Thiết kế mỏng, chụp chân dung đẹp, sạc nhanh tiện lợi.", 10990000, 22, "https://images.unsplash.com/photo-1605236453806-6ff36851218e?auto=format&fit=crop&w=900&q=80", phone.Id, false, 27),
-            P("Vivo V30", "Màn hình cong, camera selfie sắc nét, pin lớn.", 11990000, 20, "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=900&q=80", phone.Id, false, 26),
-            P("Realme 12 Pro", "Hiệu năng tốt trong tầm giá, thiết kế nổi bật.", 8990000, 28, "https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?auto=format&fit=crop&w=900&q=80", phone.Id, false, 25),
-            P("Google Pixel 8", "Android thuần, camera thông minh, cập nhật lâu dài.", 16990000, 14, "https://images.unsplash.com/photo-1616348436168-de43ad0db179?auto=format&fit=crop&w=900&q=80", phone.Id, true, 24),
-            P("Sony Xperia 1 V", "Màn hình 4K, quay video chuyên sâu, âm thanh chất lượng.", 24990000, 8, "https://images.unsplash.com/photo-1606041011872-596597976b25?auto=format&fit=crop&w=900&q=80", phone.Id, false, 23),
+            P("iPhone 15 Pro", "Camera 48MP, chip A17 Pro, khung titan nhẹ và bền.", 28990000, 18, PexelsPhoto(19800760), categoryIds["dien-thoai-apple"], true, 30),
+            P("iPhone 14", "Màn hình OLED sắc nét, hiệu năng ổn định và camera dễ dùng.", 18990000, 24, PexelsPhoto(15916262), categoryIds["dien-thoai-apple"], true, 15),
 
-            P("MacBook Air M3", "Laptop mỏng nhẹ, pin lâu, hiệu năng ổn định.", 27990000, 12, "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=900&q=80", laptop.Id, true, 22),
-            P("Dell XPS 13", "Vỏ nhôm chắc chắn, màn hình đẹp, trải nghiệm cao cấp.", 32990000, 9, "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=900&q=80", laptop.Id, false, 21),
-            P("ASUS Vivobook 15", "OLED sắc nét, thiết kế gọn, phù hợp học tập và văn phòng.", 15990000, 21, "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?auto=format&fit=crop&w=900&q=80", laptop.Id, true, 20),
-            P("Lenovo ThinkPad X1", "Bàn phím tốt, độ bền cao, tối ưu cho công việc.", 34990000, 7, "https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=900&q=80", laptop.Id, false, 19),
-            P("HP Spectre x360", "Gập xoay linh hoạt, màn hình cảm ứng, hoàn thiện cao.", 29990000, 10, "https://images.unsplash.com/photo-1484788984921-03950022c9ef?auto=format&fit=crop&w=900&q=80", laptop.Id, false, 18),
-            P("Acer Swift Go", "Nhẹ, nhanh, giá dễ tiếp cận cho học tập.", 17990000, 19, "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?auto=format&fit=crop&w=900&q=80", laptop.Id, false, 17),
-            P("MSI Modern 15", "Hiệu năng ổn, màn lớn, phù hợp văn phòng.", 15990000, 17, "https://images.unsplash.com/photo-1531297484001-80022131f5a1?auto=format&fit=crop&w=900&q=80", laptop.Id, false, 16),
+            P("Samsung Galaxy S24", "Màn hình rực rỡ, AI tiện dụng, pin bền cho cả ngày.", 21990000, 25, PexelsPhoto(33975307), categoryIds["dien-thoai-samsung"], true, 29),
+            P("Samsung Galaxy A55 5G", "Thiết kế chắc chắn, camera chống rung và kết nối 5G.", 9990000, 31, PexelsPhoto(12957102), categoryIds["dien-thoai-samsung"], true, 14),
 
-            P("Tai nghe Sony WH-1000XM5", "Chống ồn chủ động, âm thanh chi tiết, đeo êm.", 7990000, 30, "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?auto=format&fit=crop&w=900&q=80", accessory.Id, true, 15),
-            P("AirPods Pro 2", "Tai nghe không dây nhỏ gọn, chống ồn và xuyên âm.", 5890000, 34, "https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?auto=format&fit=crop&w=900&q=80", accessory.Id, true, 14),
-            P("Bàn phím cơ Keychron K2", "Bàn phím cơ không dây layout gọn, gõ êm và chắc.", 2490000, 16, "https://images.unsplash.com/photo-1618384887929-16ec33fab9ef?auto=format&fit=crop&w=900&q=80", accessory.Id, false, 13),
-            P("Chuột Logitech MX Master 3S", "Chuột công thái học cho người làm việc nhiều giờ.", 2290000, 27, "https://images.unsplash.com/photo-1527814050087-3793815479db?auto=format&fit=crop&w=900&q=80", accessory.Id, false, 12),
-            P("Hub USB-C Anker 7-in-1", "Mở rộng HDMI, USB, thẻ nhớ và sạc nhanh.", 1590000, 26, "https://images.unsplash.com/photo-1625842268584-8f3296236761?auto=format&fit=crop&w=900&q=80", accessory.Id, false, 11),
-            P("Cáp USB-C Belkin", "Cáp bền, truyền dữ liệu ổn định, sạc nhanh.", 390000, 60, "https://images.unsplash.com/photo-1603539444875-76e7684265f6?auto=format&fit=crop&w=900&q=80", accessory.Id, false, 10),
-            P("Sạc nhanh Ugreen 65W", "Sạc GaN gọn nhẹ, dùng cho điện thoại và laptop.", 890000, 48, "https://images.unsplash.com/photo-1615526675159-e248c3021d3f?auto=format&fit=crop&w=900&q=80", accessory.Id, false, 9),
+            P("Xiaomi 14", "Cấu hình mạnh, sạc nhanh, camera Leica gọn trong tay.", 14990000, 32, PexelsPhoto(10902947), categoryIds["dien-thoai-xiaomi"], true, 28),
+            P("Redmi Note 13 Pro 5G", "Camera độ phân giải cao, màn hình AMOLED và sạc nhanh.", 9490000, 36, PexelsPhoto(10902918), categoryIds["dien-thoai-xiaomi"], true, 13),
 
-            P("LG UltraFine 27 inch", "Màn hình 4K màu đẹp cho thiết kế và văn phòng.", 9990000, 9, "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=900&q=80", monitor.Id, true, 8),
-            P("Samsung Odyssey G5", "Tần số quét cao, cong nhẹ, tối ưu chơi game.", 7490000, 13, "https://images.unsplash.com/photo-1616588589676-62b3bd4ff6d2?auto=format&fit=crop&w=900&q=80", monitor.Id, false, 7),
-            P("Dell UltraSharp U2723QE", "USB-C, màu chuẩn, chân đế linh hoạt.", 12990000, 8, "https://images.unsplash.com/photo-1547082299-de196ea013d6?auto=format&fit=crop&w=900&q=80", monitor.Id, false, 6),
-            P("ASUS ProArt PA278QV", "Màn hình sáng tạo nội dung với màu cân chỉnh sẵn.", 6990000, 11, "https://images.unsplash.com/photo-1585792180666-f7347c490ee2?auto=format&fit=crop&w=900&q=80", monitor.Id, false, 5),
+            P("OPPO Reno 11", "Thiết kế mỏng, chụp chân dung đẹp, sạc nhanh tiện lợi.", 10990000, 22, PexelsPhoto(20360335), categoryIds["dien-thoai-oppo"], true, 27),
+            P("OPPO A98 5G", "Màn hình lớn, pin bền và kết nối 5G cho nhu cầu hằng ngày.", 8490000, 29, PexelsPhoto(20360338), categoryIds["dien-thoai-oppo"], false, 12),
 
-            P("Apple Watch Series 9", "Theo dõi sức khỏe, thông báo nhanh, hoàn thiện đẹp.", 10990000, 18, "https://images.unsplash.com/photo-1434493789847-2f02dc6ca35d?auto=format&fit=crop&w=900&q=80", watch.Id, true, 4),
-            P("Samsung Galaxy Watch 6", "Màn hình đẹp, đo luyện tập, pin ổn định.", 6990000, 20, "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=80", watch.Id, false, 3),
-            P("Garmin Venu 3", "Theo dõi thể thao chuyên sâu, pin dài ngày.", 9990000, 12, "https://images.unsplash.com/photo-1557438159-51eec7a6c9e8?auto=format&fit=crop&w=900&q=80", watch.Id, false, 2),
-            P("Xiaomi Band 8", "Vòng đeo thông minh gọn nhẹ, giá tốt.", 990000, 45, "https://images.unsplash.com/photo-1575311373937-040b8e1fd5b6?auto=format&fit=crop&w=900&q=80", watch.Id, false, 1)
+            P("vivo V30", "Màn hình cong, camera selfie sắc nét, pin lớn.", 11990000, 20, PexelsPhoto(35621364), categoryIds["dien-thoai-vivo"], true, 26),
+            P("vivo Y36", "Thiết kế trẻ trung, pin 5000mAh và hiệu năng ổn định.", 5990000, 34, PexelsPhoto(32854188), categoryIds["dien-thoai-vivo"], false, 11),
+
+            P("realme 12 Pro", "Hiệu năng tốt trong tầm giá, thiết kế nổi bật.", 8990000, 28, PexelsPhoto(28190554), categoryIds["dien-thoai-realme"], true, 25),
+            P("realme C67", "Camera rõ nét, màn hình mượt và pin đủ dùng cả ngày.", 5390000, 40, PexelsPhoto(16772285), categoryIds["dien-thoai-realme"], false, 10),
+
+            P("Google Pixel 8", "Android thuần, camera thông minh, cập nhật lâu dài.", 16990000, 14, PexelsPhoto(15802450), categoryIds["dien-thoai-google-pixel"], true, 24),
+            P("Google Pixel 7 Pro", "Camera tele linh hoạt, trải nghiệm Android gọn và mượt.", 14990000, 12, "https://images.unsplash.com/photo-1653628989908-a22b51baaa5c?auto=format&fit=crop&w=900&h=900&q=82", categoryIds["dien-thoai-google-pixel"], false, 9),
+
+            P("Sony Xperia 1 V", "Màn hình 4K, quay video chuyên sâu, âm thanh chất lượng.", 24990000, 8, "https://images.unsplash.com/photo-1518379106190-c4cfbcab0e39?auto=format&fit=crop&w=900&h=900&q=82", categoryIds["dien-thoai-sony-xperia"], true, 23),
+            P("Sony Xperia 5 V", "Thân máy gọn, camera linh hoạt và trải nghiệm giải trí cao cấp.", 19990000, 10, "https://images.unsplash.com/photo-1695435478239-0828b8bfc8c1?auto=format&fit=crop&w=900&h=900&q=82", categoryIds["dien-thoai-sony-xperia"], false, 8)
         };
 
         foreach (var product in products)
         {
-            if (!await db.Products.IgnoreQueryFilters().AnyAsync(row => row.Name == product.Name))
+            var existing = await db.Products
+                .IgnoreQueryFilters()
+                .Include(row => row.Images)
+                .FirstOrDefaultAsync(row => row.Name == product.Name);
+            if (existing is null)
             {
                 db.Products.Add(product);
+            }
+            else
+            {
+                existing.CategoryId = product.CategoryId;
+                existing.IsFeatured = product.IsFeatured;
+
+                var imagesAreLegacySeedData = existing.Images.Count > 0
+                    && existing.Images.All(image => image.ImageUrl.Contains("images.unsplash.com", StringComparison.OrdinalIgnoreCase));
+                if (existing.Images.Count == 0 || imagesAreLegacySeedData)
+                {
+                    db.ProductImages.RemoveRange(existing.Images);
+                    existing.Images = product.Images;
+                }
             }
         }
 
         await db.SaveChangesAsync();
-        await EnsureDiscountsAsync(db);
     }
 
     private static async Task EnsureDiscountsAsync(AppDbContext db)
@@ -262,9 +275,9 @@ END");
         {
             ["iPhone 15 Pro"] = 8,
             ["Samsung Galaxy S24"] = 10,
-            ["MacBook Air M3"] = 7,
-            ["AirPods Pro 2"] = 12,
-            ["LG UltraFine 27 inch"] = 15
+            ["Xiaomi 14"] = 7,
+            ["OPPO Reno 11"] = 12,
+            ["Realme 12 Pro"] = 15
         };
 
         foreach (var item in discountMap)
@@ -285,6 +298,9 @@ END");
             .IgnoreQueryFilters()
             .Include(product => product.Category)
             .Include(product => product.Images)
+            .Where(product => product.Category != null
+                && (product.Category.Slug == PhoneCatalogScope.RootSlug
+                    || product.Category.Slug.StartsWith("dien-thoai-")))
             .ToListAsync();
 
         foreach (var product in products)
@@ -436,6 +452,9 @@ END");
         };
     }
 
+    private static string PexelsPhoto(int photoId) =>
+        $"https://images.pexels.com/photos/{photoId}/pexels-photo-{photoId}.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=900&h=900";
+
     private static async Task EnsurePcBuildProductsAsync(AppDbContext db)
     {
         var categories = await db.Categories.ToDictionaryAsync(category => category.Slug);
@@ -538,17 +557,55 @@ END");
 
     private static async Task EnsureBannersAsync(AppDbContext db)
     {
-        if (await db.Banners.AnyAsync())
+        var banners = new[]
         {
-            return;
-        }
+            new Banner { Title = "iPhone chính hãng.\nChọn nhanh, đặt gọn.", Subtitle = "Xem giá, thông số và tồn kho rõ ràng trước khi đặt hàng.", ImageUrl = "https://images.pexels.com/photos/19800760/pexels-photo-19800760.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1800&h=680", LinkUrl = "/Product?search=iPhone", ButtonText = "Xem iPhone", SortOrder = 1 },
+            new Banner { Title = "Samsung Galaxy.\nSắc nét từng khoảnh khắc.", Subtitle = "Khám phá điện thoại Galaxy nổi bật cho công việc và giải trí.", ImageUrl = "https://images.pexels.com/photos/33975307/pexels-photo-33975307.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1800&h=680", LinkUrl = "/Product?search=Samsung", ButtonText = "Xem Samsung", SortOrder = 2 },
+            new Banner { Title = "Xiaomi linh hoạt.\nĐúng máy, đúng giá.", Subtitle = "Hiệu năng tốt, camera nổi bật và nhiều lựa chọn theo nhu cầu.", ImageUrl = "https://images.pexels.com/photos/10902946/pexels-photo-10902946.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1800&h=680", LinkUrl = "/Product?search=Xiaomi", ButtonText = "Xem Xiaomi", SortOrder = 3 }
+        };
 
-        db.Banners.AddRange(
-            new Banner { Title = "iPhone 15 Pro.\nTitan. Đỉnh cao.", Subtitle = "Camera 48MP, chip A17 Pro, thiết kế titan lần đầu tiên.", ImageUrl = "https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=1100&q=80", LinkUrl = "/Product", ButtonText = "Khám phá ngay", SortOrder = 1 },
-            new Banner { Title = "MacBook Air M3.\nMỏng nhẹ, bền bỉ.", Subtitle = "Hiệu năng mượt mà cho học tập, công việc và sáng tạo mỗi ngày.", ImageUrl = "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1100&q=80", LinkUrl = "/Product", ButtonText = "Xem laptop", SortOrder = 2 },
-            new Banner { Title = "Phụ kiện chuẩn gu.\nGiá tốt hôm nay.", Subtitle = "Tai nghe, bàn phím, chuột và sạc nhanh cho góc làm việc gọn gàng.", ImageUrl = "https://images.unsplash.com/photo-1618384887929-16ec33fab9ef?auto=format&fit=crop&w=1100&q=80", LinkUrl = "/Product", ButtonText = "Mua phụ kiện", SortOrder = 3 }
-        );
+        var existingBanners = await db.Banners.OrderBy(banner => banner.Id).ToListAsync();
+        foreach (var banner in banners)
+        {
+            var brand = BannerBrand(banner);
+            var matches = existingBanners
+                .Where(row => string.Equals(BannerBrand(row), brand, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var existing = matches.FirstOrDefault();
+            if (existing is null)
+            {
+                db.Banners.Add(banner);
+                existingBanners.Add(banner);
+            }
+            else
+            {
+                existing.Title = banner.Title;
+                existing.Subtitle = banner.Subtitle;
+                existing.ImageUrl = banner.ImageUrl;
+                existing.LinkUrl = banner.LinkUrl;
+                existing.ButtonText = banner.ButtonText;
+                existing.SortOrder = banner.SortOrder;
+                existing.IsActive = true;
+
+                foreach (var duplicate in matches.Skip(1))
+                {
+                    duplicate.IsActive = false;
+                }
+            }
+        }
         await db.SaveChangesAsync();
+    }
+
+    private static string BannerBrand(Banner banner)
+    {
+        var content = $"{banner.Title} {banner.Subtitle} {banner.LinkUrl}";
+        if (content.Contains("iPhone", StringComparison.OrdinalIgnoreCase)
+            || content.Contains("Apple", StringComparison.OrdinalIgnoreCase)) return "apple";
+        if (content.Contains("Samsung", StringComparison.OrdinalIgnoreCase)
+            || content.Contains("Galaxy", StringComparison.OrdinalIgnoreCase)) return "samsung";
+        if (content.Contains("Xiaomi", StringComparison.OrdinalIgnoreCase)
+            || content.Contains("Android", StringComparison.OrdinalIgnoreCase)) return "xiaomi";
+        return string.Empty;
     }
 
     private static async Task EnsureVouchersAsync(AppDbContext db)

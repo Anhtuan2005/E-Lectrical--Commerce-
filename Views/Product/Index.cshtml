@@ -2,10 +2,12 @@
 @{
     ViewData["Title"] = "Sản phẩm";
     var categories = Model.Categories.ToList();
+    var brands = Model.Brands.ToList();
     var selectedCategory = categories.FirstOrDefault(category => category.Id == Model.CategoryId);
+    var selectedBrand = brands.FirstOrDefault(brand => string.Equals(brand.SearchTerm, Model.Search, StringComparison.OrdinalIgnoreCase));
     const int visibleCategoryCount = 7;
     var hasPriceFilter = Model.MinPrice.HasValue || Model.MaxPrice.HasValue;
-    var activeFilterCount = (Model.CategoryId.HasValue ? 1 : 0) + (hasPriceFilter ? 1 : 0);
+    var activeFilterCount = (Model.CategoryId.HasValue || selectedBrand is not null ? 1 : 0) + (hasPriceFilter ? 1 : 0);
     Func<decimal, string> compactPrice = value =>
         value >= 1_000_000m ? $"{value / 1_000_000m:0.#}tr" :
         value >= 1_000m ? $"{value / 1_000m:0.#}k" :
@@ -17,8 +19,10 @@
             : Model.MaxPrice.HasValue
                 ? $"Giá đến {compactPrice(Model.MaxPrice.Value)}"
                 : string.Empty;
-    ViewData["MetaDescription"] = selectedCategory is null
-        ? "Khám phá điện thoại, laptop, linh kiện PC và phụ kiện công nghệ tại Techvora."
+    ViewData["MetaDescription"] = selectedBrand is not null
+        ? $"Mua điện thoại {selectedBrand.Name} tại Techvora với giá, thông số và tồn kho rõ ràng."
+        : selectedCategory is null
+        ? "Khám phá điện thoại chính hãng tại Techvora với giá, thông số và tồn kho rõ ràng."
         : $"Mua {selectedCategory.Name} tại Techvora với giá rõ ràng, sản phẩm chọn lọc và bảo hành minh bạch.";
     ViewData["CanonicalPath"] = Model.CategoryId.HasValue
         ? Url.Action("Index", "Product", new { categoryId = Model.CategoryId })
@@ -32,7 +36,7 @@
 <section class="page-head product-page-head">
     <div>
         <span class="eyebrow">Techvora Store</span>
-        <h1>Tìm thiết bị phù hợp</h1>
+        <h1>Tìm điện thoại phù hợp</h1>
         <p><strong>@Model.TotalItems sản phẩm</strong> để bạn tìm và so sánh.</p>
     </div>
 </section>
@@ -101,6 +105,8 @@
                             <i data-lucide="x" aria-hidden="true"></i>
                         }
                     </a>
+                    @if (SprintFeatures.IsEnabled(3))
+                    {
                     <a class="@(Model.SortBy == "discount_desc" ? "active" : "")"
                        asp-action="Index"
                        asp-route-search="@Model.Search"
@@ -115,6 +121,7 @@
                             <i data-lucide="x" aria-hidden="true"></i>
                         }
                     </a>
+                    }
                     <a class="@(Model.SortBy == "newest" ? "active" : "")"
                        asp-action="Index"
                        asp-route-search="@Model.Search"
@@ -159,7 +166,18 @@
         @if (activeFilterCount > 0)
         {
             <div class="catalog-filter-tags">
-                @if (selectedCategory is not null)
+                @if (selectedBrand is not null)
+                {
+                    <a asp-action="Index"
+                       asp-route-categoryId="@Model.CategoryId"
+                       asp-route-minPrice="@Model.MinPrice"
+                       asp-route-maxPrice="@Model.MaxPrice"
+                       asp-route-sortBy="@Model.SortBy">
+                        <span>Thương hiệu: @selectedBrand.Name</span>
+                        <i data-lucide="x" aria-hidden="true"></i>
+                    </a>
+                }
+                else if (selectedCategory is not null)
                 {
                     <a asp-action="Index"
                        asp-route-search="@Model.Search"
@@ -180,44 +198,43 @@
                         <i data-lucide="x" aria-hidden="true"></i>
                     </a>
                 }
-                <a class="clear-all" asp-action="Index" asp-route-search="@Model.Search" asp-route-sortBy="@Model.SortBy">Xóa tất cả</a>
+                <a class="clear-all" asp-action="Index" asp-route-search="@(selectedBrand is null ? Model.Search : null)" asp-route-sortBy="@Model.SortBy">Xóa tất cả</a>
             </div>
         }
     </div>
 
-    <aside class="catalog-category-rail" aria-label="Danh mục sản phẩm">
+    <aside class="catalog-category-rail" aria-label="Thương hiệu điện thoại">
         <div class="category-rail-head">
-            <strong>Danh mục</strong>
-            <span>@categories.Count</span>
+            <strong>Thương hiệu</strong>
+            <span>@brands.Count</span>
         </div>
         <nav class="category-rail-list">
-            <a class="category-rail-link @(!Model.CategoryId.HasValue ? "active" : "")"
+            <a class="category-rail-link @(string.IsNullOrWhiteSpace(Model.Search) && !Model.CategoryId.HasValue ? "active" : "")"
                asp-action="Index"
-               asp-route-search="@Model.Search"
                asp-route-minPrice="@Model.MinPrice"
                asp-route-maxPrice="@Model.MaxPrice"
                asp-route-sortBy="@Model.SortBy">
-                <span>Tất cả sản phẩm</span>
+                <span>Tất cả điện thoại</span>
             </a>
-            @for (var index = 0; index < categories.Count; index++)
+            @for (var index = 0; index < brands.Count; index++)
             {
-                var category = categories[index];
-                <a class="category-rail-link @(Model.CategoryId == category.Id ? "active" : "") @(index >= visibleCategoryCount ? "is-extra" : "")"
+                var brand = brands[index];
+                <a class="category-rail-link @(selectedBrand?.SearchTerm == brand.SearchTerm ? "active" : "") @(index >= visibleCategoryCount ? "is-extra" : "")"
                    asp-action="Index"
-                   asp-route-search="@Model.Search"
-                   asp-route-categoryId="@category.Id"
+                   asp-route-search="@brand.SearchTerm"
                    asp-route-minPrice="@Model.MinPrice"
                    asp-route-maxPrice="@Model.MaxPrice"
                    asp-route-sortBy="@Model.SortBy">
-                    <span>@category.Name</span>
+                    <span>@brand.Name</span>
+                    <small>@brand.ProductCount</small>
                 </a>
             }
         </nav>
-        @if (categories.Count > visibleCategoryCount)
+        @if (brands.Count > visibleCategoryCount)
         {
             <button class="category-rail-more" type="button" data-category-expand aria-expanded="false">
                 <span>Xem thêm</span>
-                <em>+@(categories.Count - visibleCategoryCount)</em>
+                <em>+@(brands.Count - visibleCategoryCount)</em>
                 <i data-lucide="chevron-down" aria-hidden="true"></i>
             </button>
         }
@@ -261,7 +278,7 @@
             {
                 <div class="empty-state catalog-empty-state">
                     <strong>Không tìm thấy sản phẩm phù hợp</strong>
-                    <span>Thử nới khoảng giá hoặc chọn danh mục khác.</span>
+                    <span>Thử nới khoảng giá hoặc chọn thương hiệu khác.</span>
                     <a class="btn-secondary" asp-action="Index" asp-route-search="@Model.Search" asp-route-sortBy="@Model.SortBy">Xóa bộ lọc</a>
                 </div>
             }

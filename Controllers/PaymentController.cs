@@ -12,6 +12,7 @@ using System.Security.Claims;
 
 namespace EcommerceApp.Controllers;
 
+[MinimumSprint(2)]
 [Route("payment")]
 public class PaymentController : Controller
 {

@@ -43,9 +43,9 @@ public class ProductSpecService : IProductSpecService
             return knownSpecs;
         }
 
-        return slug switch
+        if (slug == PhoneCatalogScope.RootSlug || slug.StartsWith("dien-thoai-", StringComparison.Ordinal))
         {
-            "dien-thoai" => new[]
+            return new[]
             {
                 Spec("Hãng sản xuất", brand),
                 Spec("Bảo hành", "12 tháng"),
@@ -55,7 +55,11 @@ public class ProductSpecService : IProductSpecService
                 Spec("Camera sau", "Camera AI nhiều ống kính"),
                 Spec("Pin và sạc", "Pin dùng cả ngày, hỗ trợ sạc nhanh"),
                 Spec("Hệ điều hành", normalizedName.Contains("iphone") ? "iOS" : "Android")
-            },
+            };
+        }
+
+        return slug switch
+        {
             "laptop" => new[]
             {
                 Spec("Hãng sản xuất", brand),

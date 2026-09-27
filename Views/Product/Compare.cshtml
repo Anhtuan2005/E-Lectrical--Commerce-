@@ -72,11 +72,11 @@
                                     <a class="compare-product-image" asp-action="Detail" asp-route-id="@product.Id">
                                         <img src="@product.PrimaryImageUrl" alt="@product.Name" loading="lazy" decoding="async" />
                                     </a>
-                                    <span>@product.Category?.Name</span>
+                                    <span>@(PhoneBrandCatalog.Resolve(product.Name)?.Name ?? product.Category?.Name)</span>
                                     <a class="compare-product-name" asp-action="Detail" asp-route-id="@product.Id">@product.Name</a>
                                     <div class="compare-product-price">
-                                        <strong>@product.SalePrice.ToString("N0") ₫</strong>
-                                        @if (product.DiscountPercent > 0)
+                                        <strong>@((SprintFeatures.IsEnabled(3) ? product.SalePrice : product.Price).ToString("N0")) ₫</strong>
+                                        @if (SprintFeatures.IsEnabled(3) && product.DiscountPercent > 0)
                                         {
                                             <del>@product.Price.ToString("N0") ₫</del>
                                         }
@@ -100,7 +100,7 @@
                         <th scope="row">Danh mục</th>
                         @foreach (var item in Model.Products)
                         {
-                            <td>@item.Product.Category?.Name</td>
+                            <td>@(PhoneBrandCatalog.Resolve(item.Product.Name)?.Name ?? item.Product.Category?.Name)</td>
                         }
                     </tr>
                     <tr>
@@ -114,13 +114,16 @@
                             </td>
                         }
                     </tr>
-                    <tr>
-                        <th scope="row">Giảm giá</th>
-                        @foreach (var item in Model.Products)
-                        {
-                            <td>@(item.Product.DiscountPercent > 0 ? $"{item.Product.DiscountPercent}%" : "Không")</td>
-                        }
-                    </tr>
+                    @if (SprintFeatures.IsEnabled(3))
+                    {
+                        <tr>
+                            <th scope="row">Giảm giá</th>
+                            @foreach (var item in Model.Products)
+                            {
+                                <td>@(item.Product.DiscountPercent > 0 ? $"{item.Product.DiscountPercent}%" : "Không")</td>
+                            }
+                        </tr>
+                    }
                     @foreach (var label in Model.SpecLabels)
                     {
                         <tr>

@@ -38,6 +38,16 @@ tests/
 docs/*.md
 docs/adr/
 
+# Public, reproducible backend test evidence
+!.github/
+.github/*
+!.github/workflows/
+.github/workflows/*
+!.github/workflows/portfolio-tests.yml
+!tests/
+tests/*
+!tests/EcommerceApp.Tests/
+
 # Optional container and frontend toolchain
 .dockerignore
 Dockerfile

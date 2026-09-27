@@ -12,18 +12,23 @@ namespace EcommerceApp.Controllers.Admin;
 public class AdminCategoryController : Controller
 {
     private readonly AppDbContext _db;
+    private readonly ICatalogScope? _catalogScope;
 
-    public AdminCategoryController(AppDbContext db)
+    public AdminCategoryController(AppDbContext db, ICatalogScope? catalogScope = null)
     {
         _db = db;
+        _catalogScope = catalogScope;
     }
 
     [HttpGet("")]
     public async Task<IActionResult> Index()
     {
-        var categories = await _db.Categories
+        var query = _db.Categories
             .Include(category => category.Products)
-            .OrderBy(category => category.Name)
+            .AsQueryable();
+        if (_catalogScope is not null)
+            query = _catalogScope.Categories(query);
+        var categories = await query.OrderBy(category => category.Name)
             .ToListAsync();
         return View("~/Views/Admin/Category/Index.cshtml", categories);
     }
@@ -44,6 +49,10 @@ public class AdminCategoryController : Controller
         {
             ModelState.AddModelError(nameof(Category.Name), "Vui lòng nhập tên danh mục");
         }
+        else if (_catalogScope is not null && !_catalogScope.IsPhoneCategoryName(model.Name))
+        {
+            ModelState.AddModelError(nameof(Category.Name), "Tên danh mục phải bắt đầu bằng 'Điện thoại' (ví dụ: Điện thoại Apple).");
+        }
         if (!ModelState.IsValid)
         {
             return View("~/Views/Admin/Category/Form.cshtml", model);
@@ -60,7 +69,7 @@ public class AdminCategoryController : Controller
     [HttpGet("Edit/{id:int}")]
     public async Task<IActionResult> Edit(int id)
     {
-        var category = await _db.Categories.FindAsync(id);
+        var category = await FindAllowedCategoryAsync(id);
         return category is null ? NotFound() : View("~/Views/Admin/Category/Form.cshtml", category);
     }
 
@@ -75,12 +84,16 @@ public class AdminCategoryController : Controller
         {
             ModelState.AddModelError(nameof(Category.Name), "Vui lòng nhập tên danh mục");
         }
+        else if (_catalogScope is not null && !_catalogScope.IsPhoneCategoryName(model.Name))
+        {
+            ModelState.AddModelError(nameof(Category.Name), "Tên danh mục phải bắt đầu bằng 'Điện thoại' (ví dụ: Điện thoại Samsung).");
+        }
         if (!ModelState.IsValid)
         {
             return View("~/Views/Admin/Category/Form.cshtml", model);
         }
 
-        var category = await _db.Categories.FindAsync(id);
+        var category = await FindAllowedCategoryAsync(id);
         if (category is null)
         {
             return NotFound();
@@ -98,6 +111,8 @@ public class AdminCategoryController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
+        if (await FindAllowedCategoryAsync(id) is null)
+            return NotFound();
         var result = await CategoryDeletion.DeleteAsync(_db, id);
         if (result == CategoryDeleteResult.NotFound)
         {
@@ -130,6 +145,14 @@ public class AdminCategoryController : Controller
         }
 
         return candidate;
+    }
+
+    private async Task<Category?> FindAllowedCategoryAsync(int id)
+    {
+        var query = _db.Categories.AsQueryable();
+        if (_catalogScope is not null)
+            query = _catalogScope.Categories(query);
+        return await query.FirstOrDefaultAsync(category => category.Id == id);
     }
 
 }

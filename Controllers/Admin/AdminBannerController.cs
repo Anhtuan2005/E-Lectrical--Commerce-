@@ -14,17 +14,22 @@ public class AdminBannerController : Controller
 {
     private readonly AppDbContext _db;
     private readonly IImageStorageService _imageStorage;
+    private readonly ICatalogScope? _catalogScope;
 
-    public AdminBannerController(AppDbContext db, IImageStorageService imageStorage)
+    public AdminBannerController(AppDbContext db, IImageStorageService imageStorage, ICatalogScope? catalogScope = null)
     {
         _db = db;
         _imageStorage = imageStorage;
+        _catalogScope = catalogScope;
     }
 
     [HttpGet("")]
     public async Task<IActionResult> Index()
     {
-        return View("~/Views/Admin/Banner/Index.cshtml", await _db.Banners.OrderBy(banner => banner.SortOrder).ToListAsync());
+        var banners = await _db.Banners.OrderBy(banner => banner.SortOrder).ToListAsync();
+        if (_catalogScope is not null)
+            banners = banners.Where(_catalogScope.IsPhoneBanner).ToList();
+        return View("~/Views/Admin/Banner/Index.cshtml", banners);
     }
 
     [HttpGet("Create")]
@@ -39,6 +44,7 @@ public class AdminBannerController : Controller
     {
         model.Id = 0;
         ValidateBanner(model, imageFile, requireImage: true);
+        await ValidateDuplicateBannerAsync(model);
         if (!ModelState.IsValid)
         {
             return View("~/Views/Admin/Banner/Form.cshtml", model);
@@ -64,7 +70,7 @@ public class AdminBannerController : Controller
     [HttpGet("Edit/{id:int}")]
     public async Task<IActionResult> Edit(int id)
     {
-        var banner = await _db.Banners.FindAsync(id);
+        var banner = await FindAllowedBannerAsync(id);
         return banner is null ? NotFound() : View("~/Views/Admin/Banner/Form.cshtml", new BannerFormViewModel
         {
             Id = banner.Id, Title = banner.Title, Subtitle = banner.Subtitle, ImageUrl = banner.ImageUrl,
@@ -78,12 +84,13 @@ public class AdminBannerController : Controller
     {
         model.Id = id;
         ValidateBanner(model, imageFile, requireImage: true);
+        await ValidateDuplicateBannerAsync(model);
         if (!ModelState.IsValid)
         {
             return View("~/Views/Admin/Banner/Form.cshtml", model);
         }
 
-        var banner = await _db.Banners.FindAsync(id);
+        var banner = await FindAllowedBannerAsync(id);
         if (banner is null)
         {
             return NotFound();
@@ -110,7 +117,7 @@ public class AdminBannerController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
-        var banner = await _db.Banners.FindAsync(id);
+        var banner = await FindAllowedBannerAsync(id);
         if (banner is not null)
         {
             _db.Banners.Remove(banner);
@@ -125,7 +132,7 @@ public class AdminBannerController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleActive(int id)
     {
-        var banner = await _db.Banners.FindAsync(id);
+        var banner = await FindAllowedBannerAsync(id);
         if (banner is not null)
         {
             banner.IsActive = !banner.IsActive;
@@ -144,7 +151,7 @@ public class AdminBannerController : Controller
             return BadRequest(new { message = "Danh sách banner không hợp lệ." });
         }
         var banners = await _db.Banners.Where(banner => ids.Contains(banner.Id)).ToListAsync();
-        if (banners.Count != ids.Count)
+        if (banners.Count != ids.Count || (_catalogScope is not null && banners.Any(banner => !_catalogScope.IsPhoneBanner(banner))))
         {
             return BadRequest(new { message = "Danh sách chứa banner không tồn tại." });
         }
@@ -185,6 +192,16 @@ public class AdminBannerController : Controller
             ModelState.AddModelError(nameof(Banner.Title), "Vui lòng nhập tiêu đề.");
         }
 
+        if (_catalogScope is not null && !_catalogScope.IsPhoneBanner(new Banner
+        {
+            Title = model.Title,
+            Subtitle = model.Subtitle ?? string.Empty,
+            LinkUrl = model.LinkUrl ?? string.Empty
+        }))
+        {
+            ModelState.AddModelError(nameof(Banner.Title), "Banner chỉ được giới thiệu điện thoại; không dùng nội dung laptop, linh kiện hoặc Build PC.");
+        }
+
         if (requireImage && imageFile is not { Length: > 0 } && model.ImageUrl.Length == 0)
         {
             ModelState.AddModelError(nameof(Banner.ImageUrl), "Vui lòng nhập URL hoặc tải ảnh banner.");
@@ -195,7 +212,7 @@ public class AdminBannerController : Controller
             ModelState.AddModelError(nameof(Banner.ImageUrl), "URL ảnh phải là đường dẫn nội bộ hoặc địa chỉ HTTP/HTTPS.");
         }
 
-        if (model.LinkUrl.Length > 0 && !IsSafeLink(model.LinkUrl))
+        if (model.LinkUrl!.Length > 0 && !IsSafeLink(model.LinkUrl))
         {
             ModelState.AddModelError(nameof(Banner.LinkUrl), "Link đích phải là đường dẫn nội bộ hoặc địa chỉ HTTP/HTTPS.");
         }
@@ -206,6 +223,47 @@ public class AdminBannerController : Controller
         return Url.IsLocalUrl(value)
             || (Uri.TryCreate(value, UriKind.Absolute, out var uri)
                 && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps));
+    }
+
+    private async Task ValidateDuplicateBannerAsync(BannerFormViewModel model)
+    {
+        var existingBanners = await _db.Banners
+            .AsNoTracking()
+            .Where(banner => banner.Id != model.Id)
+            .ToListAsync();
+        if (_catalogScope is not null)
+        {
+            existingBanners = existingBanners.Where(_catalogScope.IsPhoneBanner).ToList();
+        }
+
+        if (existingBanners.Any(banner => string.Equals(banner.Title.Trim(), model.Title, StringComparison.OrdinalIgnoreCase)))
+        {
+            ModelState.AddModelError(nameof(Banner.Title), "Đã có banner điện thoại dùng tiêu đề này.");
+        }
+
+        var imageKey = NormalizeImageKey(model.ImageUrl);
+        if (imageKey.Length > 0 && existingBanners.Any(banner => string.Equals(NormalizeImageKey(banner.ImageUrl), imageKey, StringComparison.OrdinalIgnoreCase)))
+        {
+            ModelState.AddModelError(nameof(Banner.ImageUrl), "Ảnh này đã được dùng cho một banner khác.");
+        }
+    }
+
+    private static string NormalizeImageKey(string? imageUrl)
+    {
+        var value = (imageUrl ?? string.Empty).Trim();
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri))
+        {
+            return $"{uri.Host}{uri.AbsolutePath}".TrimEnd('/');
+        }
+
+        var separatorIndex = value.IndexOfAny(new[] { '?', '#' });
+        return (separatorIndex >= 0 ? value[..separatorIndex] : value).TrimEnd('/');
+    }
+
+    private async Task<Banner?> FindAllowedBannerAsync(int id)
+    {
+        var banner = await _db.Banners.FindAsync(id);
+        return banner is not null && (_catalogScope is null || _catalogScope.IsPhoneBanner(banner)) ? banner : null;
     }
 
 }

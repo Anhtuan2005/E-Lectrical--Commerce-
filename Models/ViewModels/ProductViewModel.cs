@@ -6,6 +6,7 @@ public class ProductViewModel
 {
     public IEnumerable<Product> Products { get; set; } = Enumerable.Empty<Product>();
     public IEnumerable<Category> Categories { get; set; } = Enumerable.Empty<Category>();
+    public IEnumerable<PhoneBrandViewModel> Brands { get; set; } = Enumerable.Empty<PhoneBrandViewModel>();
     public string? Search { get; set; }
     public int? CategoryId { get; set; }
     public decimal? MinPrice { get; set; }

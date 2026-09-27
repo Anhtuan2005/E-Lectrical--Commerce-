@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EcommerceApp.Controllers.Admin;
 
+[MinimumSprint(2)]
 [Authorize(Roles = "Admin")]
 [Route("Admin")]
 public class AdminDashboardController : Controller

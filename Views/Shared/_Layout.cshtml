@@ -4,7 +4,7 @@
     var pageTitle = string.IsNullOrWhiteSpace(viewTitle) ? "Techvora" : $"Techvora - {viewTitle}";
     var metaDescription = ViewData["MetaDescription"]?.ToString()
         ?? Configuration["Seo:DefaultDescription"]
-        ?? "Techvora - cửa hàng công nghệ dành cho điện thoại, laptop, linh kiện PC và phụ kiện.";
+        ?? "Techvora - cửa hàng điện thoại chính hãng, giá và tồn kho rõ ràng.";
     var configuredBaseUrl = Configuration["Seo:BaseUrl"]?.Trim();
     var requestBaseUrl = $"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.PathBase}";
     var siteBaseUrl = string.IsNullOrWhiteSpace(configuredBaseUrl) ? requestBaseUrl : configuredBaseUrl;
@@ -72,14 +72,6 @@
     <meta name="twitter:image:alt" content="@ogImageAlt" />
     <link rel="icon" href="~/images/techvora-favicon.svg" type="image/svg+xml" />
     <script id="lucide-script" src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" async></script>
-    <script type="importmap">
-        {
-          "imports": {
-            "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
-          }
-        }
-    </script>
     <environment include="Development">
         <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     </environment>
@@ -111,33 +103,36 @@
         @RenderBody()
     </main>
     <partial name="_CompareTray" />
-    <div class="cart-offer-modal" id="cartOfferModal" hidden aria-hidden="true">
-        <div class="cart-offer-backdrop" data-cart-offer-close></div>
-        <section class="cart-offer-dialog" role="dialog" aria-modal="true" aria-labelledby="cartOfferTitle">
-            <button class="cart-offer-close" type="button" data-cart-offer-close aria-label="Đóng">
-                <i data-lucide="x" aria-hidden="true"></i>
-            </button>
-            <div class="cart-offer-head">
-                <span>Đã thêm vào giỏ</span>
-                <h2 id="cartOfferTitle">Gợi ý mua kèm phù hợp</h2>
-                <p>Chọn thêm sản phẩm thường được mua cùng hoặc đang có giá mua kèm.</p>
-            </div>
-            <div class="cart-offer-list" id="cartOfferList"></div>
-            <div class="cart-offer-actions">
-                <a class="btn-ghost" asp-controller="Cart" asp-action="Index">Xem giỏ</a>
-                @if (!User.IsInRole("Admin"))
-                {
-                    <a class="btn-primary" asp-controller="Cart" asp-action="Index">Thanh toán trong giỏ</a>
-                }
-            </div>
-        </section>
-    </div>
-    <partial name="_AiChatbot" />
+    @if (SprintFeatures.IsEnabled(3))
+    {
+        <div class="cart-offer-modal" id="cartOfferModal" hidden aria-hidden="true">
+            <div class="cart-offer-backdrop" data-cart-offer-close></div>
+            <section class="cart-offer-dialog" role="dialog" aria-modal="true" aria-labelledby="cartOfferTitle">
+                <button class="cart-offer-close" type="button" data-cart-offer-close aria-label="Đóng">
+                    <i data-lucide="x" aria-hidden="true"></i>
+                </button>
+                <div class="cart-offer-head">
+                    <span>Đã thêm vào giỏ</span>
+                    <h2 id="cartOfferTitle">Gợi ý mua kèm phù hợp</h2>
+                    <p>Chọn thêm sản phẩm thường được mua cùng hoặc đang có giá mua kèm.</p>
+                </div>
+                <div class="cart-offer-list" id="cartOfferList"></div>
+                <div class="cart-offer-actions">
+                    <a class="btn-ghost" asp-controller="Cart" asp-action="Index">Xem giỏ</a>
+                    @if (!User.IsInRole("Admin"))
+                    {
+                        <a class="btn-primary" asp-controller="Cart" asp-action="Index">Thanh toán trong giỏ</a>
+                    }
+                </div>
+            </section>
+        </div>
+        <partial name="_AiChatbot" />
+    }
     <footer class="site-footer">
         <div class="footer-grid">
             <div class="footer-brand">
                 <partial name="_TechvoraLogo" />
-                <p>Năng lượng cho mọi thiết bị. Techvora chọn lọc điện thoại, laptop và phụ kiện công nghệ với trải nghiệm mua sắm nhanh, rõ, an toàn.</p>
+                <p>Techvora chuyên điện thoại chính hãng với trải nghiệm mua sắm nhanh, thông tin rõ ràng và đặt hàng an toàn.</p>
                 <div class="social-row">
                     <a href="https://www.facebook.com/" target="_blank" rel="noopener" aria-label="Facebook">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 8.6h2.4V5.1c-.4-.1-1.8-.2-3.3-.2-3.3 0-5.5 2-5.5 5.7v3.2H4v3.9h3.6V24h4.3v-6.3h3.5l.6-3.9h-4.1V11c0-1.1.3-2.4 2.1-2.4Z"/></svg>
@@ -160,8 +155,11 @@
             <div>
                 <h3>Hỗ trợ</h3>
                 <a asp-controller="Info" asp-action="BuyingGuide">Hướng dẫn mua hàng</a>
-                <a asp-controller="Info" asp-action="Returns">Chính sách đổi trả</a>
-                <a asp-controller="Info" asp-action="Warranty">Bảo hành</a>
+                @if (SprintFeatures.IsEnabled(2))
+                {
+                    <a asp-controller="Info" asp-action="Returns">Chính sách đổi trả</a>
+                    <a asp-controller="Info" asp-action="Warranty">Bảo hành</a>
+                }
                 <a asp-controller="Info" asp-action="Faq">FAQ</a>
             </div>
             <div>
@@ -169,15 +167,18 @@
                 <p>72 Lê Lợi, Quận 1, TP. Hồ Chí Minh</p>
                 <p><a href="tel:0900000000">0900 000 000</a></p>
                 <p><a href="mailto:hello@techvora.vn">hello@techvora.vn</a></p>
-                <a class="footer-deal-link" asp-controller="Product" asp-action="Index" asp-route-sortBy="discount_desc">Xem ưu đãi đang có</a>
+                <a class="footer-deal-link" asp-controller="Product" asp-action="Index">Xem điện thoại đang bán</a>
             </div>
         </div>
         <div class="footer-bottom">
             <span>© @DateTime.Now.Year Techvora. Tất cả quyền được bảo lưu.</span>
             <div class="payment-row">
                 <span>COD</span>
-                <span>Banking</span>
-                <svg class="payment-vnpay" viewBox="0 0 92 28" role="img" aria-label="VNPay"><rect width="92" height="28" rx="8"/><path d="M14 9h9l-4.7 10H9.6L14 9Z"/><text x="30" y="19" font-size="13" font-family="Inter, Arial" font-weight="800">VNPay</text></svg>
+                @if (SprintFeatures.IsEnabled(2))
+                {
+                    <span>Banking</span>
+                    <svg class="payment-vnpay" viewBox="0 0 92 28" role="img" aria-label="VNPay"><rect width="92" height="28" rx="8"/><path d="M14 9h9l-4.7 10H9.6L14 9Z"/><text x="30" y="19" font-size="13" font-family="Inter, Arial" font-weight="800">VNPay</text></svg>
+                }
             </div>
         </div>
     </footer>

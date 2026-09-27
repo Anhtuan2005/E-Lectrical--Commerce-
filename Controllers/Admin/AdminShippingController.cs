@@ -6,6 +6,7 @@ using System.Text.Json;
 
 namespace EcommerceApp.Controllers.Admin;
 
+[MinimumSprint(2)]
 [Authorize(Roles = "Admin")]
 [Route("Admin/Shipping")]
 public class AdminShippingController : Controller

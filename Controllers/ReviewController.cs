@@ -10,6 +10,7 @@ using System.Security.Claims;
 
 namespace EcommerceApp.Controllers;
 
+[MinimumSprint(2)]
 [Authorize]
 public class ReviewController : Controller
 {

@@ -1,5 +1,6 @@
 using System.Xml.Linq;
 using EcommerceApp.Data;
+using EcommerceApp.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,11 +11,15 @@ public class SeoController : Controller
 {
     private readonly AppDbContext _db;
     private readonly IConfiguration _configuration;
+    private readonly ISprintFeatureService _sprintFeatures;
+    private readonly ICatalogScope? _catalogScope;
 
-    public SeoController(AppDbContext db, IConfiguration configuration)
+    public SeoController(AppDbContext db, IConfiguration configuration, ISprintFeatureService sprintFeatures, ICatalogScope? catalogScope = null)
     {
         _db = db;
         _configuration = configuration;
+        _sprintFeatures = sprintFeatures;
+        _catalogScope = catalogScope;
     }
 
     [HttpGet("/sitemap.xml")]
@@ -22,13 +27,18 @@ public class SeoController : Controller
     public async Task<IActionResult> Sitemap()
     {
         var baseUri = GetBaseUri();
-        var products = await _db.Products
-            .AsNoTracking()
+        var productQuery = _db.Products.AsNoTracking();
+        var categoryQuery = _db.Categories.AsNoTracking();
+        if (_catalogScope is not null)
+        {
+            productQuery = _catalogScope.Products(productQuery);
+            categoryQuery = _catalogScope.Categories(categoryQuery);
+        }
+        var products = await productQuery
             .OrderBy(product => product.Id)
             .Select(product => new { product.Id, product.CreatedAt })
             .ToListAsync();
-        var categories = await _db.Categories
-            .AsNoTracking()
+        var categories = await categoryQuery
             .OrderBy(category => category.Id)
             .Select(category => category.Id)
             .ToListAsync();
@@ -38,8 +48,6 @@ public class SeoController : Controller
 
         AddUrl(root, ns, baseUri, "/", DateTime.UtcNow, "daily", "1.0");
         AddUrl(root, ns, baseUri, "/Product", DateTime.UtcNow, "daily", "0.9");
-        AddUrl(root, ns, baseUri, "/BuildPc", null, "weekly", "0.7");
-
         foreach (var path in new[]
         {
             "/Info/About",

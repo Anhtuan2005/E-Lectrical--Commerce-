@@ -11,10 +11,12 @@ public class CrossSellService : ICrossSellService
     private const decimal MinimumConfidence = 0.2m;
 
     private readonly AppDbContext _db;
+    private readonly ICatalogScope? _catalogScope;
 
-    public CrossSellService(AppDbContext db)
+    public CrossSellService(AppDbContext db, ICatalogScope? catalogScope = null)
     {
         _db = db;
+        _catalogScope = catalogScope;
     }
 
     public async Task<IReadOnlyDictionary<int, decimal>> GetEligibleUnitPricesAsync(IEnumerable<CartItem> cartItems, CancellationToken cancellationToken = default)
@@ -76,12 +78,17 @@ public class CrossSellService : ICrossSellService
             .Include(offer => offer.AnchorProduct)
             .Include(offer => offer.AddOnProduct)
             .ThenInclude(product => product!.Images)
+            .Include(offer => offer.AddOnProduct)
+            .ThenInclude(product => product!.Category)
             .Where(offer => productIds.Contains(offer.AnchorProductId)
                 && !productIds.Contains(offer.AddOnProductId)
                 && offer.AddOnProduct != null
                 && offer.AddOnProduct.Stock > 0
                 && !offer.AddOnProduct.IsDeleted)
             .ToListAsync(cancellationToken);
+
+        if (_catalogScope is not null)
+            offers = offers.Where(offer => _catalogScope.IsPhoneCategory(offer.AddOnProduct?.Category?.Slug)).ToList();
 
         if (!offers.Any())
         {
@@ -211,9 +218,9 @@ public class CrossSellService : ICrossSellService
         }
 
         var candidateProductIds = rankedCandidates.Select(candidate => candidate.ProductId).ToHashSet();
-        var products = await _db.Products
-            .AsNoTracking()
+        var products = await ScopedProducts(_db.Products.AsNoTracking()
             .Include(product => product.Images)
+            .Include(product => product.Category))
             .Where(product => candidateProductIds.Contains(product.Id) && product.Stock > 0 && !product.IsDeleted)
             .ToDictionaryAsync(product => product.Id, cancellationToken);
 
@@ -257,8 +264,7 @@ public class CrossSellService : ICrossSellService
 
     private async Task<HashSet<int>> GetSlowMovingProductIdsAsync(IReadOnlyDictionary<int, int> salesByProduct, CancellationToken cancellationToken)
     {
-        var products = await _db.Products
-            .AsNoTracking()
+        var products = await ScopedProducts(_db.Products.AsNoTracking())
             .Where(product => product.Stock > 0 && !product.IsDeleted)
             .Select(product => product.Id)
             .ToListAsync(cancellationToken);
@@ -299,6 +305,9 @@ public class CrossSellService : ICrossSellService
             && (offer.StartDate == null || offer.StartDate <= now)
             && (offer.EndDate == null || offer.EndDate >= now));
     }
+
+    private IQueryable<Product> ScopedProducts(IQueryable<Product> query) =>
+        _catalogScope?.Products(query) ?? query;
 
     private static void AddCandidate(
         Dictionary<int, AprioriCandidate> candidates,

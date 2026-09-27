@@ -27,17 +27,20 @@ public class GeminiChatService : IAiChatService
     private readonly AppDbContext _db;
     private readonly IConfiguration _configuration;
     private readonly ILogger<GeminiChatService> _logger;
+    private readonly ICatalogScope? _catalogScope;
 
     public GeminiChatService(
         HttpClient httpClient,
         AppDbContext db,
         IConfiguration configuration,
-        ILogger<GeminiChatService> logger)
+        ILogger<GeminiChatService> logger,
+        ICatalogScope? catalogScope = null)
     {
         _httpClient = httpClient;
         _db = db;
         _configuration = configuration;
         _logger = logger;
+        _catalogScope = catalogScope;
     }
 
     public async Task<AiChatResponse> AskAsync(string message, IReadOnlyList<AiChatHistoryItem> history, CancellationToken cancellationToken = default)
@@ -117,7 +120,10 @@ public class GeminiChatService : IAiChatService
         var query = _db.Products
             .AsNoTracking()
             .Include(product => product.Category)
-            .Where(product => product.Stock > 0);
+            .Where(product => product.Stock > 0)
+            .AsQueryable();
+        if (_catalogScope is not null)
+            query = _catalogScope.Products(query);
 
         var products = ids.Count > 0
             ? await query.Where(product => ids.Contains(product.Id)).ToListAsync(cancellationToken)
@@ -218,10 +224,14 @@ public class GeminiChatService : IAiChatService
 
     private async Task<string> BuildCatalogContextAsync(string message, CancellationToken cancellationToken)
     {
-        var products = await _db.Products
+        var query = _db.Products
             .AsNoTracking()
             .Include(product => product.Category)
             .Where(product => product.Stock > 0)
+            .AsQueryable();
+        if (_catalogScope is not null)
+            query = _catalogScope.Products(query);
+        var products = await query
             .OrderByDescending(product => product.IsFeatured)
             .ThenByDescending(product => product.DiscountPercent)
             .ThenByDescending(product => product.CreatedAt)

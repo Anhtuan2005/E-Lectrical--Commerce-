@@ -32,15 +32,22 @@
 
         <label asp-for="Stock">Tồn kho</label>
         <input asp-for="Stock" type="number" min="0" readonly="@(Model.Id != 0)" />
-        @if (Model.Id != 0)
+        @if (Model.Id != 0 && SprintFeatures.IsEnabled(2))
         {
             <small class="form-hint">Dùng mục Điều chỉnh tồn kho bên dưới để nhập hoặc xuất hàng.</small>
         }
         <span asp-validation-for="Stock"></span>
 
-        <label asp-for="DiscountPercent">Giảm giá (%)</label>
-        <input asp-for="DiscountPercent" type="number" min="0" max="100" />
-        <span asp-validation-for="DiscountPercent"></span>
+        @if (SprintFeatures.IsEnabled(3))
+        {
+            <label asp-for="DiscountPercent">Giảm giá (%)</label>
+            <input asp-for="DiscountPercent" type="number" min="0" max="100" />
+            <span asp-validation-for="DiscountPercent"></span>
+        }
+        else
+        {
+            <input asp-for="DiscountPercent" type="hidden" />
+        }
 
         <label asp-for="CategoryId">Danh mục</label>
         <select asp-for="CategoryId">
@@ -50,25 +57,6 @@
             }
         </select>
         <span asp-validation-for="CategoryId"></span>
-
-        <fieldset>
-            <legend>Thông số linh kiện PC</legend>
-            <p class="form-hint">Dùng để kiểm tra cấu hình. Để trống nếu sản phẩm không áp dụng hoặc chưa có thông số xác nhận.</p>
-            <label asp-for="Socket">Socket CPU / mainboard</label>
-            <select asp-for="Socket" asp-items="Html.GetEnumSelectList<CpuSocket>()">
-                <option value="">Chưa xác định / không áp dụng</option>
-            </select>
-            <span asp-validation-for="Socket"></span>
-            <label asp-for="MemoryType">Chuẩn RAM / RAM mainboard hỗ trợ</label>
-            <select asp-for="MemoryType" asp-items="Html.GetEnumSelectList<MemoryStandard>()">
-                <option value="">Chưa xác định / không áp dụng</option>
-            </select>
-            <span asp-validation-for="MemoryType"></span>
-            <label asp-for="PowerWatts">Công suất (W)</label>
-            <input asp-for="PowerWatts" type="number" min="1" max="5000" />
-            <span asp-validation-for="PowerWatts"></span>
-            <small class="form-hint">Với PSU: công suất cấp. Với CPU/VGA: mức công suất dùng để dự trù nguồn.</small>
-        </fieldset>
 
         <label asp-for="ImageUrls">Thư viện ảnh</label>
         <textarea asp-for="ImageUrls" rows="6" placeholder="Mỗi dòng một URL ảnh. Dòng đầu là ảnh chính."></textarea>
@@ -101,7 +89,7 @@
     </form>
 </section>
 
-@if (Model.Id != 0)
+@if (Model.Id != 0 && SprintFeatures.IsEnabled(2))
 {
     <section class="admin-panel narrow">
         <div class="panel-head"><h2>Điều chỉnh tồn kho</h2></div>

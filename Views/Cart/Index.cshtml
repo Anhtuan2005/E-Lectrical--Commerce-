@@ -2,6 +2,8 @@
 @model CartViewModel
 @{
     ViewData["Title"] = "Giỏ hàng";
+    var itemGroups = Array.Empty<CartItemGroupViewModel>();
+    var standaloneItems = Model.Items;
 }
 
 <section class="page-head">
@@ -28,7 +30,7 @@ else
                 @{
                     var groupIndex = 0;
                 }
-                @foreach (var group in Model.ItemGroups)
+                @foreach (var group in itemGroups)
                 {
                     groupIndex++;
                     var leadItem = group.Items.FirstOrDefault();
@@ -96,7 +98,7 @@ else
                         </div>
                     </section>
                 }
-                @foreach (var item in Model.StandaloneItems)
+                @foreach (var item in standaloneItems)
                 {
                     var regularPrice = Model.GetRegularUnitPrice(item);
                     var unitPrice = Model.GetUnitPrice(item);
@@ -129,8 +131,11 @@ else
 
         <aside class="checkout-summary">
             <span>Thanh toán</span>
-            <div class="summary-line" data-cart-cross-sell-summary hidden="@(Model.CrossSellDiscountAmount <= 0)"><span>Tạm tính gốc</span><strong data-cart-gross-total>@Model.GrossTotal.ToString("N0") ₫</strong></div>
-            <div class="summary-line discount-line show" data-cart-cross-sell-summary hidden="@(Model.CrossSellDiscountAmount <= 0)"><span>Ưu đãi mua kèm</span><strong data-cart-cross-sell-discount>-@Model.CrossSellDiscountAmount.ToString("N0") ₫</strong></div>
+            @if (SprintFeatures.IsEnabled(3))
+            {
+                <div class="summary-line" data-cart-cross-sell-summary hidden="@(Model.CrossSellDiscountAmount <= 0)"><span>Tạm tính gốc</span><strong data-cart-gross-total>@Model.GrossTotal.ToString("N0") ₫</strong></div>
+                <div class="summary-line discount-line show" data-cart-cross-sell-summary hidden="@(Model.CrossSellDiscountAmount <= 0)"><span>Ưu đãi mua kèm</span><strong data-cart-cross-sell-discount>-@Model.CrossSellDiscountAmount.ToString("N0") ₫</strong></div>
+            }
             <div class="summary-line">
                 <span>Đã chọn</span>
                 <strong><span id="cart-selected-count">@Model.Items.Count()</span> mục</strong>

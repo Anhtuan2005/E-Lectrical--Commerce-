@@ -1,16 +1,36 @@
 @model HomeViewModel
 @{
     ViewData["Title"] = "Trang chủ";
-    ViewData["MetaDescription"] = "Techvora cung cấp điện thoại, laptop, linh kiện PC và phụ kiện công nghệ với giá rõ ràng, giao hàng nhanh và bảo hành minh bạch.";
+    ViewData["MetaDescription"] = "Techvora chuyên điện thoại chính hãng với giá, thông số và tồn kho rõ ràng.";
     ViewData["CanonicalPath"] = Url.Action("Index", "Home");
-    var banners = Model.Banners.Any()
-        ? Model.Banners
-        : new[]
+    var configuredBanners = Model.Banners.ToList();
+    var fallbackBanners = new[]
+    {
+        new Banner { Title = "iPhone chính hãng.\nChọn nhanh, đặt gọn.", Subtitle = "Xem giá, thông số và tồn kho rõ ràng trước khi đặt hàng.", LinkUrl = "/Product?search=iPhone", ButtonText = "Xem iPhone", ImageUrl = "https://images.pexels.com/photos/19800760/pexels-photo-19800760.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1800&h=680" },
+        new Banner { Title = "Samsung Galaxy.\nSắc nét từng khoảnh khắc.", Subtitle = "Khám phá điện thoại Galaxy nổi bật cho công việc và giải trí.", LinkUrl = "/Product?search=Samsung", ButtonText = "Xem Samsung", ImageUrl = "https://images.pexels.com/photos/33975307/pexels-photo-33975307.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1800&h=680" },
+        new Banner { Title = "Xiaomi linh hoạt.\nĐúng máy, đúng giá.", Subtitle = "Hiệu năng tốt, camera nổi bật và nhiều lựa chọn theo nhu cầu.", LinkUrl = "/Product?search=Xiaomi", ButtonText = "Xem Xiaomi", ImageUrl = "https://images.pexels.com/photos/10902946/pexels-photo-10902946.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1800&h=680" }
+    };
+    string BannerIdentity(Banner banner)
+    {
+        var content = $"{banner.Title} {banner.Subtitle}";
+        if (content.Contains("iPhone", StringComparison.OrdinalIgnoreCase) || content.Contains("Apple", StringComparison.OrdinalIgnoreCase)) return "brand:apple";
+        if (content.Contains("Samsung", StringComparison.OrdinalIgnoreCase) || content.Contains("Galaxy", StringComparison.OrdinalIgnoreCase)) return "brand:samsung";
+        if (content.Contains("Xiaomi", StringComparison.OrdinalIgnoreCase) || content.Contains("Android", StringComparison.OrdinalIgnoreCase)) return "brand:xiaomi";
+
+        var imageUrl = (banner.ImageUrl ?? string.Empty).Trim();
+        if (Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri))
         {
-            new Banner { Title = "Build PC chuẩn gu.\nHiệu năng đúng tiền.", Subtitle = "Chọn linh kiện, xem tổng tiền realtime và thêm cả cấu hình vào giỏ chỉ trong một bước.", LinkUrl = "/BuildPc", ButtonText = "Build PC ngay", ImageUrl = "https://images.unsplash.com/photo-1587202372634-32705e3bf49c?auto=format&fit=crop&w=1400&q=85" },
-            new Banner { Title = "Laptop hiệu năng.\nSẵn sàng làm việc.", Subtitle = "MacBook, Dell, ASUS và Lenovo chính hãng, giá rõ ràng, bảo hành minh bạch.", LinkUrl = "/Product", ButtonText = "Xem laptop", ImageUrl = "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1400&q=85" },
-            new Banner { Title = "Linh kiện nâng cấp.\nNhanh hơn mỗi ngày.", Subtitle = "CPU, VGA, RAM, SSD và phụ kiện setup góc làm việc gọn, mạnh, bền.", LinkUrl = "/Product", ButtonText = "Mua linh kiện", ImageUrl = "https://images.unsplash.com/photo-1591488320449-011701bb6704?auto=format&fit=crop&w=1400&q=85" }
-        };
+            return $"image:{uri.Host}{uri.AbsolutePath}".ToLowerInvariant();
+        }
+
+        return $"image:{imageUrl.Split('?', '#')[0]}".ToLowerInvariant();
+    }
+    IEnumerable<Banner> banners = configuredBanners
+        .Concat(fallbackBanners)
+        .Where(banner => !string.IsNullOrWhiteSpace(banner.ImageUrl))
+        .GroupBy(BannerIdentity, StringComparer.OrdinalIgnoreCase)
+        .Select(group => group.First())
+        .Take(3);
     var flashProducts = Model.FlashSaleProducts.ToList();
     if (!flashProducts.Any())
     {
@@ -19,41 +39,27 @@
     var mainDeal = flashProducts.FirstOrDefault();
     var miniDeals = flashProducts.Skip(1).Take(4).ToList();
     var isAdminViewer = User.IsInRole("Admin");
-    var featuredBrands = new[] { "Apple", "Dell", "ASUS", "Lenovo", "AMD", "Intel", "NVIDIA", "Samsung", "MSI", "Logitech" };
     var visibleBannerCount = banners.Take(3).Count();
 }
 
-@functions {
-    private static string CategoryIcon(string name)
-    {
-        var value = (name ?? string.Empty).ToLowerInvariant();
-        if (value.Contains("cpu")) return "cpu";
-        if (value.Contains("vga") || value.Contains("gpu")) return "monitor";
-        if (value.Contains("ram")) return "memory-stick";
-        if (value.Contains("ssd")) return "hard-drive";
-        if (value.Contains("laptop")) return "laptop";
-        if (value.Contains("điện thoại") || value.Contains("phone")) return "smartphone";
-        if (value.Contains("màn hình")) return "monitor";
-        if (value.Contains("phụ kiện")) return "keyboard";
-        if (value.Contains("mainboard")) return "circuit-board";
-        if (value.Contains("psu") || value.Contains("nguồn")) return "plug-zap";
-        return "boxes";
-    }
-}
-
 <section class="home-shell tv-home">
-    <section class="hero-slider hero-premium reveal" id="heroSlider" aria-roledescription="carousel" aria-label="Khuyến mãi nổi bật">
+    <section class="hero-slider hero-premium reveal" id="heroSlider" aria-roledescription="carousel" aria-label="Điện thoại nổi bật">
         <div class="slider-track">
             @{ var bannerIndex = 0; }
             @foreach (var banner in banners.Take(3))
             {
-                <div class="slide" role="group" aria-roledescription="slide" aria-label="@(bannerIndex + 1) / @visibleBannerCount" aria-hidden="@(bannerIndex == 0 ? "false" : "true")" inert="@(bannerIndex == 0 ? null : string.Empty)">
+                var bannerIdentity = BannerIdentity(banner);
+                var bannerClass = bannerIdentity.StartsWith("brand:", StringComparison.OrdinalIgnoreCase)
+                    ? bannerIdentity["brand:".Length..]
+                    : "generic";
+                <div class="slide slide-@bannerClass" role="group" aria-roledescription="slide" aria-label="@(bannerIndex + 1) / @visibleBannerCount" aria-hidden="@(bannerIndex == 0 ? "false" : "true")" inert="@(bannerIndex == 0 ? null : string.Empty)">
                     <div class="slide-bg">
                         <img src="@banner.ImageUrl"
                              alt="@banner.Title"
                              loading="@(bannerIndex == 0 ? "eager" : "lazy")"
                              decoding="async"
-                             fetchpriority="@(bannerIndex == 0 ? "high" : "low")" />
+                             fetchpriority="@(bannerIndex == 0 ? "high" : "low")"
+                             onerror="this.onerror=null;this.hidden=true;this.closest('.slide').classList.add('image-failed');" />
                     </div>
                     <div class="slide-content">
                         <p class="slide-eyebrow"><span></span> Techvora Signature</p>
@@ -80,26 +86,26 @@
 
     <section class="usp-bar usp-premium reveal" tabindex="0" aria-label="Cam kết dịch vụ, cuộn ngang để xem thêm">
         <div class="usp-item"><span class="usp-icon"><i data-lucide="truck" aria-hidden="true"></i></span><div><strong>Giao nhanh toàn quốc</strong><p>Miễn phí từ <span class="usp-price">500.000&nbsp;₫</span></p></div></div>
-        <div class="usp-item"><span class="usp-icon"><i data-lucide="refresh-cw" aria-hidden="true"></i></span><div><strong>Đổi trả 30 ngày</strong><p>Quy trình rõ ràng, phản hồi nhanh</p></div></div>
-        <div class="usp-item"><span class="usp-icon"><i data-lucide="shield-check" aria-hidden="true"></i></span><div><strong>Bảo hành chính hãng</strong><p>12 tháng toàn quốc</p></div></div>
-        <div class="usp-item"><span class="usp-icon"><i data-lucide="credit-card" aria-hidden="true"></i></span><div><strong>Thanh toán an toàn</strong><p>COD, Banking, VNPAY</p></div></div>
+        <div class="usp-item"><span class="usp-icon"><i data-lucide="badge-dollar-sign" aria-hidden="true"></i></span><div><strong>Giá và tồn kho rõ ràng</strong><p>Kiểm tra trước khi đặt hàng</p></div></div>
+        <div class="usp-item"><span class="usp-icon"><i data-lucide="list-checks" aria-hidden="true"></i></span><div><strong>Thông số chi tiết</strong><p>Dễ xem và so sánh sản phẩm</p></div></div>
+        <div class="usp-item"><span class="usp-icon"><i data-lucide="credit-card" aria-hidden="true"></i></span><div><strong>Thanh toán an toàn</strong><p>@(SprintFeatures.IsEnabled(2) ? "COD, Banking, VNPAY" : "Thanh toán khi nhận hàng (COD)")</p></div></div>
     </section>
 
     <section class="section reveal">
         <div class="section-heading tech-heading">
             <div>
-                <span class="eyebrow">Bộ sưu tập</span>
-                <h2>Danh mục nổi bật</h2>
+                <span class="eyebrow">Thương hiệu điện thoại</span>
+                <h2>Chọn theo thương hiệu</h2>
             </div>
             <a asp-controller="Product" asp-action="Index">Xem tất cả</a>
         </div>
         <div class="category-grid tech-category-grid">
-            @foreach (var category in Model.Categories.Take(8))
+            @foreach (var brand in Model.Brands.Take(8))
             {
-                <a class="category-tile" asp-controller="Product" asp-action="Index" asp-route-categoryId="@category.Id">
-                    <span class="category-icon"><i data-lucide="@CategoryIcon(category.Name)" aria-hidden="true"></i></span>
-                    <span>@category.Name</span>
-                    <small>@category.Products.Count sản phẩm</small>
+                <a class="category-tile brand-category-tile" asp-controller="Product" asp-action="Index" asp-route-search="@brand.SearchTerm">
+                    <span class="category-icon brand-category-mark" aria-hidden="true">@brand.Mark</span>
+                    <span>@brand.Name</span>
+                    <small>@brand.ProductCount mẫu điện thoại</small>
                 </a>
             }
         </div>
@@ -121,7 +127,7 @@
         </div>
     </section>
 
-    @if (Model.PersonalizedProducts.Any())
+    @if (SprintFeatures.IsEnabled(3) && Model.PersonalizedProducts.Any())
     {
         <section class="section reveal">
             <div class="section-heading tech-heading">
@@ -140,6 +146,8 @@
         </section>
     }
 
+    @if (SprintFeatures.IsEnabled(3))
+    {
     <section class="flash-sale flash-premium flash-market reveal">
         <div class="flash-market-copy">
             <div class="flash-kicker">
@@ -147,17 +155,20 @@
                 <span>Flash Sale</span>
             </div>
             <h2>Deal đáng săn, nhìn là muốn chốt.</h2>
-            <p>Sản phẩm giảm giá sâu được kéo ra ngay tại trang chủ. Áp mã SALE20 để giảm thêm tối đa 200.000 ₫ cho setup mới.</p>
+            <p>Sản phẩm giảm giá sâu được kéo ra ngay tại trang chủ để bạn dễ chọn mức giá phù hợp.</p>
             <div class="flash-code-row">
                 <div class="countdown-box flash-countdown">
                     <span>Kết thúc sau</span>
                     <strong id="countdown">00:00:00</strong>
                 </div>
-                <div class="flash-code">
-                    <small>Mã hôm nay</small>
-                    <strong>SALE20</strong>
-                    <span>Giảm thêm tối đa 200.000 ₫</span>
-                </div>
+                @if (SprintFeatures.IsEnabled(2))
+                {
+                    <div class="flash-code">
+                        <small>Mã hôm nay</small>
+                        <strong>SALE20</strong>
+                        <span>Giảm thêm tối đa 200.000 ₫</span>
+                    </div>
+                }
             </div>
             <a class="btn-primary flash-shop-link" asp-controller="Product" asp-action="Index" asp-route-sortBy="discount_desc">
                 <i data-lucide="flame" aria-hidden="true"></i>
@@ -226,32 +237,7 @@
             </div>
         }
     </section>
-
-    <section class="section buildpc-cta reveal">
-        <div class="buildpc-copy">
-            <span class="eyebrow">Công cụ độc quyền</span>
-            <h2>Xây cấu hình PC theo phong cách của bạn</h2>
-            <p>Chọn linh kiện, xem giá realtime và thêm cả build vào giỏ trong một luồng mua sắm gọn gàng.</p>
-            <a class="btn-primary buildpc-link" href="/BuildPc">
-                <i data-lucide="cpu" aria-hidden="true"></i>
-                Build PC ngay
-            </a>
-        </div>
-        <div class="buildpc-features" aria-label="Tính năng Build PC">
-            <span>
-                <i data-lucide="layers-3" aria-hidden="true"></i>
-                Chọn linh kiện
-            </span>
-            <span>
-                <i data-lucide="activity" aria-hidden="true"></i>
-                Xem giá realtime
-            </span>
-            <span>
-                <i data-lucide="shopping-cart" aria-hidden="true"></i>
-                Thêm vào giỏ
-            </span>
-        </div>
-    </section>
+    }
 
     <section class="section reveal">
         <div class="section-heading tech-heading">
@@ -268,56 +254,28 @@
         </div>
     </section>
 
-    <section class="section brand-showcase reveal">
-        <div class="section-heading tech-heading">
-            <div>
-                <span class="eyebrow">Hệ sinh thái công nghệ</span>
-                <h2>Thương hiệu nổi bật</h2>
-            </div>
-        </div>
-        <div class="brand-marquee" aria-label="Apple, Dell, ASUS, Lenovo, AMD, Intel, NVIDIA, Samsung, MSI, Logitech">
-            <div class="brand-track" aria-hidden="true">
-                @for (var loop = 0; loop < 2; loop++)
-                {
-                    foreach (var brand in featuredBrands)
-                    {
-                        <span>
-                            <svg viewBox="0 0 180 48" role="img" aria-label="@brand" focusable="false">
-                                <text x="90" y="29" text-anchor="middle">@brand</text>
-                            </svg>
-                        </span>
-                    }
-                }
-            </div>
-        </div>
-    </section>
-
     <section class="section why-us reveal">
         <div class="why-us-head">
             <span class="eyebrow">Tại sao chọn Techvora?</span>
-            <h2>Mua đồ công nghệ nhanh, rõ, đáng tin.</h2>
+            <h2>Mua điện thoại nhanh, rõ, đáng tin.</h2>
         </div>
         <div class="why-us-grid">
             <article class="stat-item">
                 <strong class="stat-label">Giá rõ ràng</strong>
-                <span>Giá bán và ưu đãi hiển thị ngay</span>
+                <span>Giá bán hiển thị rõ ràng</span>
             </article>
             <article class="stat-item">
                 <strong class="stat-label">Tồn kho thật</strong>
                 <span>Biết còn hàng trước khi đặt</span>
             </article>
-            <article class="stat-item">
-                <strong class="stat-label">Theo dõi đơn</strong>
-                <span>Trạng thái rõ từ đặt đến giao</span>
-            </article>
-            <article class="stat-item">
-                <strong class="stat-label">Hậu mãi rõ</strong>
-                <span>Đổi trả và bảo hành cùng một nơi</span>
-            </article>
+            <article class="stat-item"><strong class="stat-label">Thông tin rõ</strong><span>Thông số và tồn kho dễ kiểm tra</span></article>
+            <article class="stat-item"><strong class="stat-label">Đặt hàng gọn</strong><span>Checkout địa chỉ và COD trong một luồng</span></article>
         </div>
-        <p class="why-us-tagline">Techvora gom sản phẩm, giá và hậu mãi vào một trải nghiệm mua sắm dễ quyết định.</p>
+        <p class="why-us-tagline">Techvora gom sản phẩm, giá, thông số và tồn kho vào một trải nghiệm mua sắm dễ quyết định.</p>
     </section>
 
+    @if (SprintFeatures.IsEnabled(3))
+    {
     <section class="section newsletter-cta reveal" aria-labelledby="home-deals-title">
         <div class="newsletter-copy">
             <div class="newsletter-eyebrow">
@@ -337,4 +295,5 @@
             </a>
         </div>
     </section>
+    }
 </section>

@@ -8,6 +8,7 @@ using System.Text;
 
 namespace EcommerceApp.Controllers.Admin;
 
+[MinimumSprint(2)]
 [Authorize(Roles = "Admin")]
 [Route("Admin/Order")]
 public class AdminOrderController : Controller

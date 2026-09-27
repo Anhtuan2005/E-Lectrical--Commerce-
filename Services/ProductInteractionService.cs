@@ -9,10 +9,12 @@ namespace EcommerceApp.Services;
 public class ProductInteractionService : IProductInteractionService
 {
     private readonly AppDbContext _db;
+    private readonly ICatalogScope? _catalogScope;
 
-    public ProductInteractionService(AppDbContext db)
+    public ProductInteractionService(AppDbContext db, ICatalogScope? catalogScope = null)
     {
         _db = db;
+        _catalogScope = catalogScope;
     }
 
     public async Task TrackAsync(int productId, string eventType, HttpContext httpContext, CancellationToken cancellationToken = default)
@@ -28,7 +30,10 @@ public class ProductInteractionService : IProductInteractionService
             return;
         }
 
-        var exists = await _db.Products.AnyAsync(product => product.Id == productId, cancellationToken);
+        var products = _db.Products.AsQueryable();
+        if (_catalogScope is not null)
+            products = _catalogScope.Products(products);
+        var exists = await products.AnyAsync(product => product.Id == productId, cancellationToken);
         if (!exists)
         {
             return;

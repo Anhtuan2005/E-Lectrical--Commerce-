@@ -9,6 +9,7 @@ using System.Security.Claims;
 
 namespace EcommerceApp.Controllers;
 
+[MinimumSprint(4)]
 public class BuildPcController : Controller
 {
     private readonly AppDbContext _db;

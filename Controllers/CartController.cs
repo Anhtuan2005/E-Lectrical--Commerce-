@@ -10,11 +10,13 @@ public class CartController : Controller
 {
     private readonly ICartService _cartService;
     private readonly IProductInteractionService _productInteractionService;
+    private readonly ISprintFeatureService _sprintFeatures;
 
-    public CartController(ICartService cartService, IProductInteractionService productInteractionService)
+    public CartController(ICartService cartService, IProductInteractionService productInteractionService, ISprintFeatureService sprintFeatures)
     {
         _cartService = cartService;
         _productInteractionService = productInteractionService;
+        _sprintFeatures = sprintFeatures;
     }
 
     public async Task<IActionResult> Index()
@@ -39,7 +41,10 @@ public class CartController : Controller
         try
         {
             await _cartService.AddAsync(productId, quantity, userId, GetStableCartSessionId(userId));
-            await _productInteractionService.TrackAsync(productId, ProductInteractionEvents.AddToCart, HttpContext);
+            if (_sprintFeatures.IsEnabled(3))
+            {
+                await _productInteractionService.TrackAsync(productId, ProductInteractionEvents.AddToCart, HttpContext);
+            }
         }
         catch (InvalidOperationException ex)
         {
@@ -106,14 +111,14 @@ public class CartController : Controller
                 lineTotal = (cart.GetUnitPrice(item) * item.Quantity).ToString("N0") + " ₫",
                 lineTotalValue = cart.GetUnitPrice(item) * item.Quantity
             }),
-            groups = cart.ItemGroups.Select(group => new
+            groups = cart.ItemGroups.Where(_ => _sprintFeatures.IsEnabled(3)).Select(group => new
             {
                 key = group.Key,
                 total = cart.GetGroupTotal(group).ToString("N0") + " ₫",
                 componentCount = group.ComponentCount,
                 quantityCount = group.QuantityCount
             }),
-            crossSellSuggestions = cart.CrossSellSuggestions.Select(suggestion => new
+            crossSellSuggestions = cart.CrossSellSuggestions.Where(_ => _sprintFeatures.IsEnabled(3)).Select(suggestion => new
             {
                 productId = suggestion.ProductId,
                 productName = suggestion.ProductName,

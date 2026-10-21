@@ -25,6 +25,20 @@
                         <form action="/Admin/Review/Delete/@review.Id" method="post" data-confirm="Xoá review này?">@Html.AntiForgeryToken()<button class="danger-link" type="submit">Xoá</button></form>
                     </td>
                 </tr>
+                @if (review.IsApproved)
+                {
+                    <tr>
+                        <td colspan="8">
+                            <form action="/Admin/Review/Reply/@review.Id" method="post" class="stack-form admin-review-reply-form">
+                                @Html.AntiForgeryToken()
+                                <label for="review-reply-@review.Id">Phản hồi công khai cho đánh giá #@review.Id</label>
+                                <textarea id="review-reply-@review.Id" name="reply" maxlength="500" rows="2" required>@review.StoreReply</textarea>
+                                @if (review.StoreRepliedAt.HasValue) { <small>Đã phản hồi @review.StoreRepliedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small> }
+                                <button class="admin-button" type="submit">@(string.IsNullOrWhiteSpace(review.StoreReply) ? "Đăng phản hồi" : "Cập nhật phản hồi")</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
             }
         </tbody>
     </table>

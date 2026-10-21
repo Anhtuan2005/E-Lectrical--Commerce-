@@ -3,6 +3,8 @@
     Layout = "_AdminLayout";
     ViewData["Title"] = $"Đơn hàng #{Model.Id}";
     var hasInvoice = !string.IsNullOrWhiteSpace(Model.InvoiceFkey) && Model.InvoiceStatus != InvoiceStatuses.NotIssued;
+    var canRecordRefund = EcommerceApp.Services.OrderLifecycle.CanRecordManualRefund(Model);
+    var isCod = string.Equals(Model.PaymentMethod, "COD", StringComparison.OrdinalIgnoreCase);
 }
 
 <section class="admin-grid">
@@ -16,6 +18,7 @@
             <dt>Người nhận</dt><dd>@Model.RecipientName - @Model.RecipientPhone</dd>
             <dt>Địa chỉ</dt><dd>@Model.ShippingAddress</dd>
             <dt>Thanh toán</dt><dd>@Model.PaymentMethod</dd>
+            <dt>Đã thu tiền</dt><dd>@(Model.IsPaid ? "Có" : "Chưa")</dd>
             <dt>Hoàn tiền</dt><dd><span class="admin-pill @(Model.RefundStatus == RefundStatuses.PendingManual ? "warning" : Model.RefundStatus == RefundStatuses.Refunded ? "success" : "")">@Model.RefundStatus</span></dd>
             @if (Model.RefundRequestedAt.HasValue)
             {
@@ -24,6 +27,13 @@
             @if (Model.RefundedAt.HasValue)
             {
                 <dt>Đã hoàn lúc</dt><dd>@Model.RefundedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd>
+            }
+            @if (Model.RefundAmount.HasValue)
+            {
+                <dt>Số tiền hoàn</dt><dd>@Model.RefundAmount.Value.ToString("N0") ₫</dd>
+                <dt>Kênh hoàn</dt><dd>@Model.RefundMethod</dd>
+                <dt>Mã đối soát</dt><dd>@Model.RefundReference</dd>
+                <dt>Người xác nhận</dt><dd>@Model.RefundConfirmedBy</dd>
             }
             @if (!string.IsNullOrWhiteSpace(Model.RefundNote))
             {
@@ -46,14 +56,31 @@
             </select>
             <button class="admin-button" type="submit">Cập nhật trạng thái</button>
         </form>
-        @if (Model.RefundStatus == RefundStatuses.PendingManual)
+        @if (canRecordRefund)
         {
             <form asp-action="MarkRefunded" method="post" class="stack-form">
                 <input type="hidden" name="id" value="@Model.Id" />
-                <label for="refund-note">Ghi chú hoàn tiền thủ công</label>
-                <textarea id="refund-note" name="note" rows="3" placeholder="VD: Đã hoàn qua VNPAY/manual banking, mã đối soát...">@Model.RefundNote</textarea>
-                <button class="admin-button" type="submit">Đánh dấu đã hoàn tiền</button>
+                <p class="form-hint">@(isCod ? "Hoàn tiền COD bằng chuyển khoản hoặc tiền mặt trước khi ghi nhận." : "Thực hiện hoàn tiền VNPAY hoặc qua kênh khác trước khi ghi nhận.")</p>
+                <p>Số tiền cần đối soát: <strong>@Model.TotalAmount.ToString("N0") ₫</strong></p>
+                <label for="refund-method">Kênh đã hoàn tiền</label>
+                <select id="refund-method" name="method" required>
+                    <option value="">Chọn kênh</option>
+                    @foreach (var method in ManualRefundMethods.ForPaymentMethod(Model.PaymentMethod))
+                    {
+                        <option value="@method">@method</option>
+                    }
+                </select>
+                <label for="refund-reference">Mã giao dịch hoàn / mã biên nhận</label>
+                <input id="refund-reference" name="reference" maxlength="120" required autocomplete="off" />
+                <label for="refund-note">Lý do và ghi chú đối soát@(Model.Status == OrderStatuses.Delivered ? " (bắt buộc)" : "")</label>
+                <textarea id="refund-note" name="note" rows="3" maxlength="500" required></textarea>
+                <label class="check-row"><input type="checkbox" name="confirmed" value="true" required /> Tôi xác nhận đã hoàn đủ tiền cho khách.</label>
+                <button class="admin-button" type="submit">Lưu xác nhận đã hoàn tiền</button>
             </form>
+        }
+        else if (isCod && !Model.IsPaid && Model.Status != OrderStatuses.Cancelled)
+        {
+            <p class="form-hint">COD chưa thu tiền nên chưa có khoản để hoàn. Mục ghi nhận mở khi đơn đã giao và đã thu tiền.</p>
         }
     </div>
     <div class="admin-panel">

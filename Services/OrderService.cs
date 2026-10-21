@@ -192,11 +192,8 @@ public class OrderService : IOrderService
 
             foreach (var item in checkoutItems)
             {
-                var affected = await _db.Database.ExecuteSqlRawAsync(
-                    "UPDATE Products SET Stock = Stock - {0} WHERE Id = {1} AND Stock >= {0} AND IsDeleted = 0",
-                    item.Quantity,
-                    item.ProductId);
-                if (affected == 0)
+                if (!await InventoryMovements.ChangeAsync(_db, item.ProductId, -item.Quantity,
+                    StockMovementTypes.Sale, "Xuất kho cho đơn hàng.", userId, order))
                 {
                     throw new InvalidOperationException($"Sản phẩm '{item.Product?.Name ?? "không xác định"}' vừa hết hàng. Vui lòng cập nhật giỏ hàng.");
                 }
@@ -431,6 +428,7 @@ public class OrderService : IOrderService
             {
                 order.ShippingInfo.Status = ShippingStatuses.Delivered;
             }
+            if (status == OrderStatuses.Delivered) OrderLifecycle.RecordCodCollection(order, DateTime.UtcNow);
 
             await _db.SaveChangesAsync();
             return (order, oldStatus, oldRefundStatus);
@@ -467,16 +465,24 @@ public class OrderService : IOrderService
         return confirmed;
     }
 
-    public async Task<bool> MarkManualRefundCompletedAsync(int id, string? note)
+    public async Task<bool> MarkManualRefundCompletedAsync(int id, string method, string reference, string? note, string? confirmedBy)
     {
-        if (note?.Length > 500) return false;
+        if (!ManualRefundMethods.All.Contains(method) || string.IsNullOrWhiteSpace(reference) ||
+            reference.Trim().Length > 120 || string.IsNullOrWhiteSpace(note) || note.Trim().Length > 500 ||
+            confirmedBy?.Length > 256) return false;
         var order = await DatabaseTransaction.ExecuteAsync<Order?>(_db, async () =>
         {
             var current = await OrderLifecycle.LoadForUpdateAsync(_db, id);
-            if (current is null || current.RefundStatus != RefundStatuses.PendingManual) return null;
+            if (current is null || !OrderLifecycle.CanRecordManualRefund(current) ||
+                !ManualRefundMethods.ForPaymentMethod(current.PaymentMethod).Contains(method)) return null;
             current.RefundStatus = RefundStatuses.Refunded;
             current.RefundedAt = DateTime.UtcNow;
-            current.RefundNote = string.IsNullOrWhiteSpace(note) ? "Admin đã xác nhận hoàn tiền thủ công." : note.Trim();
+            current.RefundRequestedAt ??= current.RefundedAt;
+            current.RefundMethod = method;
+            current.RefundReference = reference.Trim();
+            current.RefundAmount = current.TotalAmount;
+            current.RefundConfirmedBy = confirmedBy;
+            current.RefundNote = note.Trim();
             current.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
             return current;
@@ -497,20 +503,18 @@ public class OrderService : IOrderService
     {
         var change = await DatabaseTransaction.ExecuteAsync<(Order Order, string OldRefundStatus)?>(_db, async () =>
         {
-            var order = await _db.Orders
-                .FromSqlInterpolated($"SELECT * FROM Orders WITH (UPDLOCK, ROWLOCK) WHERE Id = {id} AND UserId = {userId}")
-                .Include(row => row.Items)
-                .FirstOrDefaultAsync();
-            if (order is null || order.Status is not (OrderStatuses.AwaitingPayment or OrderStatuses.Pending))
+            var order = await OrderLifecycle.LoadForUpdateAsync(_db, id);
+            if (order is null || order.UserId != userId || !OrderLifecycle.CanCustomerCancel(order) ||
+                reason?.Trim().Length > 300)
             {
                 return null;
             }
 
             var oldRefundStatus = order.RefundStatus;
             var cancellationReason = string.IsNullOrWhiteSpace(reason)
-                ? "Khách hàng hủy đơn trước khi xác nhận."
+                ? "Khách hàng hủy đơn trước khi bàn giao vận chuyển."
                 : reason.Trim();
-            await OrderLifecycle.CancelAsync(_db, order, cancellationReason, DateTime.UtcNow);
+            await OrderLifecycle.CancelAsync(_db, order, cancellationReason, DateTime.UtcNow, userId);
 
             await _db.SaveChangesAsync();
             return (order, oldRefundStatus);

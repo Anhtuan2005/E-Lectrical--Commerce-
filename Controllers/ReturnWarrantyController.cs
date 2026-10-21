@@ -80,6 +80,24 @@ public class ReturnWarrantyController : Controller
         }
         foreach (var item in model.Items) item.AvailableQuantity = availableItems[item.OrderItemId].AvailableQuantity;
 
+        if (!model.Items.Any(item => item.Selected))
+            ModelState.AddModelError("Items", "Vui lòng chọn ít nhất một sản phẩm cần hỗ trợ.");
+        for (var i = 0; i < model.Items.Count; i++)
+        {
+            var item = model.Items[i];
+            if (item.Selected && (item.Quantity < 1 || item.Quantity > item.AvailableQuantity))
+                ModelState.AddModelError($"Items[{i}].Quantity", $"Số lượng phải từ 1 đến {item.AvailableQuantity}.");
+        }
+        var images = model.Images?.Where(file => file.Length > 0).ToList() ?? new();
+        if (images.Count > 5)
+            ModelState.AddModelError(nameof(model.Images), "Chỉ được tải tối đa 5 ảnh minh chứng.");
+        else if (images.Any(file => file.Length > 5 * 1024 * 1024))
+            ModelState.AddModelError(nameof(model.Images), "Mỗi ảnh minh chứng phải dưới 5 MB.");
+        else if (images.Any(file => !new[] { ".jpg", ".jpeg", ".png", ".webp" }.Contains(
+            Path.GetExtension(file.FileName).ToLowerInvariant()) ||
+            !file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)))
+            ModelState.AddModelError(nameof(model.Images), "Chỉ hỗ trợ ảnh JPG, PNG hoặc WEBP.");
+
         if (!ModelState.IsValid)
         {
             return View(model);
@@ -93,7 +111,8 @@ public class ReturnWarrantyController : Controller
         }
         catch (InvalidOperationException ex)
         {
-            ModelState.AddModelError(string.Empty, ex.Message);
+            ModelState.AddModelError(ex.Message.Contains("ảnh", StringComparison.OrdinalIgnoreCase)
+                ? nameof(model.Images) : string.Empty, ex.Message);
             return View(model);
         }
     }

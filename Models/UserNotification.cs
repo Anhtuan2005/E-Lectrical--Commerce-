@@ -33,5 +33,6 @@ public static class NotificationTypes
     public const string Support = "support";
     public const string Voucher = "voucher";
     public const string Wishlist = "wishlist";
+    public const string Review = "review";
     public const string System = "system";
 }

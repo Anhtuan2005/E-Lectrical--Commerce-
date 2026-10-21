@@ -274,7 +274,7 @@
                             <button class="btn-primary" type="submit">Thanh toán lại VNPAY</button>
                         </form>
                     }
-                    @if (Model.Status == OrderStatuses.AwaitingPayment || Model.Status == OrderStatuses.Pending)
+                    @if (!isAdminViewer && EcommerceApp.Services.OrderLifecycle.CanCustomerCancel(Model))
                     {
                         <form asp-action="Cancel" method="post">
                             @Html.AntiForgeryToken()

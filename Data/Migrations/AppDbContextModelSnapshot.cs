@@ -507,9 +507,24 @@ namespace EcommerceApp.Data.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
+                    b.Property<decimal?>("RefundAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("RefundConfirmedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("RefundMethod")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<string>("RefundNote")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("RefundReference")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
 
                     b.Property<DateTime?>("RefundRequestedAt")
                         .HasColumnType("datetime2");
@@ -646,6 +661,12 @@ namespace EcommerceApp.Data.Migrations
                     b.Property<int>("CategoryId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("CpuCores")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CpuThreads")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -657,11 +678,23 @@ namespace EcommerceApp.Data.Migrations
                     b.Property<int>("DiscountPercent")
                         .HasColumnType("int");
 
+                    b.Property<int?>("GpuVramGb")
+                        .HasColumnType("int");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsFeatured")
                         .HasColumnType("bit");
+
+                    b.Property<int?>("M2Slots")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("MemoryCapacityGb")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("MemorySpeedMt")
+                        .HasColumnType("int");
 
                     b.Property<int?>("MemoryType")
                         .HasColumnType("int");
@@ -686,7 +719,20 @@ namespace EcommerceApp.Data.Migrations
                     b.Property<int?>("Socket")
                         .HasColumnType("int");
 
+                    b.Property<string>("SpecificationSourceUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<int>("Stock")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("StorageCapacityGb")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("StorageReadMb")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("StorageWriteMb")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
@@ -961,6 +1007,13 @@ namespace EcommerceApp.Data.Migrations
                     b.Property<int>("Rating")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("StoreRepliedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("StoreReply")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -1058,7 +1111,21 @@ namespace EcommerceApp.Data.Migrations
                     b.Property<string>("ChangedByUserId")
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("MovementType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int?>("OrderId")
+                        .HasColumnType("int");
+
                     b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("QuantityAfter")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("QuantityBefore")
                         .HasColumnType("int");
 
                     b.Property<string>("Reason")
@@ -1070,7 +1137,9 @@ namespace EcommerceApp.Data.Migrations
 
                     b.HasIndex("ChangedByUserId");
 
-                    b.HasIndex("ProductId");
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("ProductId", "ChangedAt");
 
                     b.ToTable("StockLogs");
                 });
@@ -1567,6 +1636,11 @@ namespace EcommerceApp.Data.Migrations
                         .HasForeignKey("ChangedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("EcommerceApp.Models.Order", "Order")
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("EcommerceApp.Models.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
@@ -1574,6 +1648,8 @@ namespace EcommerceApp.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("ChangedByUser");
+
+                    b.Navigation("Order");
 
                     b.Navigation("Product");
                 });

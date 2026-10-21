@@ -38,6 +38,18 @@ public class Product
     [Range(1, 5000)]
     public int? PowerWatts { get; set; }
 
+    // Only administrator-entered values with a cited technical source are used for advice.
+    [Range(1, 256)] public int? CpuCores { get; set; }
+    [Range(1, 512)] public int? CpuThreads { get; set; }
+    [Range(1, 256)] public int? GpuVramGb { get; set; }
+    [Range(1, 1024)] public int? MemoryCapacityGb { get; set; }
+    [Range(1, 20000)] public int? MemorySpeedMt { get; set; }
+    [Range(1, 1000000)] public int? StorageCapacityGb { get; set; }
+    [Range(1, 100000)] public int? StorageReadMb { get; set; }
+    [Range(1, 100000)] public int? StorageWriteMb { get; set; }
+    [Range(1, 32)] public int? M2Slots { get; set; }
+    [StringLength(500)] public string? SpecificationSourceUrl { get; set; }
+
     [Range(0, 100)]
     public int DiscountPercent { get; set; }
 

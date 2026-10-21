@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "Gửi yêu cầu hỗ trợ";
     var order = Model.Order!;
+    var selectedItemError = ViewData.ModelState["Items"]?.Errors.FirstOrDefault()?.ErrorMessage;
 }
 
 <section class="support-page">
@@ -16,7 +17,7 @@
         </div>
     </header>
 
-    <form asp-action="Create" method="post" enctype="multipart/form-data" class="support-form">
+    <form asp-action="Create" method="post" enctype="multipart/form-data" class="support-form" data-support-form>
         @Html.AntiForgeryToken()
         <input type="hidden" asp-for="OrderId" />
         <div asp-validation-summary="ModelOnly" class="text-danger"></div>
@@ -70,10 +71,12 @@
                         <label>
                             <span>Số lượng</span>
                             <input asp-for="Items[i].Quantity" type="number" min="1" max="@Math.Max(1, input.AvailableQuantity)" disabled="@(input.AvailableQuantity == 0)" />
+                            <span asp-validation-for="Items[i].Quantity" class="text-danger"></span>
                         </label>
                     </article>
                 }
             </div>
+            <small class="text-danger" data-support-item-error role="alert" hidden="@(string.IsNullOrWhiteSpace(selectedItemError))">@selectedItemError</small>
         </section>
 
         <section class="order-panel">
@@ -85,12 +88,12 @@
                 <label>
                     <span>Người liên hệ</span>
                     <input asp-for="ContactName" />
-                    <small asp-validation-for="ContactName" class="text-danger"></small>
+                    <span asp-validation-for="ContactName" class="text-danger"></span>
                 </label>
                 <label>
                     <span>Số điện thoại</span>
                     <input asp-for="ContactPhone" />
-                    <small asp-validation-for="ContactPhone" class="text-danger"></small>
+                    <span asp-validation-for="ContactPhone" class="text-danger"></span>
                 </label>
                 <label>
                     <span>Lý do</span>
@@ -102,7 +105,7 @@
                         <option>Cần kiểm tra bảo hành</option>
                         <option>Lỗi phát sinh trong quá trình sử dụng</option>
                     </select>
-                    <small asp-validation-for="Reason" class="text-danger"></small>
+                    <span asp-validation-for="Reason" class="text-danger"></span>
                 </label>
                 <label>
                     <span>Phương án mong muốn</span>
@@ -117,12 +120,13 @@
             <label class="support-description">
                 <span>Mô tả tình trạng</span>
                 <textarea asp-for="Description" rows="5" placeholder="Mô tả lỗi, thời điểm phát hiện, phụ kiện kèm theo, tình trạng hộp/sản phẩm..."></textarea>
-                <small asp-validation-for="Description" class="text-danger"></small>
+                <span asp-validation-for="Description" class="text-danger"></span>
             </label>
             <label class="support-description">
                 <span>Ảnh minh chứng</span>
                 <input asp-for="Images" type="file" multiple accept="image/png,image/jpeg,image/webp" />
                 <small>Tối đa 5 ảnh, mỗi ảnh dưới 5MB.</small>
+                <span asp-validation-for="Images" class="text-danger"></span>
             </label>
         </section>
 
@@ -135,4 +139,5 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/support-request-validation.js" asp-append-version="true" defer></script>
 }

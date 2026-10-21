@@ -54,6 +54,11 @@ public class Order
     public DateTime? RefundRequestedAt { get; set; }
     public DateTime? RefundedAt { get; set; }
 
+    [StringLength(40)] public string? RefundMethod { get; set; }
+    [StringLength(120)] public string? RefundReference { get; set; }
+    public decimal? RefundAmount { get; set; }
+    [StringLength(256)] public string? RefundConfirmedBy { get; set; }
+
     [StringLength(500)]
     public string? RefundNote { get; set; }
 
@@ -121,6 +126,21 @@ public static class RefundStatuses
     public const string Refunded = "Đã hoàn tiền";
 
     public static readonly string[] All = { NotRequired, PendingManual, Refunded };
+}
+
+public static class ManualRefundMethods
+{
+    public const string Vnpay = "Cổng VNPAY";
+    public const string BankTransfer = "Chuyển khoản ngân hàng";
+    public const string Cash = "Tiền mặt";
+    public static readonly string[] All = { Vnpay, BankTransfer, Cash };
+
+    public static IReadOnlyList<string> ForPaymentMethod(string paymentMethod) => paymentMethod.ToUpperInvariant() switch
+    {
+        "COD" => new[] { BankTransfer, Cash },
+        "VNPAY" => All,
+        _ => Array.Empty<string>()
+    };
 }
 
 public static class InvoiceStatuses

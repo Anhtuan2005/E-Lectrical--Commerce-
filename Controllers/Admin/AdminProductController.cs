@@ -100,6 +100,16 @@ public class AdminProductController : Controller
             Socket = product.Socket,
             MemoryType = product.MemoryType,
             PowerWatts = product.PowerWatts,
+            CpuCores = product.CpuCores,
+            CpuThreads = product.CpuThreads,
+            GpuVramGb = product.GpuVramGb,
+            MemoryCapacityGb = product.MemoryCapacityGb,
+            MemorySpeedMt = product.MemorySpeedMt,
+            StorageCapacityGb = product.StorageCapacityGb,
+            StorageReadMb = product.StorageReadMb,
+            StorageWriteMb = product.StorageWriteMb,
+            M2Slots = product.M2Slots,
+            SpecificationSourceUrl = product.SpecificationSourceUrl,
             Categories = await _productService.GetCategoriesAsync(),
             StockLogs = await _db.StockLogs
                 .Include(log => log.ChangedByUser)

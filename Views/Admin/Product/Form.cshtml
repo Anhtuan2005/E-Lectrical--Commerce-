@@ -70,6 +70,24 @@
             <small class="form-hint">Với PSU: công suất cấp. Với CPU/VGA: mức công suất dùng để dự trù nguồn.</small>
         </fieldset>
 
+        <fieldset>
+            <legend>Thông số dùng để gợi ý so sánh</legend>
+            <p class="form-hint">Chỉ nhập số liệu đã đối chiếu từ tài liệu kỹ thuật. Mỗi danh mục chỉ dùng các trường phù hợp; để trống khi chưa xác minh. Tên sản phẩm không được dùng để suy ra hiệu năng.</p>
+            <label asp-for="CpuCores">CPU: số nhân</label><input asp-for="CpuCores" type="number" min="1" /><span asp-validation-for="CpuCores"></span>
+            <label asp-for="CpuThreads">CPU: số luồng</label><input asp-for="CpuThreads" type="number" min="1" /><span asp-validation-for="CpuThreads"></span>
+            <label asp-for="GpuVramGb">VGA: dung lượng VRAM (GB)</label><input asp-for="GpuVramGb" type="number" min="1" /><span asp-validation-for="GpuVramGb"></span>
+            <label asp-for="MemoryCapacityGb">RAM: dung lượng (GB)</label><input asp-for="MemoryCapacityGb" type="number" min="1" /><span asp-validation-for="MemoryCapacityGb"></span>
+            <label asp-for="MemorySpeedMt">RAM: tốc độ (MT/s)</label><input asp-for="MemorySpeedMt" type="number" min="1" /><span asp-validation-for="MemorySpeedMt"></span>
+            <label asp-for="StorageCapacityGb">SSD: dung lượng (GB)</label><input asp-for="StorageCapacityGb" type="number" min="1" /><span asp-validation-for="StorageCapacityGb"></span>
+            <label asp-for="StorageReadMb">SSD: đọc tuần tự (MB/s)</label><input asp-for="StorageReadMb" type="number" min="1" /><span asp-validation-for="StorageReadMb"></span>
+            <label asp-for="StorageWriteMb">SSD: ghi tuần tự (MB/s)</label><input asp-for="StorageWriteMb" type="number" min="1" /><span asp-validation-for="StorageWriteMb"></span>
+            <label asp-for="M2Slots">Mainboard: số khe M.2</label><input asp-for="M2Slots" type="number" min="1" /><span asp-validation-for="M2Slots"></span>
+            <small class="form-hint">PSU dùng công suất W ở phần thông số PC phía trên.</small>
+            <label asp-for="SpecificationSourceUrl">URL tài liệu thông số (HTTPS)</label>
+            <input asp-for="SpecificationSourceUrl" type="url" placeholder="https://..." />
+            <span asp-validation-for="SpecificationSourceUrl"></span>
+        </fieldset>
+
         <label asp-for="ImageUrls">Thư viện ảnh</label>
         <textarea asp-for="ImageUrls" rows="6" placeholder="Mỗi dòng một URL ảnh. Dòng đầu là ảnh chính."></textarea>
         <span asp-validation-for="ImageUrls"></span>
@@ -114,15 +132,18 @@
         </form>
     </section>
     <section class="admin-panel narrow">
-        <div class="panel-head"><h2>Lịch sử điều chỉnh kho thủ công</h2></div>
+        <div class="panel-head"><h2>Lịch sử nhập / xuất kho</h2></div>
         <table class="admin-table">
-            <thead><tr><th>Thời gian</th><th>Thay đổi</th><th>Lý do</th><th>Người cập nhật</th></tr></thead>
+            <thead><tr><th>Thời gian</th><th>Loại</th><th>Trước → Sau</th><th>Thay đổi</th><th>Đơn</th><th>Lý do</th><th>Người cập nhật</th></tr></thead>
             <tbody>
                 @foreach (var log in Model.StockLogs)
                 {
                     <tr>
                         <td>@log.ChangedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>@log.MovementType</td>
+                        <td>@(log.QuantityBefore?.ToString() ?? "—") → @(log.QuantityAfter?.ToString() ?? "—")</td>
                         <td>@(log.ChangeAmount > 0 ? "+" : "")@log.ChangeAmount</td>
+                        <td>@(log.OrderId.HasValue ? $"#DH{log.OrderId.Value:D4}" : "—")</td>
                         <td>@log.Reason</td>
                         <td>@(log.ChangedByUser?.FullName ?? "Admin")</td>
                     </tr>

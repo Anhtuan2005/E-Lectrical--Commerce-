@@ -20,7 +20,7 @@ public interface IOrderService
     Task<Order?> GetOrderAsync(int id);
     Task<bool> UpdateStatusAsync(int id, string status);
     Task<int> ConfirmPendingOrdersAsync(IEnumerable<int> ids);
-    Task<bool> MarkManualRefundCompletedAsync(int id, string? note);
+    Task<bool> MarkManualRefundCompletedAsync(int id, string method, string reference, string? note, string? confirmedBy);
     Task<bool> CancelUserOrderAsync(int id, string userId, string? reason);
     Task<int> ReorderAsync(int id, string userId, string sessionId);
     Task<AdminDashboardViewModel> GetDashboardAsync();

@@ -1,3 +1,5 @@
+using EcommerceApp.Services;
+
 namespace EcommerceApp.Models.ViewModels;
 
 public class ProductCompareViewModel
@@ -6,6 +8,8 @@ public class ProductCompareViewModel
     public IReadOnlyList<string> SpecLabels { get; set; } = Array.Empty<string>();
     public string? CategoryName { get; set; }
     public bool HasRejectedProducts { get; set; }
+    public IReadOnlyList<ComponentComparisonNeed> Needs { get; set; } = Array.Empty<ComponentComparisonNeed>();
+    public ComponentComparisonResult? Advice { get; set; }
 }
 
 public class ProductCompareItemViewModel

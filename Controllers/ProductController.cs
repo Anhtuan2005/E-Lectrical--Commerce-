@@ -33,7 +33,7 @@ public class ProductController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> Compare([FromQuery] int[]? ids)
+    public async Task<IActionResult> Compare([FromQuery] int[]? ids, string? need)
     {
         var requestedIds = (ids ?? Array.Empty<int>())
             .Where(id => id > 0)
@@ -62,9 +62,11 @@ public class ProductController : Controller
                 return new ProductCompareItemViewModel
                 {
                     Product = product,
-                    Specs = _productSpecService.Build(product)
-                        .GroupBy(spec => spec.Label, StringComparer.OrdinalIgnoreCase)
-                        .ToDictionary(group => group.Key, group => group.First().Value, StringComparer.OrdinalIgnoreCase)
+                    Specs = ComponentComparisonAdvisor.GetNeeds(product.Category?.Slug).Count > 0
+                        ? ComponentComparisonAdvisor.BuildVerifiedSpecs(product)
+                        : _productSpecService.Build(product)
+                            .GroupBy(spec => spec.Label, StringComparer.OrdinalIgnoreCase)
+                            .ToDictionary(group => group.Key, group => group.First().Value, StringComparer.OrdinalIgnoreCase)
                 };
             })
             .ToList();
@@ -78,7 +80,9 @@ public class ProductController : Controller
             Products = items,
             SpecLabels = labels,
             CategoryName = comparableProducts.FirstOrDefault()?.Category?.Name,
-            HasRejectedProducts = comparableProducts.Count != orderedProducts.Count
+            HasRejectedProducts = comparableProducts.Count != orderedProducts.Count,
+            Needs = ComponentComparisonAdvisor.GetNeeds(comparableProducts.FirstOrDefault()?.Category?.Slug),
+            Advice = ComponentComparisonAdvisor.Build(comparableProducts, need)
         });
     }
 

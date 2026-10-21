@@ -639,6 +639,8 @@ public sealed class GhnShippingService : IGhnShippingService
             current.ShippingInfo.Status = mappedStatus;
             current.ShippingInfo.ShippedAt ??= DateTime.UtcNow;
             current.Status = mappedStatus == ShippingStatuses.Delivered ? OrderStatuses.Delivered : OrderStatuses.Shipping;
+            if (mappedStatus == ShippingStatuses.Delivered)
+                OrderLifecycle.RecordCodCollection(current, DateTime.UtcNow);
             current.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
             return current;

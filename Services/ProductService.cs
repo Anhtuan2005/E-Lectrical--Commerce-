@@ -169,12 +169,26 @@ public class ProductService : IProductService
             IsFeatured = model.IsFeatured,
             Socket = model.Socket,
             MemoryType = model.MemoryType,
-            PowerWatts = model.PowerWatts
+            PowerWatts = model.PowerWatts,
+            CpuCores = model.CpuCores,
+            CpuThreads = model.CpuThreads,
+            GpuVramGb = model.GpuVramGb,
+            MemoryCapacityGb = model.MemoryCapacityGb,
+            MemorySpeedMt = model.MemorySpeedMt,
+            StorageCapacityGb = model.StorageCapacityGb,
+            StorageReadMb = model.StorageReadMb,
+            StorageWriteMb = model.StorageWriteMb,
+            M2Slots = model.M2Slots,
+            SpecificationSourceUrl = model.SpecificationSourceUrl?.Trim()
         };
 
         ReplaceProductImages(product, BuildImageUrls(model, imageUrls), removeExisting: false);
 
         _db.Products.Add(product);
+        if (product.Stock > 0)
+            _db.StockLogs.Add(new StockLog { Product = product, ChangeAmount = product.Stock,
+                QuantityBefore = 0, QuantityAfter = product.Stock, MovementType = StockMovementTypes.Opening,
+                Reason = "Tạo sản phẩm với tồn kho ban đầu." });
         await _db.SaveChangesAsync();
 
         await ProductSearchIndex.ReplaceTermsAsync(_db, product.Id);
@@ -208,6 +222,16 @@ public class ProductService : IProductService
             product.Socket = model.Socket;
             product.MemoryType = model.MemoryType;
             product.PowerWatts = model.PowerWatts;
+            product.CpuCores = model.CpuCores;
+            product.CpuThreads = model.CpuThreads;
+            product.GpuVramGb = model.GpuVramGb;
+            product.MemoryCapacityGb = model.MemoryCapacityGb;
+            product.MemorySpeedMt = model.MemorySpeedMt;
+            product.StorageCapacityGb = model.StorageCapacityGb;
+            product.StorageReadMb = model.StorageReadMb;
+            product.StorageWriteMb = model.StorageWriteMb;
+            product.M2Slots = model.M2Slots;
+            product.SpecificationSourceUrl = model.SpecificationSourceUrl?.Trim();
 
             if (normalizedImageUrls.Count > 0)
             {
@@ -226,14 +250,8 @@ public class ProductService : IProductService
             return Task.FromResult(false);
         return DatabaseTransaction.ExecuteAsync(_db, async () =>
         {
-            var updated = await _db.Database.ExecuteSqlInterpolatedAsync($"""
-                UPDATE Products SET Stock = Stock + {change}
-                WHERE Id = {id} AND IsDeleted = 0
-                    AND CAST(Stock AS bigint) + {change} BETWEEN 0 AND 2147483647
-                """);
-            if (updated != 1) return false;
-            _db.StockLogs.Add(new StockLog { ProductId = id, ChangeAmount = change,
-                Reason = reason.Trim(), ChangedByUserId = actorId });
+            if (!await InventoryMovements.ChangeAsync(_db, id, change,
+                StockMovementTypes.Manual, reason.Trim(), actorId)) return false;
             await _db.SaveChangesAsync();
             return true;
         });

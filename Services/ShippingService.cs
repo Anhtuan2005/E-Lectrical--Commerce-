@@ -64,7 +64,11 @@ public class ShippingService : IShippingService
             if (current?.ShippingInfo is null || !OrderLifecycle.CanApplyShipment(current, status)) return null;
             if (current.ShippingInfo.Status == status) return null;
             current.ShippingInfo.Status = status;
-            if (status == ShippingStatuses.Delivered) current.Status = OrderStatuses.Delivered;
+            if (status == ShippingStatuses.Delivered)
+            {
+                current.Status = OrderStatuses.Delivered;
+                OrderLifecycle.RecordCodCollection(current, DateTime.UtcNow);
+            }
             current.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
             return current;

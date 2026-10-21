@@ -1,0 +1,54 @@
+.component-advice {
+  margin: 0 0 18px;
+  padding: clamp(16px, 2vw, 24px);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  background: var(--bg-card);
+  box-shadow: var(--s-sm);
+}
+.component-advice h2 { margin: 0 0 12px; font-size: 1.15rem; color: var(--ink); }
+.component-advice > strong { display: block; margin: 14px 0 6px; color: var(--ink); }
+.component-advice p { color: var(--ink-muted); line-height: 1.55; }
+.component-advice ul { margin: 10px 0; padding-left: 22px; color: var(--ink); }
+.component-advice-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.component-advice-form select { min-height: 40px; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--bg-card); color: var(--ink); }
+.component-advice-sources { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: .83rem; }
+.component-advice-sources a { color: var(--accent-dark); text-decoration: underline; text-underline-offset: 2px; }
+.review-store-reply { margin-top: 12px; padding: 12px 14px; border-left: 3px solid var(--accent); border-radius: 0 var(--r-sm) var(--r-sm) 0; background: var(--bg-soft); }
+.review-store-reply strong { color: var(--ink); }
+.review-store-reply time { margin-left: 10px; font-size: .78rem; color: var(--ink-muted); }
+.review-store-reply p { margin: 6px 0 0; }
+
+.support-form .support-invalid,
+.support-form [aria-invalid="true"],
+.support-form .input-validation-error {
+  border: 2px solid var(--danger) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 14%, transparent) !important;
+  transition: none !important;
+  animation: support-error-pulse .25s ease-out;
+}
+.support-form .support-invalid:focus,
+.support-form [aria-invalid="true"]:focus,
+.support-form .input-validation-error:focus {
+  border-color: var(--danger) !important;
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 14%, transparent) !important;
+}
+.support-form .field-validation-error,
+.support-form [data-support-item-error]:not([hidden]),
+.support-form [data-support-image-error]:not([hidden]) {
+  display: block;
+  color: var(--danger);
+  font-weight: 650;
+}
+@keyframes support-error-pulse { from { transform: translateX(-2px); } to { transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .support-form .support-invalid,
+  .support-form [aria-invalid="true"],
+  .support-form .input-validation-error { animation: none; scroll-behavior: auto; }
+}
+@media (max-width: 600px) {
+  .component-advice-form { align-items: stretch; flex-direction: column; }
+  .component-advice-form label, .component-advice-form select, .component-advice-form button { width: 100%; }
+}

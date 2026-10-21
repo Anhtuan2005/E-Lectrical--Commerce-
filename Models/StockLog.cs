@@ -11,6 +11,13 @@ public class StockLog
 
     public int ChangeAmount { get; set; }
 
+    [StringLength(40)]
+    public string MovementType { get; set; } = StockMovementTypes.Manual;
+    public int? QuantityBefore { get; set; }
+    public int? QuantityAfter { get; set; }
+    public int? OrderId { get; set; }
+    public Order? Order { get; set; }
+
     [Required, StringLength(300)]
     public string Reason { get; set; } = string.Empty;
 
@@ -18,4 +25,12 @@ public class StockLog
 
     public string? ChangedByUserId { get; set; }
     public ApplicationUser? ChangedByUser { get; set; }
+}
+
+public static class StockMovementTypes
+{
+    public const string Opening = "Tồn kho ban đầu";
+    public const string Manual = "Điều chỉnh thủ công";
+    public const string Sale = "Xuất cho đơn hàng";
+    public const string Cancellation = "Hoàn kho do hủy đơn";
 }

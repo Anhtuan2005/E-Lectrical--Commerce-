@@ -52,6 +52,38 @@
             </div>
             <a asp-action="Index" data-compare-clear-link>Xóa và chọn lại</a>
         </div>
+        @if (Model.Needs.Count > 0 && Model.Advice is not null)
+        {
+            <section class="component-advice" aria-labelledby="component-advice-title">
+                <h2 id="component-advice-title">Gợi ý theo nhu cầu linh kiện</h2>
+                <form method="get" asp-action="Compare" class="component-advice-form">
+                    @foreach (var id in currentIds) { <input type="hidden" name="ids" value="@id" /> }
+                    <label for="compare-need">Tiêu chí</label>
+                    <select id="compare-need" name="need">
+                        @foreach (var option in Model.Needs)
+                        {
+                            <option value="@option.Id" selected="@(Model.Advice.Need?.Id == option.Id)">@option.Label</option>
+                        }
+                    </select>
+                    <button class="btn-ghost" type="submit">Xem gợi ý</button>
+                </form>
+                <strong>@Model.Advice.Headline</strong>
+                <p>@Model.Advice.Detail</p>
+                @if (Model.Advice.Evidence.Count > 0)
+                {
+                    <ul>@foreach (var line in Model.Advice.Evidence) { <li>@line</li> }</ul>
+                }
+                <p class="component-advice-sources">Nguồn thông số do Admin cung cấp:
+                    @foreach (var item in Model.Products)
+                    {
+                        if (Uri.TryCreate(item.Product.SpecificationSourceUrl, UriKind.Absolute, out var source) && source.Scheme == Uri.UriSchemeHttps)
+                        {
+                            <a href="@source" target="_blank" rel="noopener noreferrer">@item.Product.Name</a>
+                        }
+                    }
+                </p>
+            </section>
+        }
         <div class="compare-table-wrap">
             <table class="compare-table">
                 <thead>
@@ -128,7 +160,7 @@
                             @foreach (var item in Model.Products)
                             {
                                 var hasValue = item.Specs.TryGetValue(label, out var value);
-                                <td class="@(!hasValue ? "compare-not-applicable" : "")">@(hasValue ? value : "Không áp dụng")</td>
+                                <td class="@(!hasValue ? "compare-not-applicable" : "")">@(hasValue ? value : Model.Needs.Count > 0 ? "Chưa đủ thông tin" : "Không áp dụng")</td>
                             }
                         </tr>
                     }

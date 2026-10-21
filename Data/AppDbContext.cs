@@ -136,6 +136,15 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasForeignKey(log => log.ChangedByUserId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        builder.Entity<StockLog>()
+            .HasOne(log => log.Order)
+            .WithMany()
+            .HasForeignKey(log => log.OrderId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.Entity<StockLog>()
+            .HasIndex(log => new { log.ProductId, log.ChangedAt });
+
         builder.Entity<Order>()
             .Property(order => order.TotalAmount)
             .HasColumnType("decimal(18,2)");
@@ -152,6 +161,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .Property(order => order.RefundStatus)
             .HasMaxLength(40)
             .HasDefaultValue(RefundStatuses.NotRequired);
+
+        builder.Entity<Order>()
+            .Property(order => order.RefundAmount)
+            .HasColumnType("decimal(18,2)");
 
         builder.Entity<Order>()
             .Property(order => order.InvoiceStatus)

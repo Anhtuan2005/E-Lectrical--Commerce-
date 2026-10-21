@@ -24,7 +24,7 @@ public class ReturnWarrantyRequestCreateViewModel
     public string Reason { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Vui lòng mô tả tình trạng sản phẩm")]
-    [MinLength(20, ErrorMessage = "Mô tả cần ít nhất 20 ký tự")]
+    [MinTrimmedLength(20)]
     [StringLength(1200)]
     public string Description { get; set; } = string.Empty;
 
@@ -34,6 +34,19 @@ public class ReturnWarrantyRequestCreateViewModel
     public List<ReturnWarrantyRequestItemInput> Items { get; set; } = new();
     public List<IFormFile>? Images { get; set; }
     public Order? Order { get; set; }
+
+}
+
+public sealed class MinTrimmedLengthAttribute(int minimum) : ValidationAttribute
+{
+    protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
+    {
+        if (value is not string text || string.IsNullOrWhiteSpace(text)) return ValidationResult.Success;
+        var count = text.Trim().Length;
+        return count >= minimum ? ValidationResult.Success :
+            new ValidationResult($"Mô tả chưa đủ {minimum} ký tự (hiện có {count}).",
+                new[] { validationContext.MemberName! });
+    }
 }
 
 public class ReturnWarrantyRequestItemInput

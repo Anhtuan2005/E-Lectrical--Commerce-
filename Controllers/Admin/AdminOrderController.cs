@@ -1,10 +1,12 @@
 using EcommerceApp.Data;
 using EcommerceApp.Models;
+using EcommerceApp.Models.ViewModels;
 using EcommerceApp.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
+using System.Security.Claims;
 
 namespace EcommerceApp.Controllers.Admin;
 
@@ -86,13 +88,19 @@ public class AdminOrderController : Controller
 
     [HttpPost("MarkRefunded")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> MarkRefunded(int id, string? note)
+    public async Task<IActionResult> MarkRefunded(ManualRefundConfirmationViewModel model)
     {
-        var updated = await _orderService.MarkManualRefundCompletedAsync(id, note);
+        if (!ModelState.IsValid)
+        {
+            TempData["Error"] = "Chọn kênh, nhập mã đối soát và xác nhận đã hoàn đủ tiền.";
+            return RedirectToAction(nameof(Details), new { id = model.Id });
+        }
+        var updated = await _orderService.MarkManualRefundCompletedAsync(model.Id, model.Method,
+            model.Reference, model.Note, User.FindFirstValue(ClaimTypes.NameIdentifier));
         TempData[updated ? "Success" : "Error"] = updated
-            ? "Đã ghi nhận hoàn tiền thủ công cho đơn VNPAY."
-            : "Đơn hàng không ở trạng thái cần hoàn tiền thủ công.";
-        return RedirectToAction(nameof(Details), new { id });
+            ? "Đã lưu đối soát hoàn tiền thủ công."
+            : "Không thể ghi nhận hoàn tiền: kiểm tra trạng thái thanh toán, kênh, mã đối soát và lý do.";
+        return RedirectToAction(nameof(Details), new { id = model.Id });
     }
 
     [HttpPost("IssueInvoice")]
@@ -152,7 +160,7 @@ public class AdminOrderController : Controller
     {
         var model = await _orderService.GetOrdersAsync(status, customer, fromDate, toDate, paginate: false);
         var csv = new StringBuilder();
-        csv.AppendLine(CsvFormatter.Row("MaDon", "KhachHang", "Email", "TrangThai", "HoanTien", "TongTien", "NgayDat", "VanChuyen", "MaVanDon"));
+        csv.AppendLine(CsvFormatter.Row("MaDon", "KhachHang", "Email", "TrangThai", "HoanTien", "TongTien", "NgayDat", "VanChuyen", "MaVanDon", "KenhHoan", "MaDoiSoat", "SoTienHoan", "NguoiXacNhan", "DaHoanLuc"));
         foreach (var order in model.Orders)
         {
             csv.AppendLine(CsvFormatter.Row(
@@ -164,7 +172,9 @@ public class AdminOrderController : Controller
                 order.TotalAmount,
                 order.CreatedAt,
                 order.ShippingInfo?.Carrier,
-                order.ShippingInfo?.TrackingCode));
+                order.ShippingInfo?.TrackingCode,
+                order.RefundMethod, order.RefundReference, order.RefundAmount,
+                order.RefundConfirmedBy, order.RefundedAt));
         }
 
         return File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray(), "text/csv", $"don-hang-{DateTime.Now:yyyyMMddHHmm}.csv");
